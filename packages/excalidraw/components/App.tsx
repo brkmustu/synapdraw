@@ -415,7 +415,7 @@ import NewElementCanvas from "./canvases/NewElementCanvas";
 import { isPointHittingLink } from "./hyperlink/helpers";
 import { AppHost } from "./App.host";
 import { CursorHint, CursorHints } from "./CursorHint";
-import { MagicIcon, copyIcon, fullscreenIcon } from "./icons";
+import { MagicIcon, copyIcon, fullscreenIcon, MoveLockedIcon, MoveUnlockedIcon } from "./icons";
 import { AppStateObserver, type OnStateChange } from "./AppStateObserver";
 
 import { findShapeByKey, TOGGLE_TOOLS } from "./Tools";
@@ -2264,6 +2264,9 @@ class App extends React.Component<AppProps, AppState> {
         frameNameJSX = frameName;
       }
 
+      const isFrameLocked = f.locked;
+      const isEditing = f.id === this.state.editingFrame;
+
       return (
         <div
           id={this.getFrameNameDOMId(f)}
@@ -2272,11 +2275,6 @@ class App extends React.Component<AppProps, AppState> {
           style={{
             position: "absolute",
             opacity: renderState.opacity,
-            // Positioning from bottom so that we don't to either
-            // calculate text height or adjust using transform (which)
-            // messes up input position when editing the frame name.
-            // This makes the positioning deterministic and we can calculate
-            // the same position when rendering to canvas / svg.
             bottom: `${
               this.state.height +
               FRAME_STYLE.nameOffsetY -
@@ -2295,13 +2293,16 @@ class App extends React.Component<AppProps, AppState> {
               focusedSearchMatch?.id === f.id && focusedSearchMatch?.focus
                 ? "none"
                 : `${f.width * this.state.zoom.value}px`,
-            overflow: f.id === this.state.editingFrame ? "visible" : "hidden",
+            overflow: isEditing ? "visible" : "hidden",
             whiteSpace: "nowrap",
             textOverflow: "ellipsis",
             cursor: CURSOR_TYPE.MOVE,
             pointerEvents: this.state.viewModeEnabled
               ? POINTER_EVENTS.disabled
               : POINTER_EVENTS.enabled,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
           }}
           onPointerDown={(event) => this.handleCanvasPointerDown(event)}
           onContextMenu={this.handleCanvasContextMenu}
@@ -2311,10 +2312,84 @@ class App extends React.Component<AppProps, AppState> {
             });
           }}
         >
-          {frameNameJSX}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+            {frameNameJSX}
+          </span>
+          {!isEditing && (
+            <button
+              type="button"
+              className="container-move-lock-btn"
+              title={
+                isFrameLocked
+                  ? "Container Taşıma Kilitli (Tıklayarak Taşımayı Serbest Bırak)"
+                  : "Container Taşıma Serbest (Tıklayarak Konumu Kilitle)"
+              }
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: isFrameLocked
+                  ? "var(--color-primary-light, #e0e7ff)"
+                  : "var(--island-bg-color, #ffffff)",
+                border: "1px solid var(--color-gray-40, #cbd5e1)",
+                borderRadius: "4px",
+                padding: "2px",
+                cursor: "pointer",
+                width: "20px",
+                height: "20px",
+                color: isFrameLocked
+                  ? "var(--color-primary, #4f46e5)"
+                  : "var(--color-gray-60, #64748b)",
+                pointerEvents: "auto",
+                flexShrink: 0,
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                this.toggleContainerMoveLock(f);
+              }}
+            >
+              {isFrameLocked ? MoveLockedIcon : MoveUnlockedIcon}
+            </button>
+          )}
         </div>
       );
     });
+  };
+
+  public toggleContainerMoveLock = (frameElement: ExcalidrawElement) => {
+    const isFrameLocked = frameElement.locked;
+    const nonDeleted = this.scene.getNonDeletedElements();
+    const elementsToMutate = [frameElement];
+    for (const el of nonDeleted) {
+      if (
+        el.frameId === frameElement.id &&
+        ((el as any).customData?.isContainerHeader ||
+          (el as any).customData?.isContainerCard)
+      ) {
+        elementsToMutate.push(el);
+      }
+    }
+
+    if (isFrameLocked) {
+      for (const el of elementsToMutate) {
+        this.scene.mutateElement(el, { locked: false });
+      }
+      this.setState({
+        selectedElementIds: { [frameElement.id]: true },
+        activeLockedId: null,
+      });
+    } else {
+      for (const el of elementsToMutate) {
+        this.scene.mutateElement(el, { locked: true });
+      }
+      this.setState({
+        selectedElementIds: {},
+        activeLockedId: frameElement.id,
+      });
+    }
   };
 
   private toggleOverscrollBehavior = (event: React.PointerEvent) => {

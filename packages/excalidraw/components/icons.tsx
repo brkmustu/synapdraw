@@ -218,6 +218,40 @@ export const LockedIconFilled = createIcon(
   },
 );
 
+// 4-way arrow with locked padlock
+export const MoveLockedIcon = createIcon(
+  <g fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 1.5l-2.5 2.5M12 1.5l2.5 2.5M12 1.5v4" />
+    <path d="M12 22.5l-2.5-2.5M12 22.5l2.5-2.5M12 22.5v-4" />
+    <path d="M1.5 12l2.5-2.5M1.5 12l2.5 2.5M1.5 12h4" />
+    <path d="M22.5 12l-2.5-2.5M22.5 12l2.5 2.5M22.5 12h-4" />
+    <rect x="7" y="11" width="10" height="7.5" rx="1.5" fill="currentColor" stroke="none" />
+    <path d="M9.25 11V8.25a2.75 2.75 0 0 1 5.5 0V11" strokeWidth="1.8" />
+    <circle cx="12" cy="14.75" r="1" fill="#fff" stroke="none" />
+  </g>,
+  {
+    width: 24,
+    height: 24,
+  },
+);
+
+// 4-way arrow with unlocked padlock
+export const MoveUnlockedIcon = createIcon(
+  <g fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 1.5l-2.5 2.5M12 1.5l2.5 2.5M12 1.5v4" />
+    <path d="M12 22.5l-2.5-2.5M12 22.5l2.5-2.5M12 22.5v-4" />
+    <path d="M1.5 12l2.5-2.5M1.5 12l2.5 2.5M1.5 12h4" />
+    <path d="M22.5 12l-2.5-2.5M22.5 12l2.5 2.5M22.5 12h-4" />
+    <rect x="7" y="11" width="10" height="7.5" rx="1.5" fill="currentColor" stroke="none" />
+    <path d="M9.25 11V7.75a2.75 2.75 0 0 1 5.3-1" strokeWidth="1.8" />
+    <circle cx="12" cy="14.75" r="1" fill="#fff" stroke="none" />
+  </g>,
+  {
+    width: 24,
+    height: 24,
+  },
+);
+
 // custom
 export const WelcomeScreenMenuArrow = createIcon(
   <>
