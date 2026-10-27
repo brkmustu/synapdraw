@@ -1391,6 +1391,10 @@ export interface ExcalidrawImperativeAPI {
   /** Whether the editor has been unmounted and the API is no longer usable. */
   isDestroyed: boolean;
   updateScene: InstanceType<typeof App>["updateScene"];
+  addElementsFromPasteOrLibrary?: InstanceType<
+    typeof App
+  >["addElementsFromPasteOrLibrary"];
+  renderEnvironment?: InstanceType<typeof App>["renderEnvironment"];
   applyDeltas: InstanceType<typeof App>["applyDeltas"];
   mutateElement: InstanceType<typeof App>["mutateElement"];
   updateLibrary: InstanceType<typeof Library>["updateLibrary"];

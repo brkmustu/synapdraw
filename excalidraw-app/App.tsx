@@ -107,6 +107,8 @@ import {
   exportToExcalidrawPlus,
 } from "./components/ExportToExcalidrawPlus";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
+import { AIIntegrationsModal } from "./components/AIIntegrationsModal";
+
 
 import {
   exportToBackend,
@@ -376,6 +378,7 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [isAIIntegrationsOpen, setIsAIIntegrationsOpen] = useState(false);
   const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -1037,6 +1040,7 @@ const ExcalidrawWrapper = () => {
       >
         <AppMainMenu
           onCollabDialogOpen={onCollabDialogOpen}
+          onAIIntegrationsOpen={() => setIsAIIntegrationsOpen(true)}
           isCollaborating={isCollaborating}
           isCollabEnabled={isCollabAvailable}
           theme={appTheme}
@@ -1066,8 +1070,17 @@ const ExcalidrawWrapper = () => {
             </OverwriteConfirmDialog.Action>
           )}
         </OverwriteConfirmDialog>
-        <AppFooter onChange={() => excalidrawAPI?.refresh()} />
+        <AppFooter
+          onChange={() => excalidrawAPI?.refresh()}
+          excalidrawAPI={excalidrawAPI}
+          onOpenLiveMcpModal={() => setIsAIIntegrationsOpen(true)}
+        />
         {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
+        <AIIntegrationsModal
+          isOpen={isAIIntegrationsOpen}
+          onClose={() => setIsAIIntegrationsOpen(false)}
+          excalidrawAPI={excalidrawAPI}
+        />
 
         <TTDDialogTrigger />
         {isCollaborating && isOffline && (

@@ -790,6 +790,8 @@ class App extends React.Component<AppProps, AppState> {
     const api: ExcalidrawImperativeAPI = {
       isDestroyed: false,
       updateScene: this.updateScene,
+      addElementsFromPasteOrLibrary: this.addElementsFromPasteOrLibrary,
+      renderEnvironment: this.renderEnvironment,
       applyDeltas: this.applyDeltas,
       mutateElement: this.mutateElement,
       updateLibrary: this.library.updateLibrary,

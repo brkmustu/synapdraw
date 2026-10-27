@@ -267,7 +267,7 @@ export default defineConfig(({ mode }) => {
         },
 
         workbox: {
-          // don't precache fonts, locales and separate chunks
+                    // don't precache fonts, locales and separate chunks
           globIgnores: [
             "fonts.css",
             "**/locales/**",
@@ -352,7 +352,7 @@ export default defineConfig(({ mode }) => {
               },
             },
           ],
-          maximumFileSizeToCacheInBytes: 2.3 * 1024 ** 2, // 2.3MB
+          maximumFileSizeToCacheInBytes: 10 * 1024 ** 2, // 2.3MB
         },
         manifest: {
           short_name: "Excalidraw",

@@ -1,0 +1,62 @@
+.excalidraw {
+  .live-mcp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: var(--border-radius-lg);
+    background-color: var(--island-bg-color);
+    border: 1px solid var(--default-border-color);
+    box-shadow: var(--shadow-island);
+    font-family: var(--ui-font);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-on-surface);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+    white-space: nowrap;
+
+    &:hover {
+      background-color: var(--button-hover-bg);
+      border-color: var(--color-primary-light-darker);
+    }
+
+    &:active {
+      transform: scale(0.97);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+
+      &.connected {
+        background-color: var(--color-success-contrast, #22c55e);
+        box-shadow: 0 0 4px var(--color-success-contrast, #22c55e);
+      }
+
+      &.disconnected {
+        background-color: var(--color-gray-40);
+      }
+    }
+
+    .status-label {
+      line-height: 1;
+      letter-spacing: -0.01em;
+    }
+
+    .action-pill {
+      margin-inline-start: 4px;
+      padding: 2px 6px;
+      border-radius: var(--border-radius-md);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      background-color: var(--color-surface-primary-container);
+      color: var(--color-on-primary-container);
+    }
+  }
+}
