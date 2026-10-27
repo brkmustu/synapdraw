@@ -1157,6 +1157,35 @@
         border-top: 1px solid var(--color-surface-high);
         background-color: var(--island-bg-color);
 
+        .gemini-input-context-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          margin-bottom: 0.45rem;
+          padding: 0.2rem 0.65rem;
+          border-radius: 12px;
+          font-size: 0.6875rem;
+          font-weight: 600;
+          background-color: var(--color-surface-low);
+          border: 1px solid var(--color-surface-high);
+          color: var(--color-on-surface);
+
+          .pill-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #10b981;
+          }
+
+          .pill-selected {
+            background-color: #e0e7ff;
+            color: #4338ca;
+            padding: 0.1rem 0.4rem;
+            border-radius: 6px;
+            margin-left: 0.25rem;
+          }
+        }
+
         .gemini-input-bar {
           display: flex;
           align-items: center;

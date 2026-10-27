@@ -16,6 +16,7 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
   const [isConnected, setIsConnected] = useState(false);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const containerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     let reconnectTimer: any = null;
@@ -83,6 +84,77 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
                 setLastAction(`Çizildi (${converted.length} öge)`);
                 setTimeout(() => setLastAction(null), 4000);
               }
+            } else if (data.type === "html" && data.html) {
+              setLastAction("HTML Wireframe aktarılıyor...");
+              const { parseHtmlToExcalidraw } = await import(
+                "../utils/htmlToExcalidraw"
+              );
+              const { convertToExcalidrawElements, restoreElements } = await import(
+                "@excalidraw/excalidraw"
+              );
+              const { getSmartPlacementCoords } = await import(
+                "../utils/canvasContext"
+              );
+
+              const ownerDoc =
+                containerRef.current?.ownerDocument ||
+                (excalidrawAPI as any)?.renderEnvironment?.document ||
+                document;
+              const ownerWin =
+                ownerDoc?.defaultView ||
+                (excalidrawAPI as any)?.renderEnvironment?.defaultView ||
+                window;
+
+              const currentElements = excalidrawAPI
+                .getSceneElements()
+                .filter((el) => !el.isDeleted);
+              const placement = getSmartPlacementCoords(
+                currentElements,
+                640,
+                480,
+                data.mode === "append" ? "right" : "replace",
+              );
+
+              const result = parseHtmlToExcalidraw(data.html, {
+                ownerDocument: ownerDoc,
+                ownerWindow: ownerWin,
+                originX: placement.x,
+                originY: placement.y,
+              });
+
+              if (result.elements && result.elements.length > 0) {
+                const converted = convertToExcalidrawElements(result.elements, {
+                  regenerateIds: true,
+                  renderEnvironment: (excalidrawAPI as any)?.renderEnvironment,
+                });
+
+                if (typeof (excalidrawAPI as any).addElementsFromPasteOrLibrary === "function") {
+                  if (data.mode !== "append") {
+                    excalidrawAPI.resetScene();
+                  }
+                  (excalidrawAPI as any).addElementsFromPasteOrLibrary({
+                    elements: converted,
+                    position: data.mode === "append" ? undefined : "center",
+                    fit: "scale-down",
+                  });
+                } else {
+                  const restored = restoreElements(converted, null, {
+                    repairBindings: true,
+                    refreshDimensions: true,
+                  });
+                  const baseElements = data.mode === "append" ? currentElements : [];
+                  excalidrawAPI.updateScene({
+                    elements: [...baseElements, ...restored],
+                  });
+                  excalidrawAPI.setViewport?.({
+                    target: restored,
+                    fit: "scale-down",
+                    animation: true,
+                  });
+                }
+                setLastAction(`Wireframe çizildi (${converted.length} öge)`);
+                setTimeout(() => setLastAction(null), 4000);
+              }
             } else if (data.type === "elements" && Array.isArray(data.elements)) {
               setLastAction("Çizim güncelleniyor...");
               const { convertToExcalidrawElements, restoreElements } = await import(
@@ -145,8 +217,33 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
     };
   }, [excalidrawAPI, syncUrl]);
 
+  // Periodically sync canvas semantic context to MCP server (port 3001)
+  useEffect(() => {
+    if (!excalidrawAPI || !isConnected) return;
+
+    const pushContext = async () => {
+      try {
+        const { extractCanvasSemanticContext } = await import("../utils/canvasContext");
+        const ctx = extractCanvasSemanticContext(excalidrawAPI);
+        await fetch("http://localhost:3001/api/canvas-context", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(ctx),
+        });
+      } catch {}
+    };
+
+    const interval = setInterval(pushContext, 4000);
+    pushContext();
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [excalidrawAPI, isConnected]);
+
   return (
     <button
+      ref={containerRef}
       type="button"
       className="live-mcp-badge"
       onClick={onOpenModal}

@@ -97,16 +97,18 @@ const DEFAULT_SETTINGS: AISettings = {
 const PRESET_TYPES = [
   { label: "Architecture", hint: "Sistem ve mikroservis mimarisi (graph TB)" },
   { label: "Flowchart", hint: "İşlem ve akış şeması (graph TD)" },
+  { label: "UI Wireframe (HTML)", hint: "HTML/CSS ile modern arayüz ve bileşen tasarımı" },
   { label: "Sequence", hint: "Sıralı etkileşim diyagramı (sequenceDiagram)" },
   { label: "Class Diagram", hint: "Sınıf ve nesne ilişkileri (classDiagram)" },
   { label: "Mindmap", hint: "Zihin haritası (mindmap)" },
 ];
 
 const PROMPT_SUGGESTIONS = [
+  "Modern SaaS dashboard giriş ve kayıt kartı bileşeni",
   "Redis Cache, PostgreSQL ve Kafka içeren mikroservis sipariş mimarisi",
+  "Fiyatlandırma planları (Free, Pro, Enterprise) karşılaştırma tablosu",
   "JWT Authentication ve OAuth2 oturum açma sıralı etkileşim diyagramı",
   "Kullanıcı kayıt, e-posta doğrulama ve yetkilendirme akış şeması",
-  "E-ticaret sepet, ödeme ve kargo durumu durum makinesi şeması",
 ];
 
 const MCP_CONFIG_JSON = JSON.stringify(
@@ -324,6 +326,27 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
   const abortControllerRef = useRef<AbortController | null>(null);
   const workspaceCanvasRef = useRef<HTMLDivElement | null>(null);
   const codePreRef = useRef<HTMLPreElement | null>(null);
+  const modalContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Canvas Context Awareness & Selection-based Revision
+  const [includeCanvasContext, setIncludeCanvasContext] = useState<boolean>(true);
+  const [reviseSelectionMode, setReviseSelectionMode] = useState<boolean>(false);
+  const [canvasStats, setCanvasStats] = useState<{ total: number; selected: number } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !excalidrawAPI) return;
+    try {
+      const elements = excalidrawAPI.getSceneElements().filter((el) => !el.isDeleted);
+      const appState = excalidrawAPI.getAppState();
+      const selectedCount = Object.keys(appState.selectedElementIds || {}).filter(
+        (id) => (appState.selectedElementIds as any)[id],
+      ).length;
+      setCanvasStats({ total: elements.length, selected: selectedCount });
+      if (selectedCount > 0) {
+        setReviseSelectionMode(true);
+      }
+    } catch {}
+  }, [isOpen, excalidrawAPI]);
 
   // Settings
   const [settings, setSettings] = useState<AISettings>(() => {
@@ -548,7 +571,7 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
       text: `"${item.title}" sohbeti yüklendi.`,
     });
     if (item.mermaidCode) {
-      renderMermaidToScene(item.mermaidCode).catch(() => {});
+      renderCodeToScene(item.mermaidCode).catch(() => {});
     }
   };
 
@@ -653,6 +676,121 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     });
   };
 
+  // Renders either HTML Wireframe or Mermaid diagram into Excalidraw canvas
+  const renderCodeToScene = async (rawCode: string) => {
+    const isHtml =
+      selectedPreset === "UI Wireframe (HTML)" ||
+      /^\s*<(!DOCTYPE|html|div|section|form|header|main|table|button|card)/i.test(rawCode.trim());
+
+    if (isHtml) {
+      const { sanitizeHtml, parseHtmlToExcalidraw } = await import(
+        "../utils/htmlToExcalidraw"
+      );
+      const { convertToExcalidrawElements, restoreElements } = await import(
+        "@excalidraw/excalidraw"
+      );
+      const { getSmartPlacementCoords, extractCanvasSemanticContext } = await import(
+        "../utils/canvasContext"
+      );
+
+      const cleanedCode = sanitizeHtml(rawCode);
+      setEditableMermaidCode(cleanedCode);
+      setGenerationStatus("parsing");
+      setParseErrorDetails(null);
+
+      const ownerDoc =
+        modalContainerRef.current?.ownerDocument ||
+        (excalidrawAPI as any)?.renderEnvironment?.document ||
+        document;
+      const ownerWin =
+        ownerDoc?.defaultView ||
+        (excalidrawAPI as any)?.renderEnvironment?.defaultView ||
+        window;
+
+      const currentElements =
+        excalidrawAPI?.getSceneElements().filter((el) => !el.isDeleted) || [];
+      const context = excalidrawAPI ? extractCanvasSemanticContext(excalidrawAPI) : null;
+
+      const placement = getSmartPlacementCoords(
+        currentElements,
+        640,
+        480,
+        reviseSelectionMode && context?.hasSelection
+          ? "replace"
+          : renderMode === "append"
+          ? "right"
+          : "replace",
+        context?.selectedBounds,
+      );
+
+      const result = parseHtmlToExcalidraw(cleanedCode, {
+        ownerDocument: ownerDoc,
+        ownerWindow: ownerWin,
+        originX: placement.x,
+        originY: placement.y,
+        createFrame: true,
+        frameName: submittedPrompt ? submittedPrompt.slice(0, 30) : "UI Wireframe",
+      });
+
+      if (!result?.elements || result.elements.length === 0) {
+        throw new Error(
+          "HTML Wireframe kodu Excalidraw elemanlarına dönüştürülemedi. Lütfen geçerli HTML etiketleri kullanın.",
+        );
+      }
+
+      const converted = convertToExcalidrawElements(result.elements, {
+        regenerateIds: true,
+        renderEnvironment: (excalidrawAPI as any)?.renderEnvironment,
+      });
+
+      if (excalidrawAPI) {
+        if (typeof (excalidrawAPI as any).addElementsFromPasteOrLibrary === "function") {
+          if (renderMode !== "append" && (!reviseSelectionMode || !context?.hasSelection)) {
+            excalidrawAPI.resetScene();
+          }
+          (excalidrawAPI as any).addElementsFromPasteOrLibrary({
+            elements: converted,
+            position: renderMode === "append" ? undefined : "center",
+            fit: "scale-down",
+          });
+        } else {
+          const restored = restoreElements(converted, null, {
+            repairBindings: true,
+            refreshDimensions: true,
+          });
+          const baseElements =
+            renderMode === "append" || (reviseSelectionMode && context?.hasSelection)
+              ? currentElements.filter(
+                  (el) =>
+                    !context?.selectedBounds ||
+                    !(excalidrawAPI.getAppState().selectedElementIds || {})[el.id],
+                )
+              : [];
+          excalidrawAPI.updateScene({
+            elements: [...baseElements, ...restored],
+          });
+          if (settings.autoScroll) {
+            excalidrawAPI.setViewport?.({
+              target: restored,
+              fit: "scale-down",
+              animation: true,
+            });
+          }
+        }
+      }
+
+      setGenerationStatus("success");
+      setStatusMessage({
+        type: "success",
+        text: `Harika! ${converted.length} UI wireframe elemanı tuvale başarıyla aktarıldı.`,
+      });
+      return;
+    }
+
+    // Default: Mermaid rendering
+    await renderMermaidToScene(rawCode);
+  };
+
   const handleGenerate = async (customPromptText?: string) => {
     const activePrompt = customPromptText || prompt;
     if (!activePrompt.trim()) {
@@ -676,7 +814,39 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    const systemPrompt = `You are an expert software architect and technical diagram creator.
+    let systemPrompt = "";
+    let contextPromptSection = "";
+
+    if (includeCanvasContext && excalidrawAPI) {
+      try {
+        const { extractCanvasSemanticContext, formatContextForPrompt } = await import(
+          "../utils/canvasContext"
+        );
+        const ctx = extractCanvasSemanticContext(excalidrawAPI, reviseSelectionMode);
+        contextPromptSection = `\n\nCANVAS CONTEXT / CURRENT BOARD STATE:\n${formatContextForPrompt(ctx)}`;
+        if (reviseSelectionMode && ctx.hasSelection) {
+          contextPromptSection += `\n\nIMPORTANT: The user specifically wants to REVISE the selected element(s). Generate an improved / updated design for the selected section that seamlessly fits with the rest of the board.`;
+        }
+      } catch (e) {
+        console.warn("Failed to extract canvas context:", e);
+      }
+    }
+
+    if (selectedPreset === "UI Wireframe (HTML)") {
+      systemPrompt = `You are an expert UI/UX designer and design system architect.
+Generate clean, modern, semantic HTML wireframe snippets based on the user's description.
+
+CRITICAL HTML WIREFRAME RULES:
+- Output ONLY pure, valid HTML code. Do NOT output markdown ticks (\`\`\`html), explanations, conversational notes or introductory text.
+- Use semantic tags: <header>, <nav>, <main>, <section>, <article>, <form>, <button>, <input>, <table>, <ul>, <li>, <hr>.
+- For cards and containers, use <div class="card" style="..."> with explicit width (e.g. 380px or 640px), padding, border (e.g. 1px solid #e2e8f0), border-radius (e.g. 8px or 12px), and background color.
+- For buttons, use <button style="..."> with clear action labels, padding, background color (#3b82f6 or similar), text color (#ffffff), and border-radius (6px).
+- For inputs, use <label> followed by <input type="..." placeholder="..." style="..." />.
+- For badges and tags, use <span class="badge" style="...">.
+- Use clean layout structures (flexbox: display: flex; flex-direction: column/row; gap: 12px;).
+- Palette: Modern, clean aesthetics. #3b82f6 (primary), #ffffff (card/bg), #1e293b (text), #64748b (muted text), #e2e8f0 (border), #f8fafc (panel bg).${contextPromptSection}`;
+    } else {
+      systemPrompt = `You are an expert software architect and technical diagram creator.
 Generate ONLY valid, syntactically correct Mermaid.js diagram code based on the user's description.
 
 CRITICAL MERMAID SYNTAX RULES:
@@ -708,7 +878,8 @@ FLOWCHART / ARCHITECTURE SYNTAX:
 - Keep node IDs simple alphanumeric with underscores (e.g. API_Gateway, Order_Service).
 - Enclose any label containing spaces, special characters, newlines or Turkish letters in quotes: Node_A["Node Label (details)"]
 - If using 'style' statements, ensure correct syntax: style NodeId fill:#f9f,stroke:#333,stroke-width:2px
-- Preset type requested: ${selectedPreset}.`;
+- Preset type requested: ${selectedPreset}.${contextPromptSection}`;
+    }
 
     try {
       let accumulatedCode = "";
@@ -823,9 +994,9 @@ FLOWCHART / ARCHITECTURE SYNTAX:
         }
       }
 
-      // Try rendering the accumulated Mermaid
+      // Try rendering the accumulated diagram or HTML wireframe
       try {
-        await renderMermaidToScene(accumulatedCode);
+        await renderCodeToScene(accumulatedCode);
         const historyItem: AIChatHistoryItem = {
           id: sessionChatId,
           title: activePrompt.slice(0, 42).trim() + (activePrompt.length > 42 ? "..." : ""),
@@ -839,13 +1010,14 @@ FLOWCHART / ARCHITECTURE SYNTAX:
         setChatHistory((prev) => [historyItem, ...prev.filter((i) => i.id !== sessionChatId)].slice(0, 50));
       } catch (err: any) {
         console.warn("[AIIntegrations] Parse error, opening code editor:", err);
+        const isHtmlPreset = selectedPreset === "UI Wireframe (HTML)";
         setGenerationStatus("error");
         setParseErrorDetails(err.message);
-        setEditableMermaidCode(sanitizeMermaid(accumulatedCode));
+        setEditableMermaidCode(isHtmlPreset ? accumulatedCode : sanitizeMermaid(accumulatedCode));
         setIsEditingCode(true);
         setStatusMessage({
           type: "error",
-          text: `Mermaid ayrıştırma hatası: ${err.message}. Koddaki hatayı düzelterek 'Tuvale Çiz' butonuna basabilirsiniz.`,
+          text: `${isHtmlPreset ? "HTML Wireframe" : "Mermaid"} ayrıştırma hatası: ${err.message}. Koddaki hatayı düzelterek 'Tuvale Çiz' butonuna basabilirsiniz.`,
         });
         const historyItem: AIChatHistoryItem = {
           id: sessionChatId,
@@ -875,7 +1047,7 @@ FLOWCHART / ARCHITECTURE SYNTAX:
   const handleManualRender = async () => {
     try {
       setStatusMessage(null);
-      await renderMermaidToScene(editableMermaidCode);
+      await renderCodeToScene(editableMermaidCode);
       if (currentChatId) {
         setChatHistory((prev) =>
           prev.map((item) =>
@@ -899,7 +1071,7 @@ FLOWCHART / ARCHITECTURE SYNTAX:
 
   return (
     <Dialog size={1060} onCloseRequest={onClose} title={false} className="gemini-studio-dialog">
-      <div className="ai-gemini-container">
+      <div className="ai-gemini-container" ref={modalContainerRef}>
         {/* LEFT SIDEBAR (Controls & Settings) */}
         <aside className="ai-gemini-sidebar">
           {/* Logo / Header */}
@@ -1049,6 +1221,27 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                   <option value="replace">Tuvali Temizle ve Yeni Çiz</option>
                   <option value="append">Mevcut Çizimi Koru, Yanına Ekle</option>
                 </select>
+              </div>
+
+              {/* Context Awareness & Revision */}
+              <div className="sidebar-section">
+                <label className="section-label">Tuval Bağlamı & Revizyon</label>
+                <div className="checkbox-section">
+                  <CheckboxItem
+                    checked={includeCanvasContext}
+                    onChange={(checked) => setIncludeCanvasContext(checked)}
+                  >
+                    Tuval Bağlamını İlet ({canvasStats?.total ?? 0} bileşen)
+                  </CheckboxItem>
+                  {canvasStats && canvasStats.selected > 0 && (
+                    <CheckboxItem
+                      checked={reviseSelectionMode}
+                      onChange={(checked) => setReviseSelectionMode(checked)}
+                    >
+                      🎯 Seçili Elemanı Revize Et ({canvasStats.selected} seçili)
+                    </CheckboxItem>
+                  )}
+                </div>
               </div>
 
               {/* Auto Scroll Checkbox */}
@@ -1348,7 +1541,7 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                     {isEditingCode ? (
                       <div className="code-editor-wrap">
                         <div className="editor-banner">
-                          <span>🛠️ Üretilen Mermaid kodunu düzenleyip tuvale aktarabilirsiniz:</span>
+                          <span>🛠️ Üretilen {selectedPreset === "UI Wireframe (HTML)" ? "HTML Wireframe" : "Mermaid"} kodunu düzenleyip tuvale aktarabilirsiniz:</span>
                           <div className="editor-banner-actions">
                             <button
                               type="button"
@@ -1381,13 +1574,15 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                     ) : (
                       <div className="code-viewer-container">
                         <div className="code-viewer-header">
-                          <span className="code-lang-label">mermaid</span>
+                          <span className="code-lang-label">
+                            {selectedPreset === "UI Wireframe (HTML)" ? "html" : "mermaid"}
+                          </span>
                           {streamedContent && (
                             <button
                               type="button"
                               className="copy-header-btn"
                               onClick={() => handleCopy(streamedContent, "ai")}
-                              title="Mermaid Kodunu Kopyala"
+                              title="Kodu Kopyala"
                             >
                               <span className="btn-icon">
                                 {copiedTarget === "ai" ? checkIcon : copyIcon}
@@ -1421,7 +1616,8 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                         type="button"
                         className="secondary-action-btn"
                         onClick={() => {
-                          setEditableMermaidCode(sanitizeMermaid(streamedContent));
+                          const isHtml = selectedPreset === "UI Wireframe (HTML)";
+                          setEditableMermaidCode(isHtml ? streamedContent : sanitizeMermaid(streamedContent));
                           setIsEditingCode(true);
                         }}
                       >
@@ -1430,7 +1626,7 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                       <button
                         type="button"
                         className="primary-action-btn"
-                        onClick={() => renderMermaidToScene(streamedContent)}
+                        onClick={() => renderCodeToScene(streamedContent)}
                       >
                         🔄 Tuvalde Yeniden Çiz
                       </button>
@@ -1440,11 +1636,14 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                   {/* Error banner with auto-fix trigger */}
                   {parseErrorDetails && (
                     <div className="parse-error-card">
-                      <div className="error-title">⚠️ Mermaid Sözdizimi Hatası</div>
+                      <div className="error-title">
+                        ⚠️ {selectedPreset === "UI Wireframe (HTML)" ? "HTML Wireframe Hatası" : "Mermaid Sözdizimi Hatası"}
+                      </div>
                       <div className="error-text">{parseErrorDetails}</div>
                       <div className="error-tip">
-                        Yapay zeka modeli geçersiz bir ok veya etiket sözdizimi üretmiş olabilir.
-                        Yukarıdaki kod düzenleyicide hatalı satırı düzelterek doğrudan tuvale aktarabilirsiniz.
+                        {selectedPreset === "UI Wireframe (HTML)"
+                          ? "Yapay zeka modeli geçersiz veya kapanmamış HTML etiketleri üretmiş olabilir. Yukarıdaki kod düzenleyicide kodu düzelterek tuvale aktarabilirsiniz."
+                          : "Yapay zeka modeli geçersiz bir ok veya etiket sözdizimi üretmiş olabilir. Yukarıdaki kod düzenleyicide hatalı satırı düzelterek doğrudan tuvale aktarabilirsiniz."}
                       </div>
                     </div>
                   )}
@@ -1465,10 +1664,23 @@ FLOWCHART / ARCHITECTURE SYNTAX:
 
           {/* Bottom Gemini-style Input Bar */}
           <footer className="gemini-input-bar-wrap">
+            {includeCanvasContext && canvasStats && canvasStats.total > 0 && (
+              <div className="gemini-input-context-pill">
+                <span className="pill-dot" />
+                <span>Tuval Bağlamı: {canvasStats.total} eleman</span>
+                {reviseSelectionMode && canvasStats.selected > 0 && (
+                  <span className="pill-selected">🎯 {canvasStats.selected} seçili revize edilecek</span>
+                )}
+              </div>
+            )}
             <div className="gemini-input-bar">
               <textarea
                 className="gemini-textarea"
-                placeholder="Bir mimari veya akış şeması açıklayın... (Enter: Gönder, Shift+Enter: Yeni satır)"
+                placeholder={
+                  selectedPreset === "UI Wireframe (HTML)"
+                    ? "İstediğiniz web/mobil UI tasarımını açıklayın (örn: Modern giriş kartı, fiyatlandırma tablosu)..."
+                    : "Bir mimari veya akış şeması açıklayın... (Enter: Gönder, Shift+Enter: Yeni satır)"
+                }
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={(e) => {
