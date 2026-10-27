@@ -784,6 +784,7 @@ export function parseHtmlToExcalidraw(
       height: containerHeight,
       locked: isLocked,
       groupIds: [containerGroupId],
+      customData: { isContainerFrame: true },
     } as any;
 
     const finalizedElements: ExcalidrawElementSkeleton[] = [];
