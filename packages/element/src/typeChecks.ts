@@ -30,6 +30,7 @@ import type {
   ExcalidrawFlowchartNodeElement,
   ExcalidrawLinearElementSubType,
   ExcalidrawStickyNoteElement,
+  ElementsMap,
 } from "./types";
 
 export const isInitializedImageElement = <T extends ExcalidrawElement>(
@@ -95,6 +96,40 @@ export const isFrameLikeElement = <T extends ExcalidrawElement>(
     element != null &&
     (element.type === "frame" || element.type === "magicframe")
   );
+};
+
+export const isContainerElement = <T extends ExcalidrawElement>(
+  element: T | null | undefined,
+  elementsMap?: ElementsMap,
+): boolean => {
+  if (!element) {
+    return false;
+  }
+  const custom = (element as any).customData;
+  if (
+    custom?.isContainerFrame ||
+    custom?.isContainerCard ||
+    custom?.isContainerHeader
+  ) {
+    return true;
+  }
+  if (
+    element.type === "frame" &&
+    typeof (element as any).name === "string" &&
+    (element as any).name.startsWith("📦")
+  ) {
+    return true;
+  }
+  if (isFrameLikeElement(element)) {
+    return true;
+  }
+  if (element.frameId && elementsMap) {
+    const parent = elementsMap.get(element.frameId);
+    if (parent && isContainerElement(parent, elementsMap)) {
+      return true;
+    }
+  }
+  return false;
 };
 
 export const isFreeDrawElement = <T extends ExcalidrawElement>(

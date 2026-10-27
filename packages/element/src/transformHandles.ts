@@ -15,6 +15,7 @@ import type { Bounds } from "@excalidraw/common";
 
 import { getElementAbsoluteCoords } from "./bounds";
 import {
+  isContainerElement,
   isElbowArrow,
   isFrameLikeElement,
   isImageElement,
@@ -282,7 +283,8 @@ export const getTransformHandles = (
   if (
     element.locked ||
     // Elbow arrows cannot be rotated
-    isElbowArrow(element)
+    isElbowArrow(element) ||
+    isContainerElement(element, elementsMap)
   ) {
     return {};
   }

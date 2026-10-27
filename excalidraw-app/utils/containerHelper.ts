@@ -171,6 +171,7 @@ export function wrapInContainerFrame(
     height: containerHeight,
     locked: isLocked,
     groupIds: [containerGroupId],
+    customData: { isContainerFrame: true },
   } as any;
 
   const resultElements: ExcalidrawElementSkeleton[] = [];

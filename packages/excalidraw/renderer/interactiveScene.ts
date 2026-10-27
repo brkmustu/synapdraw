@@ -35,6 +35,7 @@ import {
   hitElementItself,
   isArrowElement,
   isBindableElement,
+  isContainerElement,
   isElbowArrow,
   isFrameLikeElement,
   isImageElement,
@@ -1990,6 +1991,7 @@ const _renderInteractiveScene = ({
       if (
         !appState.viewModeEnabled &&
         showBoundingBox &&
+        !isContainerElement(selectedElements[0], elementsMap) &&
         // do not show transform handles when text is being edited
         !isTextElement(appState.editingTextElement) &&
         // do not show transform handles when image is being cropped
@@ -2020,7 +2022,8 @@ const _renderInteractiveScene = ({
     } else if (
       selectedElements.length > 1 &&
       !appState.isRotating &&
-      !selectedElements.some((el) => el.locked)
+      !selectedElements.some((el) => el.locked) &&
+      !selectedElements.some((el) => isContainerElement(el, elementsMap))
     ) {
       const dashedLinePadding =
         (DEFAULT_TRANSFORM_HANDLE_SPACING * 2) / appState.zoom.value;
@@ -2055,7 +2058,10 @@ const _renderInteractiveScene = ({
             }
           : getOmitSidesForEditorInterface(editorInterface),
       );
-      if (selectedElements.some((element) => !element.locked)) {
+      if (
+        selectedElements.some((element) => !element.locked) &&
+        !selectedElements.some((el) => isContainerElement(el, elementsMap))
+      ) {
         renderTransformHandles(
           context,
           renderConfig,

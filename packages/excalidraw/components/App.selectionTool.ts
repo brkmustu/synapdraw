@@ -28,6 +28,7 @@ import {
   handleFocusPointPointerDown,
   hitElementBoundingBoxOnly,
   isBindingElement,
+  isContainerElement,
   isElbowArrow,
   isElementInFrame,
   isElementInGroup,
@@ -599,7 +600,11 @@ export class AppSelectionTool {
       // Frames cannot be rotated.
       (selectedFrames.length > 0 && transformHandleType === "rotation") ||
       // Elbow arrows cannot be transformed (resized or rotated).
-      (selectedElements.length === 1 && isElbowArrow(selectedElements[0]))
+      (selectedElements.length === 1 && isElbowArrow(selectedElements[0])) ||
+      // Container elements cannot be resized
+      selectedElements.some((el) =>
+        isContainerElement(el, this.app.scene.getNonDeletedElementsMap()),
+      )
     ) {
       return false;
     }
@@ -1257,6 +1262,11 @@ export class AppSelectionTool {
   } | null {
     const { state, editorInterface } = this.app;
     if (state.openDialog?.name === "elementLinkSelector") {
+      return null;
+    }
+
+    const elementsMap = this.app.scene.getNonDeletedElementsMap();
+    if (selectedElements.some((el) => isContainerElement(el, elementsMap))) {
       return null;
     }
 
