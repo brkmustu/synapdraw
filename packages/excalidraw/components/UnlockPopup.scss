@@ -53,7 +53,8 @@
         }
       }
 
-      &--locked {
+      &--locked,
+      &--active {
         background-color: var(--color-primary-light, #e0e7ff);
         color: var(--color-primary, #4f46e5);
         border-color: var(--color-primary, #4f46e5);

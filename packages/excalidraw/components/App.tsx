@@ -2328,7 +2328,7 @@ class App extends React.Component<AppProps, AppState> {
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: isFrameLocked
+                background: !isFrameLocked
                   ? "var(--color-primary-light, #e0e7ff)"
                   : "var(--island-bg-color, #ffffff)",
                 border: "1px solid var(--color-gray-40, #cbd5e1)",
@@ -2337,7 +2337,7 @@ class App extends React.Component<AppProps, AppState> {
                 cursor: "pointer",
                 width: "20px",
                 height: "20px",
-                color: isFrameLocked
+                color: !isFrameLocked
                   ? "var(--color-primary, #4f46e5)"
                   : "var(--color-gray-60, #64748b)",
                 pointerEvents: "auto",
@@ -2351,7 +2351,7 @@ class App extends React.Component<AppProps, AppState> {
                 this.toggleContainerMoveLock(f);
               }}
             >
-              {isFrameLocked ? MoveLockedIcon : MoveUnlockedIcon}
+              {!isFrameLocked ? MoveUnlockedIcon : MoveLockedIcon}
             </button>
           )}
         </div>
@@ -2362,27 +2362,44 @@ class App extends React.Component<AppProps, AppState> {
   public toggleContainerMoveLock = (frameElement: ExcalidrawElement) => {
     const isFrameLocked = frameElement.locked;
     const nonDeleted = this.scene.getNonDeletedElements();
-    const elementsToMutate = [frameElement];
-    for (const el of nonDeleted) {
-      if (
-        el.frameId === frameElement.id &&
-        ((el as any).customData?.isContainerHeader ||
-          (el as any).customData?.isContainerCard)
-      ) {
-        elementsToMutate.push(el);
-      }
-    }
 
     if (isFrameLocked) {
-      for (const el of elementsToMutate) {
+      // Switch to MOVEABLE MODE (Right icon active)
+      const elementsToUnlock = [frameElement];
+      for (const el of nonDeleted) {
+        if (
+          el.frameId === frameElement.id &&
+          ((el as any).customData?.isContainerHeader ||
+            (el as any).customData?.isContainerCard)
+        ) {
+          elementsToUnlock.push(el);
+        }
+      }
+      for (const el of elementsToUnlock) {
         this.scene.mutateElement(el, { locked: false });
+      }
+      for (const el of nonDeleted) {
+        if (
+          el.frameId === frameElement.id &&
+          !(el as any).customData?.isContainerHeader &&
+          !(el as any).customData?.isContainerCard
+        ) {
+          this.scene.mutateElement(el, { locked: true });
+        }
       }
       this.setState({
         selectedElementIds: { [frameElement.id]: true },
-        activeLockedId: null,
+        activeLockedId: frameElement.id,
       });
     } else {
-      for (const el of elementsToMutate) {
+      // Switch to FULL LOCK MODE (Left icon active)
+      const elementsToLock = [frameElement];
+      for (const el of nonDeleted) {
+        if (el.frameId === frameElement.id) {
+          elementsToLock.push(el);
+        }
+      }
+      for (const el of elementsToLock) {
         this.scene.mutateElement(el, { locked: true });
       }
       this.setState({

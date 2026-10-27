@@ -16,7 +16,7 @@ import { t } from "../i18n";
 
 import "./UnlockPopup.scss";
 
-import { LockedIconFilled, MoveLockedIcon, MoveUnlockedIcon } from "./icons";
+import { LockedIconFilled, MoveUnlockedIcon } from "./icons";
 
 import type App from "./App";
 
@@ -69,62 +69,86 @@ const UnlockPopup = ({
       ? parentFrameCandidate
       : null)) as any;
 
-  const isFrameLocked = frameElement ? frameElement.locked : false;
+  // When frameElement exists:
+  // Mode 1 (Tam Kilit): frameElement.locked === true (soldaki buton aktif)
+  // Mode 2 (Taşıma Serbest): frameElement.locked === false (sağdaki buton aktif)
+  const isFrameLocked = frameElement ? frameElement.locked : true;
 
-  const handleUnlockOriginal = (e: React.MouseEvent) => {
+  // SOLDAKİ BUTON: Tam Kilit (Hem tuvale hem kendi içine tamamen kilitler)
+  const handleFullLock = (e: React.MouseEvent) => {
     e.stopPropagation();
-    flushSync(() => {
-      const groupIds = selectGroupsFromGivenElements(elements, app.state);
-      app.setState({
-        selectedElementIds: elements.reduce(
-          (acc, el) => ({
-            ...acc,
-            [el.id]: true,
-          }),
-          {},
-        ),
-        selectedGroupIds: groupIds,
-        activeLockedId: null,
-      });
-    });
-    app.actionManager.executeAction(actionToggleElementLock);
-  };
-
-  const handleToggleContainerMoveLock = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!frameElement) return;
-
-    const nonDeleted = app.scene.getNonDeletedElements();
-    const elementsToMutate = [frameElement];
-    for (const el of nonDeleted) {
-      if (
-        el.frameId === frameElement.id &&
-        ((el as any).customData?.isContainerHeader ||
-          (el as any).customData?.isContainerCard)
-      ) {
-        elementsToMutate.push(el);
+    if (frameElement) {
+      const nonDeleted = app.scene.getNonDeletedElements();
+      const elementsToLock = [frameElement];
+      for (const el of nonDeleted) {
+        if (el.frameId === frameElement.id) {
+          elementsToLock.push(el);
+        }
       }
-    }
-
-    if (isFrameLocked) {
-      // Release container for moving, keep inner elements protected
-      for (const el of elementsToMutate) {
-        app.scene.mutateElement(el, { locked: false });
-      }
-      app.setState({
-        selectedElementIds: { [frameElement.id]: true },
-        activeLockedId: null,
-      });
-    } else {
-      // Lock container in place
-      for (const el of elementsToMutate) {
+      for (const el of elementsToLock) {
         app.scene.mutateElement(el, { locked: true });
       }
       app.setState({
         selectedElementIds: {},
         activeLockedId: frameElement.id,
       });
+    } else {
+      flushSync(() => {
+        const groupIds = selectGroupsFromGivenElements(elements, app.state);
+        app.setState({
+          selectedElementIds: elements.reduce(
+            (acc, el) => ({
+              ...acc,
+              [el.id]: true,
+            }),
+            {},
+          ),
+          selectedGroupIds: groupIds,
+          activeLockedId: null,
+        });
+      });
+      app.actionManager.executeAction(actionToggleElementLock);
     }
+  };
+
+  // SAĞDAKİ BUTON: Taşıma Serbest (Container tuvalde serbestçe taşınabilir, içindekiler korunur)
+  const handleMoveableMode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!frameElement) return;
+
+    const nonDeleted = app.scene.getNonDeletedElements();
+
+    // 1. Unlock frame, card, header
+    const elementsToUnlock = [frameElement];
+    for (const el of nonDeleted) {
+      if (
+        el.frameId === frameElement.id &&
+        ((el as any).customData?.isContainerHeader ||
+          (el as any).customData?.isContainerCard)
+      ) {
+        elementsToUnlock.push(el);
+      }
+    }
+    for (const el of elementsToUnlock) {
+      app.scene.mutateElement(el, { locked: false });
+    }
+
+    // 2. Lock inner children so their contents/positions are protected
+    for (const el of nonDeleted) {
+      if (
+        el.frameId === frameElement.id &&
+        !(el as any).customData?.isContainerHeader &&
+        !(el as any).customData?.isContainerCard
+      ) {
+        app.scene.mutateElement(el, { locked: true });
+      }
+    }
+
+    // 3. Select the frame so the user can drag it immediately
+    app.setState({
+      selectedElementIds: { [frameElement.id]: true },
+      activeLockedId: frameElement.id,
+    });
   };
 
   return (
@@ -135,29 +159,33 @@ const UnlockPopup = ({
         left: `${viewX - app.state.offsetLeft}px`,
       }}
     >
+      {/* SOLDAKİ: Tam Kilit (İşaretliyken hem tuvale hem kendi içinde tamamen kilitli) */}
       <button
         type="button"
-        className="UnlockPopup__button"
-        onClick={handleUnlockOriginal}
-        title={t("labels.elementLock.unlock")}
+        className={`UnlockPopup__button ${
+          frameElement && isFrameLocked ? "UnlockPopup__button--active" : ""
+        }`}
+        onClick={handleFullLock}
+        title={
+          frameElement
+            ? "Container Tam Kilitli (Hem tuvale hem kendi içine kilitli)"
+            : t("labels.elementLock.unlock")
+        }
       >
         {LockedIconFilled}
       </button>
 
+      {/* SAĞDAKİ: Taşıma Serbest (İşaretliyken container tuvalde taşınabilir, içindekiler kilitli) */}
       {frameElement && (
         <button
           type="button"
           className={`UnlockPopup__button ${
-            isFrameLocked ? "UnlockPopup__button--locked" : "UnlockPopup__button--unlocked"
+            !isFrameLocked ? "UnlockPopup__button--active" : ""
           }`}
-          onClick={handleToggleContainerMoveLock}
-          title={
-            isFrameLocked
-              ? "Container'ı Taşımak İçin Serbest Bırak (İçeriği Koru)"
-              : "Container Konumunu Kilitle (Sabitle)"
-          }
+          onClick={handleMoveableMode}
+          title="Container Taşıma Serbest (Tuvalde taşınabilir, içerik korunur)"
         >
-          {isFrameLocked ? MoveLockedIcon : MoveUnlockedIcon}
+          {MoveUnlockedIcon}
         </button>
       )}
     </div>

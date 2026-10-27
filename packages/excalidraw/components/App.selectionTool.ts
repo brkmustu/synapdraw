@@ -261,7 +261,16 @@ export class AppSelectionTool {
             (el) => this.app.state.selectedElementIds[el.id],
           )
         ) {
-          pointerDownState.hit.element = null;
+          if (hitElementMightBeLocked.frameId) {
+            const parentFrame = elementsMap.get(hitElementMightBeLocked.frameId);
+            if (parentFrame && !parentFrame.locked) {
+              pointerDownState.hit.element = parentFrame;
+            } else {
+              pointerDownState.hit.element = null;
+            }
+          } else {
+            pointerDownState.hit.element = null;
+          }
         } else {
           // hitElement may already be set above, so check first
           pointerDownState.hit.element =
@@ -270,6 +279,18 @@ export class AppSelectionTool {
               pointerDownState.origin.x,
               pointerDownState.origin.y,
             );
+        }
+
+        if (
+          pointerDownState.hit.element &&
+          ((pointerDownState.hit.element as any).customData?.isContainerCard ||
+            (pointerDownState.hit.element as any).customData?.isContainerHeader) &&
+          pointerDownState.hit.element.frameId
+        ) {
+          const targetFrame = elementsMap.get(pointerDownState.hit.element.frameId);
+          if (targetFrame && !targetFrame.locked) {
+            pointerDownState.hit.element = targetFrame;
+          }
         }
 
         this.app.hitLinkElement = this.app.getElementLinkAtPosition(
