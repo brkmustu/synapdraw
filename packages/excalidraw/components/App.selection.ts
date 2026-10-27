@@ -747,7 +747,7 @@ export class AppSelection {
       : [elementsOrIds]) as readonly (ExcalidrawElement | string)[]) {
       const id = typeof elementOrId === "string" ? elementOrId : elementOrId.id;
       const element = elementsMap.get(id);
-      if (element && (includeLocked || !element.locked)) {
+      if (element && (includeLocked || !element.locked || isFrameLikeElement(element))) {
         elements.set(id, element);
       }
     }

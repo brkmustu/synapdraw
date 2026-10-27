@@ -261,7 +261,20 @@ export class AppSelectionTool {
             (el) => this.app.state.selectedElementIds[el.id],
           )
         ) {
-          pointerDownState.hit.element = null;
+          if (
+            isFrameLikeElement(hitElementMightBeLocked) ||
+            (hitElementMightBeLocked.frameId &&
+              ((hitElementMightBeLocked as any).customData?.isContainerHeader ||
+                (hitElementMightBeLocked as any).customData?.isContainerCard))
+          ) {
+            const targetFrame = isFrameLikeElement(hitElementMightBeLocked)
+              ? hitElementMightBeLocked
+              : elementsMap.get(hitElementMightBeLocked.frameId!) ??
+                hitElementMightBeLocked;
+            pointerDownState.hit.element = targetFrame;
+          } else {
+            pointerDownState.hit.element = null;
+          }
         } else {
           // hitElement may already be set above, so check first
           pointerDownState.hit.element =
@@ -765,7 +778,8 @@ export class AppSelectionTool {
       );
       if (
         selectedElements.length > 0 &&
-        selectedElements.every((element) => element.locked)
+        selectedElements.every((element) => element.locked) &&
+        !selectedElements.some((element) => isFrameLikeElement(element))
       ) {
         return true;
       }

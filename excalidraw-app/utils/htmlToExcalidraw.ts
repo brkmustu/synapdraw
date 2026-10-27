@@ -76,13 +76,90 @@ const WIREFRAME_BASE_CSS = `
   body, div, p, span, h1, h2, h3, h4, h5, h6, ul, ol, li, form, input, button, table, th, td {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
-  h1 { font-size: 26px; font-weight: 700; margin-bottom: 12px; color: #1e293b; }
-  h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; color: #1e293b; }
-  h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #1e293b; }
-  h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; color: #334155; }
-  p { font-size: 13px; line-height: 1.5; color: #475569; margin-bottom: 8px; }
+  h1 { font-size: 24px; font-weight: 700; margin-bottom: 12px; color: #1e293b; line-height: 1.3; }
+  h2 { font-size: 18px; font-weight: 700; margin-bottom: 10px; color: #1e293b; line-height: 1.3; }
+  h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: #1e293b; line-height: 1.3; }
+  h4 { font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #334155; line-height: 1.3; }
+  p { font-size: 13px; line-height: 1.6; color: #475569; margin-bottom: 8px; }
+  ul, ol { padding-left: 20px; margin-bottom: 10px; }
+  li { font-size: 13px; line-height: 1.6; color: #475569; margin-bottom: 4px; }
+  code { font-family: monospace; font-size: 12px; background: #f1f5f9; padding: 2px 5px; border-radius: 4px; color: #0f172a; }
   small { font-size: 11px; color: #64748b; }
-  
+
+  /* DaisyUI Collapse Components */
+  .collapse {
+    position: relative;
+    display: grid;
+    overflow: hidden;
+    grid-template-rows: auto auto;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+  }
+  .collapse > input[type="checkbox"],
+  .collapse > input[type="radio"] {
+    display: none !important;
+  }
+  .collapse-title {
+    padding: 14px 18px;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8fafc;
+    border-bottom: 1px solid #f1f5f9;
+    min-height: 48px;
+  }
+  .collapse-content {
+    padding: 16px 20px;
+    display: block;
+  }
+
+  /* Tailwind Spacing Utilities */
+  .space-y-1 > * + * { margin-top: 4px; }
+  .space-y-2 > * + * { margin-top: 8px; }
+  .space-y-3 > * + * { margin-top: 12px; }
+  .space-y-4 > * + * { margin-top: 16px; }
+  .space-y-6 > * + * { margin-top: 24px; }
+
+  .gap-1 { gap: 4px; }
+  .gap-2 { gap: 8px; }
+  .gap-3 { gap: 12px; }
+  .gap-4 { gap: 16px; }
+  .gap-6 { gap: 24px; }
+
+  .p-1 { padding: 4px; }
+  .p-2 { padding: 8px; }
+  .p-3 { padding: 12px; }
+  .p-4 { padding: 16px; }
+  .p-6 { padding: 24px; }
+  .px-2 { padding-left: 8px; padding-right: 8px; }
+  .px-3 { padding-left: 12px; padding-right: 12px; }
+  .px-4 { padding-left: 16px; padding-right: 16px; }
+  .py-1 { padding-top: 4px; padding-bottom: 4px; }
+  .py-2 { padding-top: 8px; padding-bottom: 8px; }
+  .py-3 { padding-top: 12px; padding-bottom: 12px; }
+
+  .mb-1 { margin-bottom: 4px; }
+  .mb-2 { margin-bottom: 8px; }
+  .mb-3 { margin-bottom: 12px; }
+  .mb-4 { margin-bottom: 16px; }
+
+  /* Flex & Grid */
+  .flex { display: flex; }
+  .flex-col { flex-direction: column; }
+  .flex-1 { flex: 1; }
+  .items-center { align-items: center; }
+  .justify-between { justify-content: space-between; }
+  .justify-center { justify-content: center; }
+  .grid { display: grid; }
+  .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
   /* Buttons */
   button, .btn {
     display: inline-flex;
@@ -127,8 +204,8 @@ const WIREFRAME_BASE_CSS = `
   .card, .panel {
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 20px;
+    border-radius: 12px;
+    padding: 18px;
     margin-bottom: 16px;
   }
   .hero {
@@ -149,18 +226,31 @@ const WIREFRAME_BASE_CSS = `
 
   /* Badges & Pills */
   .badge, .pill, .tag {
-    display: inline-block;
-    padding: 3px 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
     font-size: 11px;
     font-weight: 600;
     border-radius: 9999px;
+    white-space: nowrap;
     background-color: #e0e7ff;
     color: #3730a3;
+    border: 1px solid transparent;
+    line-height: 1.4;
   }
-  .badge-warning { background-color: #fef3c7; color: #b45309; }
-  .badge-error { background-color: #fee2e2; color: #b91c1c; }
-  .badge-info { background-color: #e0f2fe; color: #0369a1; }
-  .badge-success { background-color: #dcfce7; color: #15803d; }
+  .badge-info { background-color: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
+  .badge-error { background-color: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+  .badge-warning { background-color: #fef3c7; color: #b45309; border-color: #fde68a; }
+  .badge-primary { background-color: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
+  .badge-accent { background-color: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }
+  .badge-success { background-color: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+
+  /* Alerts */
+  .alert { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; font-size: 12px; }
+  .alert-info { background-color: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+  .alert-warning { background-color: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+  .alert-error { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 
   /* Dividers */
   hr {
@@ -187,20 +277,8 @@ const WIREFRAME_BASE_CSS = `
     color: #1e293b;
   }
 
-  /* Flex & Grid layouts */
-  .flex { display: flex; }
-  .flex-col { flex-direction: column; }
-  .flex-1 { flex: 1; }
-  .items-center { align-items: center; }
-  .justify-between { justify-content: space-between; }
-  .justify-center { justify-content: center; }
-  .gap-2 { gap: 8px; }
-  .gap-4 { gap: 16px; }
-  .gap-6 { gap: 24px; }
-  .grid { display: grid; }
-  .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rounded-xl { border-radius: 10px; }
+  .rounded-2xl { border-radius: 14px; }
 `;
 
 /**
@@ -341,18 +419,19 @@ export function parseHtmlToExcalidraw(
           id: buttonId,
           x: relX,
           y: relY,
-          width: width,
-          height: height,
+          width: Math.max(width + 12, 60),
+          height: Math.max(height, 32),
           backgroundColor: bg !== "transparent" ? bg : "#3b82f6",
           strokeColor: stroke !== "transparent" ? stroke : "#2563eb",
           fillStyle: "solid",
           strokeWidth: 1,
           roundness: borderRadius > 2 ? { type: 3 } : null,
-          roughness: 1,
+          roughness: 0,
           label: {
             text: textContent,
             strokeColor: textColor !== "transparent" && textColor !== "#000000" ? textColor : "#ffffff",
             fontSize: Math.min(Math.max(parseFloat(style.fontSize) || 14, 12), 24),
+            fontFamily: 2,
             textAlign: "center",
             verticalAlign: "middle",
           },
@@ -388,12 +467,13 @@ export function parseHtmlToExcalidraw(
           fillStyle: "solid",
           strokeWidth: 1,
           roundness: borderRadius > 2 ? { type: 3 } : null,
-          roughness: 1,
+          roughness: 0,
           label: placeholder
             ? {
                 text: placeholder,
                 strokeColor: "#94a3b8",
                 fontSize: 13,
+                fontFamily: 2,
                 textAlign: "left",
                 verticalAlign: "middle",
               }
@@ -406,6 +486,17 @@ export function parseHtmlToExcalidraw(
 
       // 4. Checkbox / Radio
       if (isCheckboxOrRadio) {
+        // Skip hidden or collapse-toggle inputs (like DaisyUI invisible checkboxes)
+        if (
+          node.closest(".collapse") ||
+          node.parentElement?.classList.contains("collapse") ||
+          style.display === "none" ||
+          style.visibility === "hidden"
+        ) {
+          consumedNodes.add(node);
+          return;
+        }
+
         const isRadio = node.getAttribute("type") === "radio";
         const isChecked = (node as HTMLInputElement).checked;
         const boxSize = Math.max(Math.min(width, height), 16);
@@ -422,7 +513,7 @@ export function parseHtmlToExcalidraw(
           fillStyle: "solid",
           strokeWidth: 1,
           roundness: isRadio ? null : { type: 3 },
-          roughness: 1,
+          roughness: 0,
         });
 
         consumedNodes.add(node);
@@ -441,18 +532,19 @@ export function parseHtmlToExcalidraw(
           id: generateId("badge"),
           x: relX,
           y: relY,
-          width: width,
-          height: height,
+          width: Math.max(width + 24, 75),
+          height: Math.max(height, 22),
           backgroundColor: bg !== "transparent" ? bg : "#e0e7ff",
           strokeColor: stroke !== "transparent" ? stroke : "#c7d2fe",
           fillStyle: "solid",
           strokeWidth: 1,
           roundness: { type: 3 },
-          roughness: 1,
+          roughness: 0,
           label: {
             text: textContent,
             strokeColor: textColor !== "transparent" ? textColor : "#3730a3",
-            fontSize: 12,
+            fontSize: 11,
+            fontFamily: 2,
             textAlign: "center",
             verticalAlign: "middle",
           },
@@ -480,11 +572,11 @@ export function parseHtmlToExcalidraw(
 
           let fontSize = Math.round(parsedFontSize);
           if (isHeading) {
-            if (tagName === "h1") fontSize = 26;
-            else if (tagName === "h2") fontSize = 20;
-            else if (tagName === "h3") fontSize = 16;
-            else if (tagName === "h4") fontSize = 14;
-            else fontSize = 13;
+            if (tagName === "h1") fontSize = 24;
+            else if (tagName === "h2") fontSize = 18;
+            else if (tagName === "h3") fontSize = 15;
+            else if (tagName === "h4") fontSize = 13;
+            else fontSize = 12;
           }
 
           pushElement({
@@ -493,7 +585,8 @@ export function parseHtmlToExcalidraw(
             x: relX,
             y: relY,
             text: fullText,
-            fontSize: Math.min(Math.max(fontSize, 11), 36),
+            fontSize: Math.min(Math.max(fontSize, 11), 32),
+            fontFamily: 2,
             strokeColor: textColor !== "transparent" ? textColor : "#1e293b",
             textAlign: (style.textAlign as any) || "left",
           });
@@ -523,12 +616,13 @@ export function parseHtmlToExcalidraw(
           fillStyle: "solid",
           strokeWidth: 1,
           roundness: null,
-          roughness: 1,
+          roughness: 0,
           label: cellText
             ? {
                 text: cellText,
                 strokeColor: isHeader ? "#1e293b" : "#334155",
                 fontSize: 12,
+                fontFamily: 2,
                 textAlign: "left",
                 verticalAlign: "middle",
               }
@@ -539,6 +633,7 @@ export function parseHtmlToExcalidraw(
         consumedNodes.add(node);
         return;
       }
+
 
       // 7. Containers / Cards / Divs / Tables / Table Rows
       const bg = normalizeColor(style.backgroundColor);
@@ -640,6 +735,7 @@ export function parseHtmlToExcalidraw(
       locked: isLocked,
       groupIds: [containerGroupId],
       frameId: shouldCreateFrame ? frameId : undefined,
+      customData: { isContainerCard: true },
     };
 
     const headerHeight = 36;
@@ -661,9 +757,11 @@ export function parseHtmlToExcalidraw(
       locked: isLocked,
       groupIds: [containerGroupId],
       frameId: shouldCreateFrame ? frameId : undefined,
+      customData: { isContainerHeader: true },
       label: {
         text: `📦 [Container] ${frameTitle}${isLocked ? " 🔒" : ""}`,
         fontSize: 13,
+        fontFamily: 2,
         strokeColor: "#1e293b",
         textAlign: "left",
         verticalAlign: "middle",

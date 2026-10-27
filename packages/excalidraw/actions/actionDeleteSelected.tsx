@@ -44,7 +44,7 @@ const deleteSelectedElements = (
 ) => {
   const framesToBeDeleted = new Set(
     getSelectedElements(
-      elements.filter((el) => isFrameLikeElement(el)),
+      elements.filter((el) => isFrameLikeElement(el) && !el.locked),
       appState,
     ).map((el) => el.id),
   );
@@ -79,6 +79,9 @@ const deleteSelectedElements = (
   let shouldSelectEditingGroup = true;
 
   const nextElements = elements.map((el) => {
+    if (el.locked) {
+      return el;
+    }
     if (
       appState.selectedElementIds[el.id] ||
       (withFrameChildren && isChildOfDeletedFrame(el))
