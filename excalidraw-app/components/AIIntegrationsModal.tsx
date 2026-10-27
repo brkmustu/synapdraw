@@ -627,39 +627,57 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
 
     const { parseMermaidToExcalidraw } = await import("@excalidraw/mermaid-to-excalidraw");
     const { convertToExcalidrawElements, restoreElements } = await import("@excalidraw/excalidraw");
+    const { wrapInContainerFrame } = await import("../utils/containerHelper");
+    const { getSmartPlacementCoords } = await import("../utils/canvasContext");
     const result = await parseMermaidToExcalidraw(cleanedCode);
 
     if (!result?.elements || result.elements.length === 0) {
       throw new Error("Mermaid diyagramı Excalidraw elemanlarına dönüştürülemedi.");
     }
 
+    const currentElements =
+      renderMode === "append"
+        ? excalidrawAPI?.getSceneElements().filter((el: any) => !el.isDeleted) || []
+        : [];
+
+    const placement = getSmartPlacementCoords(
+      currentElements,
+      800,
+      500,
+      renderMode === "append" ? "right" : "replace",
+    );
+
+    const container = wrapInContainerFrame(result.elements, {
+      title: submittedPrompt ? submittedPrompt.slice(0, 30) : "Mermaid Diagram",
+      originX: placement.x,
+      originY: placement.y,
+      locked: false,
+      createFrame: true,
+      createCard: true,
+    });
+
     // Convert skeleton elements into fully qualified Excalidraw elements with bound centered text elements
-    const converted = convertToExcalidrawElements(result.elements, {
+    const converted = convertToExcalidrawElements(container.elements, {
       regenerateIds: true,
       renderEnvironment: (excalidrawAPI as any)?.renderEnvironment,
     });
 
     if (excalidrawAPI) {
-      if (typeof (excalidrawAPI as any).addElementsFromPasteOrLibrary === "function") {
-        if (renderMode !== "append") {
-          excalidrawAPI.resetScene();
-        }
-        (excalidrawAPI as any).addElementsFromPasteOrLibrary({
-          elements: converted,
-          files: result.files || null,
-          position: "center",
-          fit: "scale-down",
-        });
-      } else {
-        const restored = restoreElements(converted, null, {
-          repairBindings: true,
-          refreshDimensions: true,
-        });
-        const currentElements = renderMode === "append" ? excalidrawAPI.getSceneElements() : [];
-        excalidrawAPI.updateScene({
-          elements: [...currentElements, ...restored],
-        });
-        if (settings.autoScroll) {
+      const restored = restoreElements(converted, null, {
+        repairBindings: true,
+        refreshDimensions: true,
+      });
+      const baseElements = renderMode === "append" ? currentElements : [];
+      excalidrawAPI.updateScene({
+        elements: [...baseElements, ...restored],
+      });
+      if (settings.autoScroll) {
+        if (typeof (excalidrawAPI as any).scrollToContent === "function") {
+          (excalidrawAPI as any).scrollToContent(restored, {
+            fitToViewport: true,
+            animate: true,
+          });
+        } else {
           excalidrawAPI.setViewport?.({
             target: restored,
             fit: "scale-down",
@@ -731,7 +749,7 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
         createFrame: true,
         createContainerCard: true,
         frameName: submittedPrompt ? submittedPrompt.slice(0, 30) : "UI Wireframe Container",
-        locked: true,
+        locked: false,
       });
 
       if (!result?.elements || result.elements.length === 0) {

@@ -43,39 +43,64 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
               const { convertToExcalidrawElements, restoreElements } = await import(
                 "@excalidraw/excalidraw"
               );
+              const { wrapInContainerFrame } = await import(
+                "../utils/containerHelper"
+              );
+              const { getSmartPlacementCoords } = await import(
+                "../utils/canvasContext"
+              );
+
               const result = await parseMermaidToExcalidraw(data.code);
               if (result?.elements && result.elements.length > 0) {
+                const currentElements =
+                  data.mode === "append"
+                    ? excalidrawAPI.getSceneElements().filter((el) => !el.isDeleted)
+                    : [];
+
+                const placement = getSmartPlacementCoords(
+                  currentElements,
+                  800,
+                  500,
+                  data.mode === "append" ? "right" : "replace",
+                );
+
+                const container = wrapInContainerFrame(result.elements, {
+                  title: data.title || "Mermaid Diagram",
+                  originX: placement.x,
+                  originY: placement.y,
+                  locked: data.locked === true,
+                  createFrame: true,
+                  createCard: true,
+                });
+
                 const converted = convertToExcalidrawElements(
-                  result.elements,
+                  container.elements,
                   {
                     regenerateIds: true,
                     renderEnvironment: excalidrawAPI.renderEnvironment,
                   },
                 );
 
-                if (typeof excalidrawAPI.addElementsFromPasteOrLibrary === "function") {
-                  if (data.mode !== "append") {
-                    excalidrawAPI.resetScene();
-                  }
-                  excalidrawAPI.addElementsFromPasteOrLibrary({
-                    elements: converted,
-                    files: result.files || null,
-                    position: "center",
-                    fit: "scale-down",
+                const restored = restoreElements(converted, null, {
+                  repairBindings: true,
+                  refreshDimensions: true,
+                });
+
+                if (data.mode !== "append") {
+                  excalidrawAPI.resetScene();
+                }
+                const baseElements = data.mode === "append" ? currentElements : [];
+                excalidrawAPI.updateScene({
+                  elements: [...baseElements, ...restored],
+                });
+
+                if (typeof (excalidrawAPI as any).scrollToContent === "function") {
+                  (excalidrawAPI as any).scrollToContent(restored, {
+                    fitToViewport: true,
+                    animate: true,
                   });
-                } else {
-                  const restored = restoreElements(converted, null, {
-                    repairBindings: true,
-                    refreshDimensions: true,
-                  });
-                  const currentElements =
-                    data.mode === "append"
-                      ? excalidrawAPI.getSceneElements()
-                      : [];
-                  excalidrawAPI.updateScene({
-                    elements: [...currentElements, ...restored],
-                  });
-                  excalidrawAPI.setViewport?.({
+                } else if (typeof (excalidrawAPI as any).setViewport === "function") {
+                  (excalidrawAPI as any).setViewport({
                     target: restored,
                     fit: "scale-down",
                     animation: true,
@@ -124,7 +149,7 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
                 frameName: data.title || "UI Wireframe Container",
                 createFrame: true,
                 createContainerCard: true,
-                locked: true,
+                locked: data.locked === true,
               });
 
               if (result.elements && result.elements.length > 0) {
