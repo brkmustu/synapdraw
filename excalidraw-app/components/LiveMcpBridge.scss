@@ -1,22 +1,21 @@
-.excalidraw {
-  .live-mcp-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 32px;
-    padding: 0 10px;
-    border-radius: var(--border-radius-lg);
-    background-color: var(--island-bg-color);
-    border: 1px solid var(--default-border-color);
-    box-shadow: var(--shadow-island);
-    font-family: var(--ui-font);
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--color-on-surface);
-    cursor: pointer;
-    user-select: none;
-    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
-    white-space: nowrap;
+.live-mcp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--border-radius-lg, 8px);
+  background-color: var(--island-bg-color, #ffffff);
+  border: 1px solid var(--default-border-color, #e2e8f0);
+  box-shadow: var(--shadow-island, 0 2px 8px rgba(0, 0, 0, 0.08));
+  font-family: var(--ui-font, sans-serif);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-on-surface, #1e293b);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
 
     &:hover {
       background-color: var(--button-hover-bg);
@@ -58,5 +57,4 @@
       background-color: var(--color-surface-primary-container);
       color: var(--color-on-primary-container);
     }
-  }
 }

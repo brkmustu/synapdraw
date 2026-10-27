@@ -149,6 +149,15 @@ import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
+import { WorkspaceTabs } from "./workspace/WorkspaceTabs";
+import {
+  getActiveWorkspace,
+  subscribeWorkspaces,
+  type WorkspaceDocument,
+} from "./workspace/workspaceStore";
+import { registerActiveEngine } from "./engine/engineRegistry";
+import { ExcalidrawEngine } from "./engine/ExcalidrawEngine";
+import { DesignCanvas } from "./design/DesignCanvas";
 import { AppSidebar } from "./components/AppSidebar";
 
 import type { CollabAPI } from "./collab/Collab";
@@ -380,6 +389,23 @@ const ExcalidrawWrapper = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [isAIIntegrationsOpen, setIsAIIntegrationsOpen] = useState(false);
   const isCollabDisabled = isRunningInIframe();
+
+  const [activeWs, setActiveWs] = useState<WorkspaceDocument>(() =>
+    getActiveWorkspace(),
+  );
+
+  useEffect(() => {
+    const update = () => {
+      setActiveWs(getActiveWorkspace());
+    };
+    return subscribeWorkspaces(update);
+  }, []);
+
+  useEffect(() => {
+    if (excalidrawAPI && activeWs.canvasType === "sketch") {
+      registerActiveEngine(new ExcalidrawEngine(activeWs.id, excalidrawAPI));
+    }
+  }, [excalidrawAPI, activeWs]);
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
 
@@ -951,12 +977,26 @@ const ExcalidrawWrapper = () => {
 
   return (
     <div
-      style={{ height: "100%" }}
+      style={{ height: "100%", display: "flex", flexDirection: "column" }}
       className={clsx("excalidraw-app", {
         "is-collaborating": isCollaborating,
       })}
     >
-      <Excalidraw
+      <WorkspaceTabs />
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        {activeWs.canvasType === "design" && (
+          <DesignCanvas
+            documentId={activeWs.id}
+            documentName={activeWs.name}
+          />
+        )}
+        <div
+          style={{
+            display: activeWs.canvasType === "sketch" ? "block" : "none",
+            height: "100%",
+          }}
+        >
+          <Excalidraw
         viewportStatusFrame={viewportStatusFrame}
         userToFollow={userToFollow}
         onChange={onChange}
@@ -1318,7 +1358,9 @@ const ExcalidrawWrapper = () => {
             ref={debugCanvasRef}
           />
         )}
-      </Excalidraw>
+          </Excalidraw>
+        </div>
+      </div>
     </div>
   );
 };

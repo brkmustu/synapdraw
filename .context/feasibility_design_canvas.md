@@ -86,37 +86,51 @@ graph TD
   salt-okunur hale gelir (seçili tip görünür, diğeri pasif + açıklama tooltip'i).
 - Değer belge verisinde saklanır (localStorage + export dosyası), böylece yeniden yüklemede korunur.
 
-### 4.3 Tasarım belgesi modeli (taslak)
+### 4.3 Sonsuz Tuval & İçerik Odaklı Tasarım Modeli (Figma Yaklaşımı)
+Figma'da tuvalin kendisi **tamamen sınırsız ve sonsuzdur (Infinite Canvas)**. Kullanıcı veya AI asla sabit bir tuval boyutuna zorlanmaz.
+Tasarım elemanları tuval üzerinde şu prensiplerle yer alır:
+- **Sonsuz 2D Düzlem**: Koordinatlar `(-∞, +∞)` arasında uzanır. Arka plan sonsuz nokta ızgarasıdır.
+- **İçeriğe Göre Otomatik Boyutlanma (Figma "Hug Contents")**: Aktarılan HTML/CSS bileşenleri sabit pencerelere zorlanmaz. İçeriğin doğal CSS boyutu ne ise (`width: auto / fit-content`, `height: auto`), container doğrudan onu sarar ve tuvale yerleşir.
+- **İsteğe Bağlı Cihaz/Genişlik Çerçevesi**: Yalnızca kullanıcı özellikle bir genişlik istediğinde (ör. mobil için 390px veya responsive test için) sınır konur; aksi takdirde tasarım serbest ve doğal akışında render edilir.
+
 ```ts
-type DesignNode = {
+type DesignItem = {
   id: string;
-  tag: string;                 // div, button, img, text...
-  css: Record<string, string>; // ham CSS özellikleri
-  children: DesignNode[];
-  text?: string;
-  locked?: boolean;
+  name: string;
+  x: number;
+  y: number;
+  width?: number | "auto";   // "auto" (Hug Contents) veya özel genişlik
+  height?: number | "auto";  // "auto" (Hug Contents)
+  html: string;
+  css?: string;
+  locked: boolean;           // Tam kilit
+  allowMove: boolean;        // Yalnızca taşıma serbest
 };
-type Artboard = { id; name; x; y; width; height; root: DesignNode; locked; moveLocked };
-type DesignDocument = { canvasType: "design"; tokens: Record<string,string>; artboards: Artboard[] };
+
+type DesignDocument = {
+  canvasType: "design";
+  items: DesignItem[];
+  zoom: number;
+  panX: number;
+  panY: number;
+};
 ```
-Mevcut **iki modlu kilit** (tam kilit / sadece taşıma) Artboard'a birebir taşınır.
+Mevcut **iki modlu kilit** (tam kilit / sadece taşıma) bu bileşenlere de aynen uygulanır.
 
 ---
 
-## 5. Yeni MCP Araçları
+## 5. Yeni MCP Araçları (Figma Mantığı)
 
 | Araç | Amaç |
 |---|---|
 | `get_canvas_type` | Aktif tuval tipini döner; AI doğru aracı seçer |
-| `design_read_me` | Tasarım tuvali kuralları, token formatı, örnekler |
-| `create_artboard` | Belirli boyutta artboard (ör. 1440×900, 390×844) |
-| `render_design` | HTML + CSS'i artboard'a **dönüşümsüz** yerleştirir |
+| `render_design` | HTML + CSS'i sonsuz tuvale **doğal boyutunda (Hug Contents)** veya istenen konumda yerleştirir |
+| `create_frame` | İsteğe bağlı olarak belirli bir genişlikte veya serbest çerçeve açar |
+| `get_design_tree` | Düğüm ağacı + computed style + gerçek piksel sınırları |
 | `update_node_styles` | Düğüm id'sine göre CSS özelliklerini günceller |
-| `get_design_tree` | Düğüm ağacı + computed style + piksel sınırları |
-| `set_design_tokens` | Renk/tipografi/spacing değişkenleri (CSS custom properties) |
-| `screenshot_artboard` | Artboard'un PNG'si; AI'ın görsel doğrulama döngüsü için |
+| `screenshot_design` | Tasarımın veya tüm görünümün PNG görüntüsü |
 | `compare_with_reference` | Referans görsel ile piksel farkı (diff yüzdesi + fark haritası) |
-| `export_design_code` | Artboard'u temiz HTML/CSS olarak dışa aktarır |
+| `export_design_code` | Tasarımı temiz HTML/CSS olarak dışa aktarır |
 
 > [!TIP]
 > Pixel-perfect'in gerçek anahtarı `screenshot_artboard` + `compare_with_reference` döngüsü:
