@@ -105,13 +105,14 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
                 (excalidrawAPI as any)?.renderEnvironment?.defaultView ||
                 window;
 
-              const currentElements = excalidrawAPI
-                .getSceneElements()
-                .filter((el) => !el.isDeleted);
+              const currentElements =
+                data.mode === "append"
+                  ? excalidrawAPI.getSceneElements().filter((el) => !el.isDeleted)
+                  : [];
               const placement = getSmartPlacementCoords(
                 currentElements,
-                640,
-                480,
+                960,
+                600,
                 data.mode === "append" ? "right" : "replace",
               );
 
@@ -120,39 +121,44 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
                 ownerWindow: ownerWin,
                 originX: placement.x,
                 originY: placement.y,
+                frameName: data.title || "UI Wireframe Container",
+                createFrame: true,
+                createContainerCard: true,
+                locked: true,
               });
 
               if (result.elements && result.elements.length > 0) {
                 const converted = convertToExcalidrawElements(result.elements, {
-                  regenerateIds: true,
+                  regenerateIds: false,
                   renderEnvironment: (excalidrawAPI as any)?.renderEnvironment,
                 });
 
-                if (typeof (excalidrawAPI as any).addElementsFromPasteOrLibrary === "function") {
-                  if (data.mode !== "append") {
-                    excalidrawAPI.resetScene();
-                  }
-                  (excalidrawAPI as any).addElementsFromPasteOrLibrary({
-                    elements: converted,
-                    position: data.mode === "append" ? undefined : "center",
-                    fit: "scale-down",
+                const restored = restoreElements(converted, null, {
+                  repairBindings: true,
+                  refreshDimensions: true,
+                });
+
+                if (data.mode !== "append") {
+                  excalidrawAPI.resetScene();
+                }
+                const baseElements = data.mode === "append" ? currentElements : [];
+                excalidrawAPI.updateScene({
+                  elements: [...baseElements, ...restored],
+                });
+
+                if (typeof (excalidrawAPI as any).scrollToContent === "function") {
+                  (excalidrawAPI as any).scrollToContent(restored, {
+                    fitToViewport: true,
+                    animate: true,
                   });
-                } else {
-                  const restored = restoreElements(converted, null, {
-                    repairBindings: true,
-                    refreshDimensions: true,
-                  });
-                  const baseElements = data.mode === "append" ? currentElements : [];
-                  excalidrawAPI.updateScene({
-                    elements: [...baseElements, ...restored],
-                  });
-                  excalidrawAPI.setViewport?.({
+                } else if (typeof (excalidrawAPI as any).setViewport === "function") {
+                  (excalidrawAPI as any).setViewport({
                     target: restored,
                     fit: "scale-down",
                     animation: true,
                   });
                 }
-                setLastAction(`Wireframe çizildi (${converted.length} öge)`);
+                setLastAction(`Wireframe konteyner eklendi (${restored.length} öge, kilitli)`);
                 setTimeout(() => setLastAction(null), 4000);
               }
             } else if (data.type === "elements" && Array.isArray(data.elements)) {

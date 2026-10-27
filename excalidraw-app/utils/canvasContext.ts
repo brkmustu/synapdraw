@@ -18,6 +18,9 @@ export interface CanvasSemanticNode {
   containerId?: string | null;
   boundElements?: Array<{ id: string; type: string }>;
   role?: string;
+  locked?: boolean;
+  groupIds?: readonly string[];
+  frameId?: string | null;
 }
 
 export interface CanvasSemanticContext {
@@ -142,6 +145,9 @@ export function extractCanvasSemanticContext(
       isContainer: !!el.boundElements?.some((b) => b.type === "text"),
       containerId: (el as any).containerId || null,
       role,
+      locked: !!el.locked,
+      groupIds: el.groupIds,
+      frameId: el.frameId || null,
     });
   }
 
@@ -202,8 +208,11 @@ export function getSmartPlacementCoords(
   mode: "right" | "bottom" | "replace" = "right",
   selectedBounds?: { minX: number; minY: number; maxX: number; maxY: number } | null,
 ): { x: number; y: number } {
-  if (mode === "replace" && selectedBounds) {
-    return { x: selectedBounds.minX, y: selectedBounds.minY };
+  if (mode === "replace") {
+    if (selectedBounds) {
+      return { x: selectedBounds.minX, y: selectedBounds.minY };
+    }
+    return { x: 100, y: 100 };
   }
 
   const bounds = calculateElementsBounds(existingElements);
@@ -211,7 +220,7 @@ export function getSmartPlacementCoords(
     return { x: 100, y: 100 };
   }
 
-  const GAP = 80;
+  const GAP = 120;
 
   if (mode === "bottom") {
     return {
@@ -223,6 +232,6 @@ export function getSmartPlacementCoords(
   // Default: "right"
   return {
     x: bounds.maxX + GAP,
-    y: bounds.minY,
+    y: Math.max(bounds.minY, 80),
   };
 }

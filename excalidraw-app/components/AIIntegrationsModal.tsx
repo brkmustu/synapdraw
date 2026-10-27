@@ -713,8 +713,8 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
 
       const placement = getSmartPlacementCoords(
         currentElements,
-        640,
-        480,
+        960,
+        600,
         reviseSelectionMode && context?.hasSelection
           ? "replace"
           : renderMode === "append"
@@ -729,7 +729,9 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
         originX: placement.x,
         originY: placement.y,
         createFrame: true,
-        frameName: submittedPrompt ? submittedPrompt.slice(0, 30) : "UI Wireframe",
+        createContainerCard: true,
+        frameName: submittedPrompt ? submittedPrompt.slice(0, 30) : "UI Wireframe Container",
+        locked: true,
       });
 
       if (!result?.elements || result.elements.length === 0) {
@@ -739,38 +741,37 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
       }
 
       const converted = convertToExcalidrawElements(result.elements, {
-        regenerateIds: true,
+        regenerateIds: false,
         renderEnvironment: (excalidrawAPI as any)?.renderEnvironment,
       });
 
       if (excalidrawAPI) {
-        if (typeof (excalidrawAPI as any).addElementsFromPasteOrLibrary === "function") {
-          if (renderMode !== "append" && (!reviseSelectionMode || !context?.hasSelection)) {
-            excalidrawAPI.resetScene();
-          }
-          (excalidrawAPI as any).addElementsFromPasteOrLibrary({
-            elements: converted,
-            position: renderMode === "append" ? undefined : "center",
-            fit: "scale-down",
-          });
-        } else {
-          const restored = restoreElements(converted, null, {
-            repairBindings: true,
-            refreshDimensions: true,
-          });
-          const baseElements =
-            renderMode === "append" || (reviseSelectionMode && context?.hasSelection)
-              ? currentElements.filter(
-                  (el) =>
-                    !context?.selectedBounds ||
-                    !(excalidrawAPI.getAppState().selectedElementIds || {})[el.id],
-                )
-              : [];
-          excalidrawAPI.updateScene({
-            elements: [...baseElements, ...restored],
-          });
-          if (settings.autoScroll) {
-            excalidrawAPI.setViewport?.({
+        const restored = restoreElements(converted, null, {
+          repairBindings: true,
+          refreshDimensions: true,
+        });
+        const baseElements =
+          renderMode === "append" || (reviseSelectionMode && context?.hasSelection)
+            ? currentElements.filter(
+                (el) =>
+                  !context?.selectedBounds ||
+                  !(excalidrawAPI.getAppState().selectedElementIds || {})[el.id],
+              )
+            : [];
+        if (renderMode !== "append" && (!reviseSelectionMode || !context?.hasSelection)) {
+          excalidrawAPI.resetScene();
+        }
+        excalidrawAPI.updateScene({
+          elements: [...baseElements, ...restored],
+        });
+        if (settings.autoScroll) {
+          if (typeof (excalidrawAPI as any).scrollToContent === "function") {
+            (excalidrawAPI as any).scrollToContent(restored, {
+              fitToViewport: true,
+              animate: true,
+            });
+          } else if (typeof (excalidrawAPI as any).setViewport === "function") {
+            (excalidrawAPI as any).setViewport({
               target: restored,
               fit: "scale-down",
               animation: true,

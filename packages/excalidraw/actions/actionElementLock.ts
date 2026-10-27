@@ -41,10 +41,7 @@ export const actionToggleElementLock = register({
   trackEvent: { category: "element" },
   predicate: (elements, appState, _, app) => {
     const selectedElements = app.scene.getSelectedElements(appState);
-    return (
-      selectedElements.length > 0 &&
-      !selectedElements.some((element) => element.locked && element.frameId)
-    );
+    return selectedElements.length > 0;
   },
   perform: (elements, appState, _, app) => {
     const selectedElements = app.scene.getSelectedElements({

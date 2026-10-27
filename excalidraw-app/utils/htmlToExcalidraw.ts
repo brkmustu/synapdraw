@@ -8,12 +8,17 @@ export interface HtmlToExcalidrawOptions {
   canvasWidth?: number;
   createFrame?: boolean;
   frameName?: string;
+  createContainerCard?: boolean;
+  locked?: boolean;
+  groupId?: string;
 }
 
 export interface HtmlToExcalidrawResult {
   elements: ExcalidrawElementSkeleton[];
   width: number;
   height: number;
+  containerGroupId: string;
+  frameId?: string;
 }
 
 /**
@@ -249,6 +254,25 @@ export function parseHtmlToExcalidraw(
     let nextElementId = 1;
     const generateId = (prefix: string = "wireframe") => `${prefix}_${Date.now()}_${nextElementId++}`;
 
+    const isLocked = options.locked ?? true;
+    const shouldCreateFrame = options.createFrame ?? true;
+    const shouldCreateCard = options.createContainerCard ?? true;
+    const containerGroupId = options.groupId || generateId("group_container");
+    const frameId = generateId("frame_container");
+    const frameTitle = options.frameName || "UI Wireframe Container";
+
+    const CONTENT_OFFSET_X = shouldCreateCard ? 24 : 0;
+    const CONTENT_OFFSET_Y = shouldCreateCard ? 52 : 0;
+
+    const pushElement = (el: ExcalidrawElementSkeleton) => {
+      elements.push({
+        ...el,
+        locked: isLocked,
+        groupIds: [containerGroupId],
+        ...(shouldCreateFrame ? { frameId } : {}),
+      } as unknown as ExcalidrawElementSkeleton);
+    };
+
     /**
      * Traverses the DOM hierarchy and transforms visible elements.
      */
@@ -266,8 +290,8 @@ export function parseHtmlToExcalidraw(
         return;
       }
 
-      const relX = Math.round(originX + (rect.left - rootRect.left));
-      const relY = Math.round(originY + (rect.top - rootRect.top));
+      const relX = Math.round(originX + CONTENT_OFFSET_X + (rect.left - rootRect.left));
+      const relY = Math.round(originY + CONTENT_OFFSET_Y + (rect.top - rootRect.top));
       const width = Math.max(Math.round(rect.width), 10);
       const height = Math.max(Math.round(rect.height), 10);
 
@@ -289,7 +313,7 @@ export function parseHtmlToExcalidraw(
 
       // 1. Divider line
       if (isDivider) {
-        elements.push({
+        pushElement({
           type: "line",
           id: generateId("divider"),
           x: relX,
@@ -312,7 +336,7 @@ export function parseHtmlToExcalidraw(
         const borderRadius = parseFloat(style.borderRadius) || 0;
 
         const buttonId = generateId("btn");
-        elements.push({
+        pushElement({
           type: "rectangle",
           id: buttonId,
           x: relX,
@@ -352,7 +376,7 @@ export function parseHtmlToExcalidraw(
         const borderRadius = parseFloat(style.borderRadius) || 0;
 
         const inputId = generateId("input");
-        elements.push({
+        pushElement({
           type: "rectangle",
           id: inputId,
           x: relX,
@@ -386,7 +410,7 @@ export function parseHtmlToExcalidraw(
         const isChecked = (node as HTMLInputElement).checked;
         const boxSize = Math.max(Math.min(width, height), 16);
 
-        elements.push({
+        pushElement({
           type: isRadio ? "ellipse" : "rectangle",
           id: generateId("check"),
           x: relX,
@@ -412,7 +436,7 @@ export function parseHtmlToExcalidraw(
         const stroke = normalizeColor(style.borderColor);
         const textColor = normalizeColor(style.color);
 
-        elements.push({
+        pushElement({
           type: "rectangle",
           id: generateId("badge"),
           x: relX,
@@ -463,7 +487,7 @@ export function parseHtmlToExcalidraw(
             else fontSize = 13;
           }
 
-          elements.push({
+          pushElement({
             type: "text",
             id: generateId("text"),
             x: relX,
@@ -487,7 +511,7 @@ export function parseHtmlToExcalidraw(
         const stroke = normalizeColor(style.borderColor);
         const isHeader = tagName === "th";
 
-        elements.push({
+        pushElement({
           type: "rectangle",
           id: generateId(isHeader ? "th" : "td"),
           x: relX,
@@ -533,7 +557,7 @@ export function parseHtmlToExcalidraw(
 
       if (hasVisibleBg || hasVisibleBorder || isCardOrPanel) {
         const containerId = generateId(isCardOrPanel ? "card" : "container");
-        elements.push({
+        pushElement({
           type: "rectangle",
           id: containerId,
           x: relX,
@@ -562,26 +586,124 @@ export function parseHtmlToExcalidraw(
       traverse(child);
     });
 
-    // 8. If requested, wrap the components in an Excalidraw Frame
-    if (options.createFrame && elements.length > 0) {
-      const frameId = generateId("frame");
-      const childrenIds = elements.map((el) => el.id).filter(Boolean) as string[];
-      elements.unshift({
-        type: "frame",
-        id: frameId,
-        name: options.frameName || "UI Wireframe",
-        children: childrenIds,
-        x: originX - 10,
-        y: originY - 10,
-        width: Math.max(Math.round(rootRect.width) + 20, canvasWidth),
-        height: Math.max(Math.round(rootRect.height) + 20, 200),
-      } as any);
+    if (elements.length === 0) {
+      return {
+        elements: [],
+        width: 0,
+        height: 0,
+        containerGroupId,
+      };
     }
 
+    // 8. Calculate bounding box of all created elements
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const el of elements) {
+      const elX = el.x ?? originX;
+      const elY = el.y ?? originY;
+      const elW = (el as any).width ?? 0;
+      const elH = (el as any).height ?? 0;
+      minX = Math.min(minX, elX);
+      minY = Math.min(minY, elY);
+      maxX = Math.max(maxX, elX + elW);
+      maxY = Math.max(maxY, elY + elH);
+    }
+
+    const PADDING_X = 24;
+    const PADDING_BOTTOM = 28;
+    const containerX = Math.round(originX);
+    const containerY = Math.round(originY);
+    const containerWidth = Math.round(Math.max(maxX - originX + PADDING_X, canvasWidth));
+    const containerHeight = Math.round(Math.max(maxY - originY + PADDING_BOTTOM, 180));
+
+    const containerCardId = generateId("container_card");
+    const containerHeaderId = generateId("container_header");
+
+    const containerCard: ExcalidrawElementSkeleton = {
+      type: "rectangle",
+      id: containerCardId,
+      x: containerX,
+      y: containerY,
+      width: containerWidth,
+      height: containerHeight,
+      backgroundColor: "#ffffff",
+      strokeColor: "#94a3b8", // crisp slate-400 border
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      roundness: { type: 3 },
+      roughness: 0,
+      fillStyle: "solid",
+      opacity: 100,
+      locked: isLocked,
+      groupIds: [containerGroupId],
+      frameId: shouldCreateFrame ? frameId : undefined,
+    };
+
+    const headerHeight = 36;
+    const containerHeader: ExcalidrawElementSkeleton = {
+      type: "rectangle",
+      id: containerHeaderId,
+      x: containerX,
+      y: containerY,
+      width: containerWidth,
+      height: headerHeight,
+      backgroundColor: "#f8fafc",
+      strokeColor: "#cbd5e1",
+      strokeWidth: 1,
+      strokeStyle: "solid",
+      roundness: { type: 3 },
+      roughness: 0,
+      fillStyle: "solid",
+      opacity: 100,
+      locked: isLocked,
+      groupIds: [containerGroupId],
+      frameId: shouldCreateFrame ? frameId : undefined,
+      label: {
+        text: `📦 [Container] ${frameTitle}${isLocked ? " 🔒" : ""}`,
+        fontSize: 13,
+        strokeColor: "#1e293b",
+        textAlign: "left",
+        verticalAlign: "middle",
+      },
+    };
+
+    const childIds: string[] = [
+      ...(shouldCreateCard ? [containerCardId, containerHeaderId] : []),
+      ...(elements.map((el) => el.id).filter(Boolean) as string[]),
+    ];
+
+    const frameElement: ExcalidrawElementSkeleton = {
+      type: "frame",
+      id: frameId,
+      name: `📦 ${frameTitle}`,
+      children: childIds,
+      x: containerX,
+      y: containerY,
+      width: containerWidth,
+      height: containerHeight,
+      locked: isLocked,
+      groupIds: [containerGroupId],
+    } as any;
+
+    const finalizedElements: ExcalidrawElementSkeleton[] = [];
+    if (shouldCreateFrame) {
+      finalizedElements.push(frameElement);
+    }
+    if (shouldCreateCard) {
+      finalizedElements.push(containerCard);
+      finalizedElements.push(containerHeader);
+    }
+    finalizedElements.push(...elements);
+
     return {
-      elements,
-      width: Math.round(rootRect.width),
-      height: Math.round(rootRect.height),
+      elements: finalizedElements,
+      width: containerWidth,
+      height: containerHeight,
+      containerGroupId,
+      frameId: shouldCreateFrame ? frameId : undefined,
     };
   } finally {
     // Clean up sandbox from DOM
