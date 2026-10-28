@@ -40,6 +40,7 @@ import {
   type WorkspaceDocument,
   type CanvasType,
   type DocumentCategory,
+  type TeamMember,
 } from "./workspaceStore";
 import "./WorkspaceTabs.scss";
 
@@ -217,6 +218,8 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
   const [explorerSearch, setExplorerSearch] = useState("");
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const [copyTeamFromProjId, setCopyTeamFromProjId] = useState<string>("");
+  const [projectTeamList, setProjectTeamList] = useState<TeamMember[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -299,6 +302,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
         tdd: linkedTdds || tdds.length,
       });
       setTeamCount(team.length);
+      setProjectTeamList(team);
     };
     update();
     return subscribeWorkspaces(update);
@@ -326,8 +330,13 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
   const handleCreateNewProject = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
-    createProject(newProjectName.trim());
+    createProject(
+      newProjectName.trim(),
+      "",
+      copyTeamFromProjId || undefined,
+    );
     setNewProjectName("");
+    setCopyTeamFromProjId("");
     setIsCreatingProject(false);
   };
 
@@ -624,6 +633,21 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                     onChange={(e) => setNewProjectName(e.target.value)}
                     autoFocus
                   />
+                  <select
+                    className="explorer-project-select"
+                    value={copyTeamFromProjId}
+                    onChange={(e) => setCopyTeamFromProjId(e.target.value)}
+                    title="Yeni projenin başlangıç ekip ve AI Agent kadrosunu seçin"
+                  >
+                    <option value="">
+                      Kadro: Varsayılan Hibrit Ekip (OpenRouter + Lokal)
+                    </option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        Kadroyu Aktar: {p.name}
+                      </option>
+                    ))}
+                  </select>
                   <div className="form-actions">
                     <button
                       type="button"
@@ -991,6 +1015,83 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                         </button>
                       )}
                     </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 5. Project Team & AI Agent Roster Quick Section */}
+              <div className="explorer-group">
+                <div className="explorer-group-header">
+                  <span>PROJE EKİBİ & AI AGENT ({projectTeamList.length})</span>
+                  {onOpenTeamModal && (
+                    <button
+                      type="button"
+                      className="group-add-btn"
+                      onClick={() => {
+                        setIsExplorerOpen(false);
+                        onOpenTeamModal();
+                      }}
+                      title="Proje bazlı AI Agent tanımla, model ata veya başka projeden ekip aktar"
+                    >
+                      + Agent / Yönet
+                    </button>
+                  )}
+                </div>
+                {projectTeamList.map((member) => (
+                  <div
+                    key={member.id}
+                    className="explorer-doc-item"
+                    onClick={() => {
+                      if (onOpenTeamModal) {
+                        setIsExplorerOpen(false);
+                        onOpenTeamModal();
+                      }
+                    }}
+                    title={
+                      member.kind === "ai_agent"
+                        ? `${member.name} (${member.roleLabel}) — Model: ${
+                            member.modelProvider || "ollama"
+                          } / ${member.modelId || "gemma4:26b"}`
+                        : `${member.name} (${member.roleLabel})`
+                    }
+                  >
+                    <span
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: "50%",
+                        backgroundColor: member.avatarColor,
+                        color: "#ffffff",
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {member.kind === "ai_agent"
+                        ? "AI"
+                        : member.name.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span className="doc-name">{member.name}</span>
+                    {member.kind === "ai_agent" ? (
+                      <span
+                        className="doc-tag"
+                        style={{
+                          background: "var(--color-surface-primary-container)",
+                          color: "var(--color-on-primary-container)",
+                          maxWidth: 112,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {(member.modelId || "gemma4:26b").split("/").pop()}
+                      </span>
+                    ) : (
+                      <span className="doc-tag">{member.roleLabel}</span>
+                    )}
                   </div>
                 ))}
               </div>

@@ -148,6 +148,13 @@ Harici AI Agent'ların ve IDE'lerin projedeki tüm SDLC verileriyle canlı etkil
 9. **SDLC AI & MCP Orkestrasyon Stüdyosu (`AIIntegrationsModal.tsx` & `AIIntegrationsModal.scss`):**
    - Eski "AI Diagram Studio" ekranı, Excalidraw tasarım sistemiyle (`--island-bg-color`, `--color-surface-low`, `--color-surface-mid`, `--color-primary`, SVG ikonlar) tam uyumlu **SDLC AI & MCP Stüdyosu**'na dönüştürüldü; sağ üstteki çift kapatma (`X`) çakışması ve global `textarea`/`input` özgüllük sorunları giderildi.
    - Hem yerleşik AI sohbetinden tüm proje kaynaklarını (*Analiz/Mimari Şema*, *UI Tasarım*, *Görev & Kriter Üretimi*, *TDD Test Üretimi*) orkestre etme yeteneği eklendi hem de **Claude Desktop** ve **Gemini Antigravity** üzerinden `synapdraw-mcp` (11 SDLC + Tuval MCP aracı) ile harici orkestrasyon için özel **MCP** sekmesi ve canlı kaynak şeridi sunuldu.
+10. **Proje Bazlı AI Agent Model Yönlendirme (OpenRouter / Lokal Ollama) & Projeler Arası Ekip Aktarımı:**
+    - Her bir `TeamMember` (`ai_agent`) için **Görev Karmaşıklık Seviyesi (`complexityTier`: `high` | `standard` | `fast`)**, **Model Sağlayıcı (`modelProvider`: `openrouter` | `ollama` | `openai` | `custom`)** ve **Model Kimliği (`modelId`: örn. `anthropic/claude-3.7-sonnet`, `google/gemini-2.5-pro`, `qwen2.5-coder:7b`, `gemma4:26b`)** tanımlama ve düzenleme desteği eklendi ([`workspaceStore.ts`](../excalidraw-app/workspace/workspaceStore.ts), [`ContextAndTeamDrawers.tsx`](../excalidraw-app/sdlc/ContextAndTeamDrawers.tsx)).
+    - Sol üstteki **Proje Gezgini** çekmecesine (**`PROJE EKİBİ & AI AGENT`** bölümü) aktif projenin kadrosu ve atanmış model etiketleri eklendi; ayrıca **`+ Yeni Proje`** oluştururken mevcut bir projenin ekibini doğrudan yeni projeye aktarma seçeneği sunuldu ([`WorkspaceTabs.tsx`](../excalidraw-app/workspace/WorkspaceTabs.tsx)).
+    - **`TeamRosterModal`** 3 sekmeli yapıya kavuşturuldu:
+      1. *Proje Kadrosu & Agent Tanımla* (mevcut agent'a tıklayarak modelini/sağlayıcısını anında güncelleme),
+      2. *Projeler Arası Ekip Aktar* (`cloneTeamMembersToProject` ile başka projeden seçili agent/üyeleri veya tüm ekibi tek tıkla kopyalama),
+      3. *OpenRouter & Lokal Gateway Ayarları* (`getAIProviderGatewayConfig` ile `OpenRouter` ve `Ollama` canlı model kataloğu çekme).
 
 ---
 

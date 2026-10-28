@@ -145,9 +145,12 @@ interface AIIntegrationsModalProps {
 }
 
 interface AISettings {
-  provider: "ollama" | "custom";
+  provider: "ollama" | "openrouter" | "custom";
   ollamaUrl: string;
   ollamaModel: string;
+  openrouterUrl: string;
+  openrouterApiKey: string;
+  openrouterModel: string;
   customUrl: string;
   customApiKey: string;
   customModel: string;
@@ -158,11 +161,24 @@ const DEFAULT_SETTINGS: AISettings = {
   provider: "ollama",
   ollamaUrl: "http://127.0.0.1:11434",
   ollamaModel: "gemma4:26b",
+  openrouterUrl: "https://openrouter.ai/api/v1",
+  openrouterApiKey: "",
+  openrouterModel: "anthropic/claude-3.7-sonnet",
   customUrl: "https://api.openai.com/v1",
   customApiKey: "",
   customModel: "gpt-4o-mini",
   autoScroll: true,
 };
+
+const OPENROUTER_POPULAR_MODELS = [
+  "anthropic/claude-3.7-sonnet",
+  "google/gemini-2.5-pro",
+  "openai/gpt-4.1",
+  "deepseek/deepseek-r1",
+  "qwen/qwen-2.5-coder-32b-instruct",
+  "meta-llama/llama-3.3-70b-instruct",
+  "google/gemini-2.5-flash",
+];
 
 const PRESET_TYPES = [
   {
@@ -1283,14 +1299,31 @@ CRITICAL MERMAID SYNTAX RULES:
           } catch {}
         }
       } else {
-        const res = await fetch(`${settings.customUrl}/chat/completions`, {
+        const isOpenRouter = settings.provider === "openrouter";
+        const baseUrl = (
+          isOpenRouter ? settings.openrouterUrl : settings.customUrl
+        ).replace(/\/+$/, "");
+        const apiKey = isOpenRouter
+          ? settings.openrouterApiKey
+          : settings.customApiKey;
+        const activeCloudModel = isOpenRouter
+          ? settings.openrouterModel
+          : settings.customModel;
+
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        };
+        if (isOpenRouter) {
+          headers["HTTP-Referer"] = "http://localhost:3000";
+          headers["X-Title"] = "SynapDraw SDLC Super-App";
+        }
+
+        const res = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${settings.customApiKey}`,
-          },
+          headers,
           body: JSON.stringify({
-            model: settings.customModel,
+            model: activeCloudModel,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: activePrompt },
@@ -1529,7 +1562,7 @@ CRITICAL MERMAID SYNTAX RULES:
 
               {/* Provider & Model Selection */}
               <div className="sidebar-section">
-                <label className="section-label">Model Sağlayıcı</label>
+                <label className="section-label">Model Sağlayıcı / Gateway</label>
                 <select
                   className="sidebar-select"
                   value={settings.provider}
@@ -1537,7 +1570,8 @@ CRITICAL MERMAID SYNTAX RULES:
                     setSettings({ ...settings, provider: e.target.value as any })
                   }
                 >
-                  <option value="ollama">Ollama (Lokal LLM)</option>
+                  <option value="ollama">Ollama (Lokal & Hızlı LLM)</option>
+                  <option value="openrouter">OpenRouter (Çoklu Model Gateway)</option>
                   <option value="custom">OpenAI / Özel API</option>
                 </select>
               </div>
@@ -1584,6 +1618,25 @@ CRITICAL MERMAID SYNTAX RULES:
                       }
                     />
                   )}
+                </div>
+              ) : settings.provider === "openrouter" ? (
+                <div className="sidebar-section">
+                  <label className="section-label">OpenRouter Modeli</label>
+                  <input
+                    type="text"
+                    list="openrouter-studio-models"
+                    className="sidebar-input"
+                    value={settings.openrouterModel}
+                    placeholder="anthropic/claude-3.7-sonnet"
+                    onChange={(e) =>
+                      setSettings({ ...settings, openrouterModel: e.target.value })
+                    }
+                  />
+                  <datalist id="openrouter-studio-models">
+                    {OPENROUTER_POPULAR_MODELS.map((m) => (
+                      <option key={m} value={m} />
+                    ))}
+                  </datalist>
                 </div>
               ) : (
                 <div className="sidebar-section">
@@ -1823,6 +1876,32 @@ CRITICAL MERMAID SYNTAX RULES:
                     Bağlan
                   </button>
                 </div>
+              </div>
+
+              <div className="sidebar-section">
+                <label className="section-label">OpenRouter API Base URL</label>
+                <input
+                  type="text"
+                  className="sidebar-input"
+                  value={settings.openrouterUrl}
+                  placeholder="https://openrouter.ai/api/v1"
+                  onChange={(e) =>
+                    setSettings({ ...settings, openrouterUrl: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="sidebar-section">
+                <label className="section-label">OpenRouter API Anahtarı (Key)</label>
+                <input
+                  type="password"
+                  className="sidebar-input"
+                  value={settings.openrouterApiKey}
+                  placeholder="sk-or-v1-..."
+                  onChange={(e) =>
+                    setSettings({ ...settings, openrouterApiKey: e.target.value })
+                  }
+                />
               </div>
 
               <div className="sidebar-section">

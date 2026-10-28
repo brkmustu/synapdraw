@@ -36,6 +36,10 @@ export type ParticipantRole =
   | "designer"
   | "qa";
 
+export type AgentModelProvider = "ollama" | "openrouter" | "openai" | "custom";
+
+export type AgentComplexityTier = "high" | "standard" | "fast";
+
 export interface TeamMember {
   id: string;
   projectId: string;
@@ -46,6 +50,17 @@ export interface TeamMember {
   avatarColor: string;
   systemPrompt?: string;
   capabilities?: string[];
+  modelProvider?: AgentModelProvider;
+  modelId?: string;
+  complexityTier?: AgentComplexityTier;
+}
+
+export interface AIProviderGatewayConfig {
+  ollamaUrl: string;
+  openRouterBaseUrl: string;
+  openRouterApiKey: string;
+  openAiBaseUrl: string;
+  openAiApiKey: string;
 }
 
 export type TaskStatus =
@@ -136,6 +151,45 @@ const STORAGE_KEY_SPLIT_ID = "synapdraw_split_workspace_id_v1";
 const STORAGE_KEY_TASKS = "synapdraw_project_tasks_v1";
 const STORAGE_KEY_TDD = "synapdraw_project_tdd_v1";
 const STORAGE_KEY_TEAM = "synapdraw_project_team_v1";
+const STORAGE_KEY_GATEWAY_CONFIG = "synapdraw_ai_gateway_config_v1";
+
+export function getAIProviderGatewayConfig(): AIProviderGatewayConfig {
+  const defaults: AIProviderGatewayConfig = {
+    ollamaUrl: "http://127.0.0.1:11434",
+    openRouterBaseUrl: "https://openrouter.ai/api/v1",
+    openRouterApiKey: "",
+    openAiBaseUrl: "https://api.openai.com/v1",
+    openAiApiKey: "",
+  };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_GATEWAY_CONFIG);
+    if (raw) {
+      return { ...defaults, ...JSON.parse(raw) };
+    }
+    const legacy = localStorage.getItem("excalidraw_ai_settings");
+    if (legacy) {
+      const parsed = JSON.parse(legacy);
+      return {
+        ...defaults,
+        ollamaUrl: parsed.ollamaUrl || defaults.ollamaUrl,
+        openAiBaseUrl: parsed.customUrl || defaults.openAiBaseUrl,
+        openAiApiKey: parsed.customApiKey || defaults.openAiApiKey,
+      };
+    }
+  } catch {}
+  return defaults;
+}
+
+export function saveAIProviderGatewayConfig(
+  patch: Partial<AIProviderGatewayConfig>,
+): AIProviderGatewayConfig {
+  const next = { ...getAIProviderGatewayConfig(), ...patch };
+  try {
+    localStorage.setItem(STORAGE_KEY_GATEWAY_CONFIG, JSON.stringify(next));
+  } catch {}
+  notify();
+  return next;
+}
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -255,7 +309,11 @@ export function setActiveProjectId(projectId: string): void {
   notify();
 }
 
-export function createProject(name: string, description = ""): SDLCProject {
+export function createProject(
+  name: string,
+  description = "",
+  copyTeamFromProjectId?: string,
+): SDLCProject {
   const projects = getProjects();
   const id = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const cleanName = name.trim() || "Yeni Yazılım Projesi";
@@ -335,8 +393,12 @@ export function createProject(name: string, description = ""): SDLCProject {
   localStorage.setItem(STORAGE_KEY_ACTIVE_ID, seededDocs[0].id);
   localStorage.removeItem(STORAGE_KEY_SPLIT_ID);
 
-  // Seed default team for the new project
-  ensureProjectTeam(id);
+  // Seed default team or clone from selected source project
+  if (copyTeamFromProjectId) {
+    cloneTeamMembersToProject(copyTeamFromProjectId, id, undefined, true);
+  } else {
+    ensureProjectTeam(id);
+  }
   notify();
   return newProj;
 }
@@ -746,6 +808,9 @@ function getDefaultTeamForProject(projectId: string): TeamMember[] {
       systemPrompt:
         "Kullanıcı gereksinimlerini analiz diyagramlarına, kullanıcı hikayelerine ve kabul kriterlerine dönüştürür.",
       capabilities: ["render_mermaid", "create_or_update_task"],
+      modelProvider: "ollama",
+      modelId: "gemma4:26b",
+      complexityTier: "standard",
     },
     {
       id: `${projectId}_agent_arch`,
@@ -758,6 +823,9 @@ function getDefaultTeamForProject(projectId: string): TeamMember[] {
       systemPrompt:
         "Servis sınırlarını, veri akışlarını ve ER şemalarını Excalidraw mimari tuvallerinde modeller.",
       capabilities: ["render_mermaid", "create_view"],
+      modelProvider: "openrouter",
+      modelId: "anthropic/claude-3.7-sonnet",
+      complexityTier: "high",
     },
     {
       id: `${projectId}_agent_ui`,
@@ -770,6 +838,9 @@ function getDefaultTeamForProject(projectId: string): TeamMember[] {
       systemPrompt:
         "Analiz ve görev kabul kriterlerini temel alarak Tasarım Tuvalinde pixel-perfect CSS/HTML ekranlar üretir.",
       capabilities: ["render_design", "update_node_styles"],
+      modelProvider: "openrouter",
+      modelId: "google/gemini-2.5-pro",
+      complexityTier: "high",
     },
     {
       id: `${projectId}_agent_tdd`,
@@ -782,6 +853,9 @@ function getDefaultTeamForProject(projectId: string): TeamMember[] {
       systemPrompt:
         "TDD disiplinine göre Given/When/Then test senaryolarını ve uç durum (edge-case) kontrollerini hazırlar.",
       capabilities: ["upsert_tdd_scenario", "list_tdd_scenarios"],
+      modelProvider: "ollama",
+      modelId: "qwen2.5-coder:7b",
+      complexityTier: "fast",
     },
   ];
 }
@@ -843,6 +917,67 @@ export function removeTeamMember(memberId: string): void {
   const all = getAllTeamRaw().filter((m) => m.id !== memberId);
   localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(all));
   notify();
+}
+
+export function updateTeamMember(
+  memberId: string,
+  patch: Partial<Omit<TeamMember, "id" | "projectId">>,
+): TeamMember | null {
+  const all = getAllTeamRaw();
+  const idx = all.findIndex((m) => m.id === memberId);
+  if (idx === -1) return null;
+  all[idx] = {
+    ...all[idx],
+    ...patch,
+  };
+  localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(all));
+  notify();
+  return all[idx];
+}
+
+export function cloneTeamMembersToProject(
+  sourceProjectId: string,
+  targetProjectId?: string,
+  memberIds?: string[],
+  replaceExisting = false,
+): TeamMember[] {
+  const dstPid = targetProjectId || getActiveProjectId();
+  const sourceTeam = getProjectTeam(sourceProjectId);
+  const toClone =
+    Array.isArray(memberIds) && memberIds.length > 0
+      ? sourceTeam.filter((m) => memberIds.includes(m.id))
+      : sourceTeam;
+
+  if (toClone.length === 0) {
+    return getProjectTeam(dstPid);
+  }
+
+  const all = getAllTeamRaw();
+  const remaining = replaceExisting
+    ? all.filter((m) => m.projectId !== dstPid)
+    : all;
+  const existingTarget = remaining.filter((m) => m.projectId === dstPid);
+
+  const clonedMembers: TeamMember[] = [];
+  for (const src of toClone) {
+    // Avoid duplicate names when merging
+    const alreadyExists = existingTarget.some(
+      (m) => m.name.toLowerCase() === src.name.toLowerCase() && m.kind === src.kind,
+    );
+    if (alreadyExists && !replaceExisting) {
+      continue;
+    }
+    clonedMembers.push({
+      ...src,
+      id: `member_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      projectId: dstPid,
+    });
+  }
+
+  const nextAll = [...remaining, ...clonedMembers];
+  localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(nextAll));
+  notify();
+  return getProjectTeam(dstPid);
 }
 
 // ============================================================================
@@ -2279,34 +2414,74 @@ export async function runLiveAgentPipeline(
     return { summary: "Görev bulunamadı.", usedLiveLLM: false };
   }
 
-  // First try calling configured LLM in excalidraw_ai_settings with a fast timeout
+  const team = getProjectTeam(task.projectId);
+  const assignedAgent =
+    team.find((m) => m.id === task.assigneeId && m.kind === "ai_agent") ||
+    team.find(
+      (m) =>
+        m.kind === "ai_agent" &&
+        ((mode === "architecture" && m.role === "architect") ||
+          (mode === "design" && m.role === "designer") ||
+          (mode === "tdd" && m.role === "qa") ||
+          (mode === "analysis" && m.role === "po")),
+    ) ||
+    team.find((m) => m.kind === "ai_agent");
+
+  // Route through agent-specific provider (OpenRouter / Ollama / OpenAI) or fallback gateway settings
   try {
+    const gateway = getAIProviderGatewayConfig();
     const rawSettings = ownerWindow.localStorage.getItem(
       "excalidraw_ai_settings",
     );
-    if (rawSettings && (mode === "design" || mode === "analysis")) {
-      const settings = JSON.parse(rawSettings);
-      const isOllama = settings.provider !== "custom";
-      const endpoint = isOllama
-        ? `${(settings.ollamaUrl || "http://127.0.0.1:11434").replace(
-            /\/$/,
-            "",
-          )}/api/chat`
-        : `${(settings.customUrl || "https://api.openai.com/v1").replace(
-            /\/$/,
-            "",
-          )}/chat/completions`;
-      const model = isOllama
-        ? settings.ollamaModel || "gemma4:26b"
-        : settings.customModel || "gpt-4o-mini";
+    const legacySettings = rawSettings ? JSON.parse(rawSettings) : {};
 
+    const provider: AgentModelProvider =
+      assignedAgent?.modelProvider ||
+      (legacySettings.provider === "custom" ? "openai" : "ollama");
+
+    const model =
+      assignedAgent?.modelId ||
+      (provider === "ollama"
+        ? legacySettings.ollamaModel || "gemma4:26b"
+        : provider === "openrouter"
+        ? "anthropic/claude-3.7-sonnet"
+        : legacySettings.customModel || "gpt-4o-mini");
+
+    const isOllama = provider === "ollama";
+    const endpoint = isOllama
+      ? `${(
+          gateway.ollamaUrl ||
+          legacySettings.ollamaUrl ||
+          "http://127.0.0.1:11434"
+        ).replace(/\/$/, "")}/api/chat`
+      : provider === "openrouter"
+      ? `${(
+          gateway.openRouterBaseUrl || "https://openrouter.ai/api/v1"
+        ).replace(/\/$/, "")}/chat/completions`
+      : `${(
+          gateway.openAiBaseUrl ||
+          legacySettings.customUrl ||
+          "https://api.openai.com/v1"
+        ).replace(/\/$/, "")}/chat/completions`;
+
+    const apiKey =
+      provider === "openrouter"
+        ? gateway.openRouterApiKey
+        : gateway.openAiApiKey || legacySettings.customApiKey || "";
+
+    // Only attempt cloud call if API key is present or provider is local Ollama
+    if ((isOllama || apiKey) && (mode === "design" || mode === "analysis")) {
       const ctrl = new AbortController();
-      const timeoutId = setTimeout(() => ctrl.abort(), 4500);
+      const timeoutId = setTimeout(() => ctrl.abort(), 5500);
 
       const sysPrompt =
         mode === "design"
-          ? "Sen bir UI/UX tasarım uzmanısın. Yalnızca temiz, modern, inline-style içeren bir HTML <div> kart bileşeni döndür. Markdown açıklaması yazma."
-          : "Sen bir yazılım analistisin. Görev için 3 adet net kabul kriterini her satırda bir madde olacak şekilde düz metin olarak döndür.";
+          ? `${
+              assignedAgent?.systemPrompt || "Sen bir UI/UX tasarım uzmanısın."
+            } Yalnızca temiz, modern, inline-style içeren bir HTML <div> kart bileşeni döndür. Markdown açıklaması yazma.`
+          : `${
+              assignedAgent?.systemPrompt || "Sen bir yazılım analistisin."
+            } Görev için 3 adet net kabul kriterini her satırda bir madde olacak şekilde düz metin olarak döndür.`;
       const userPrompt = `Görev: ${task.key} - ${task.title}\nAçıklama: ${
         task.description || ""
       }\nMevcut Kriterler: ${task.acceptanceCriteria
@@ -2316,8 +2491,12 @@ export async function runLiveAgentPipeline(
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-      if (!isOllama && settings.customApiKey) {
-        headers.Authorization = `Bearer ${settings.customApiKey}`;
+      if (!isOllama && apiKey) {
+        headers.Authorization = `Bearer ${apiKey}`;
+      }
+      if (provider === "openrouter") {
+        headers["HTTP-Referer"] = "http://localhost:3000";
+        headers["X-Title"] = "SynapDraw SDLC Super-App";
       }
 
       const res = await fetch(endpoint, {
@@ -2360,11 +2539,17 @@ export async function runLiveAgentPipeline(
             updateProjectTask(task.id, { acceptanceCriteria: merged });
             addTaskComment(
               task.id,
-              task.assigneeId || "system",
-              `🤖 Canlı LLM (${model}) ile ${lines.length} yeni kabul kriteri üretildi.`,
+              assignedAgent?.id || task.assigneeId || "system",
+              `${
+                assignedAgent?.name || "AI Agent"
+              } (${provider.toUpperCase()} · ${model}) ile ${
+                lines.length
+              } yeni kabul kriteri üretildi.`,
             );
             return {
-              summary: `Canlı LLM (${model}) ile ${lines.length} kriter eklendi`,
+              summary: `${
+                assignedAgent?.name || "Agent"
+              } (${model}) ile ${lines.length} kriter eklendi`,
               usedLiveLLM: true,
             };
           }
