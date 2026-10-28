@@ -1,5 +1,8 @@
 # SynapDraw SDLC Super-App: UI/UX ve Mimari Yol Haritası
 
+> [!TIP]
+> **Genel Oturum Özeti (Session Summary):** Şimdiye kadar yapılan tüm git/branch düzenlemeleri, Excalidraw tasarım sistemi uyumluluk çalışmaları, SDLC Super-App bileşenleri ve başka bilgisayarda kurulum/devam etme rehberi için [`docs/session_summary.md`](./session_summary.md) dosyasına bakabilirsiniz.
+
 Bu plan; **SynapDraw**'ı yalnızca çizim ve ekran tasarımı yapılan bir araçtan, bir yazılımın **Analiz → Mimari → UI/UX Tasarım → Görev Yönetimi → TDD Test Senaryoları** yaşam döngüsünün tamamını **kaos yaratmadan**, Excalidraw'ın yalın tasarım dilini koruyarak tek çatı altında toplayan bir **SDLC Super-App** mimarisine taşımak için hazırlanmıştır.
 
 > [!IMPORTANT]
