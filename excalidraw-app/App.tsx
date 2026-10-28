@@ -447,7 +447,10 @@ const ExcalidrawWrapper = () => {
       return;
     }
 
-    registerActiveEngine(new ExcalidrawEngine(activeWs.id, excalidrawAPI));
+    registerActiveEngine(
+      new ExcalidrawEngine(activeWs.id, excalidrawAPI),
+      activeWs.id,
+    );
 
     const pendingSketchElementIds = consumePendingSketchFocus(activeWs.id);
 
@@ -685,6 +688,26 @@ const ExcalidrawWrapper = () => {
 
     initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
       loadImages(data, /* isInitialLoad */ true);
+      const currentWs = getActiveWorkspace();
+      if (!data.isExternalScene && currentWs.canvasType === "sketch") {
+        try {
+          const wsElementsRaw = localStorage.getItem(
+            `synapdraw_ws_${currentWs.id}_elements`,
+          );
+          if (wsElementsRaw !== null) {
+            const parsedEls = JSON.parse(wsElementsRaw);
+            if (Array.isArray(parsedEls)) {
+              data.scene = {
+                ...data.scene,
+                elements: restoreElements(parsedEls, null, {
+                  repairBindings: true,
+                  deleteInvisibleElements: true,
+                }),
+              };
+            }
+          }
+        } catch {}
+      }
       initialStatePromiseRef.current.promise.resolve(data.scene);
     });
 
@@ -774,12 +797,30 @@ const ExcalidrawWrapper = () => {
       }
     }, SYNC_BROWSER_TABS_TIMEOUT);
 
+    const persistActiveSketchWorkspace = () => {
+      if (!excalidrawAPI || !currentSketchWsIdRef.current) {
+        return;
+      }
+      try {
+        const wsId = currentSketchWsIdRef.current;
+        const activeElements = excalidrawAPI
+          .getSceneElements()
+          .filter((el) => !el.isDeleted);
+        localStorage.setItem(
+          `synapdraw_ws_${wsId}_elements`,
+          JSON.stringify(activeElements),
+        );
+      } catch {}
+    };
+
     const onUnload = () => {
+      persistActiveSketchWorkspace();
       LocalData.flushSave();
     };
 
     const visibilityChange = (event: FocusEvent | Event) => {
       if (event.type === EVENT.BLUR || document.hidden) {
+        persistActiveSketchWorkspace();
         LocalData.flushSave();
       }
       if (
@@ -847,6 +888,18 @@ const ExcalidrawWrapper = () => {
     if (!LocalData.isSavePaused()) {
       LocalData.save(elements, appState, files, () => {
         if (excalidrawAPI) {
+          if (currentSketchWsIdRef.current) {
+            try {
+              const activeElements = excalidrawAPI
+                .getSceneElements()
+                .filter((el) => !el.isDeleted);
+              localStorage.setItem(
+                `synapdraw_ws_${currentSketchWsIdRef.current}_elements`,
+                JSON.stringify(activeElements),
+              );
+            } catch {}
+          }
+
           let didChange = false;
 
           const elements = excalidrawAPI

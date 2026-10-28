@@ -15,6 +15,7 @@ import {
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
   getActiveProject,
+  getActiveWorkspace,
   getWorkspaces,
   getProjectTasks,
   getProjectTDDScenarios,
@@ -23,6 +24,7 @@ import {
   createTDDScenario,
   executeAgentOnTask,
   runLiveAgentPipeline,
+  saveAIProviderGatewayConfig,
   setActiveWorkspaceId,
   subscribeWorkspaces,
 } from "../workspace/workspaceStore";
@@ -562,6 +564,16 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
   useEffect(() => {
     try {
       localStorage.setItem("excalidraw_ai_settings", JSON.stringify(settings));
+      saveAIProviderGatewayConfig({
+        activeProvider: settings.provider,
+        ollamaBaseUrl: settings.ollamaUrl,
+        ollamaModel: settings.ollamaModel,
+        openRouterApiKey: settings.openrouterKey,
+        openRouterModel: settings.openrouterModel,
+        customApiBaseUrl: settings.openaiBaseUrl,
+        customApiKey: settings.openaiKey,
+        customApiModel: settings.openaiModel,
+      });
     } catch {}
   }, [settings]);
 
@@ -876,9 +888,28 @@ ${tddSummary || "- Yok"}`;
         refreshDimensions: true,
       });
       const baseElements = renderMode === "append" ? currentElements : [];
+      const nextElements = [...baseElements, ...restored];
       excalidrawAPI.updateScene({
-        elements: [...baseElements, ...restored],
+        elements: nextElements,
       });
+
+      const activeWs = getActiveWorkspace();
+      const targetSketchDoc =
+        activeWs.canvasType === "sketch"
+          ? activeWs
+          : projectDocs.find((d) => d.canvasType === "sketch");
+      if (targetSketchDoc) {
+        try {
+          localStorage.setItem(
+            `synapdraw_ws_${targetSketchDoc.id}_elements`,
+            JSON.stringify(nextElements),
+          );
+        } catch {}
+        if (settings.autoScroll && activeWs.id !== targetSketchDoc.id) {
+          setActiveWorkspaceId(targetSketchDoc.id);
+        }
+      }
+
       if (settings.autoScroll) {
         if (typeof (excalidrawAPI as any).scrollToContent === "function") {
           (excalidrawAPI as any).scrollToContent(restored, {
@@ -975,11 +1006,13 @@ ${tddSummary || "- Yok"}`;
           linkedTaskId: defaultTask?.id || null,
           linkedDocIds: defaultTask?.linkedDocIds || [],
           assertions: Array.isArray(item.assertions)
-            ? item.assertions.map((a: any, idx: number) => ({
-                id: `as_${Date.now()}_${idx}`,
-                description: typeof a === "string" ? a : String(a.description || ""),
-                passed: false,
-              }))
+            ? item.assertions
+                .map((a: any) =>
+                  typeof a === "string"
+                    ? a
+                    : String(a.text || a.description || ""),
+                )
+                .filter(Boolean)
             : [],
         });
         createdCount++;

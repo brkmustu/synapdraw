@@ -186,6 +186,18 @@ export function saveAIProviderGatewayConfig(
   const next = { ...getAIProviderGatewayConfig(), ...patch };
   try {
     localStorage.setItem(STORAGE_KEY_GATEWAY_CONFIG, JSON.stringify(next));
+    // Also keep legacy excalidraw_ai_settings in sync so AI Studio and Team Roster share gateway URLs/keys
+    const rawLegacy = localStorage.getItem("excalidraw_ai_settings");
+    const parsedLegacy = rawLegacy ? JSON.parse(rawLegacy) : {};
+    const syncedLegacy = {
+      ...parsedLegacy,
+      ollamaUrl: next.ollamaUrl || parsedLegacy.ollamaUrl || "http://127.0.0.1:11434",
+      customUrl: next.openAiBaseUrl || parsedLegacy.customUrl || "https://api.openai.com/v1",
+      customApiKey: next.openAiApiKey || parsedLegacy.customApiKey || "",
+      openRouterBaseUrl: next.openRouterBaseUrl || "https://openrouter.ai/api/v1",
+      openRouterApiKey: next.openRouterApiKey || "",
+    };
+    localStorage.setItem("excalidraw_ai_settings", JSON.stringify(syncedLegacy));
   } catch {}
   notify();
   return next;
@@ -744,6 +756,53 @@ export function deleteWorkspace(id: string): boolean {
     localStorage.removeItem(`synapdraw_design_doc_${id}`);
   } catch {}
 
+  // Clean up orphaned references in tasks and TDD scenarios
+  try {
+    const allTasks = getAllTasksRaw();
+    let tasksChanged = false;
+    const cleanedTasks = allTasks.map((t) => {
+      const nextDocs = (t.linkedDocIds || []).filter((docId) => docId !== id);
+      const nextArtboards = (t.linkedArtboards || []).filter(
+        (la) => la.docId !== id,
+      );
+      const nextSketches = (t.linkedSketchRefs || []).filter(
+        (sr) => sr.docId !== id,
+      );
+      if (
+        nextDocs.length !== (t.linkedDocIds || []).length ||
+        nextArtboards.length !== (t.linkedArtboards || []).length ||
+        nextSketches.length !== (t.linkedSketchRefs || []).length
+      ) {
+        tasksChanged = true;
+        return {
+          ...t,
+          linkedDocIds: nextDocs,
+          linkedArtboards: nextArtboards,
+          linkedSketchRefs: nextSketches,
+          updatedAt: Date.now(),
+        };
+      }
+      return t;
+    });
+    if (tasksChanged) {
+      localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(cleanedTasks));
+    }
+
+    const allTdd = getAllTDDRaw();
+    let tddChanged = false;
+    const cleanedTdd = allTdd.map((s) => {
+      const nextDocs = (s.linkedDocIds || []).filter((docId) => docId !== id);
+      if (nextDocs.length !== (s.linkedDocIds || []).length) {
+        tddChanged = true;
+        return { ...s, linkedDocIds: nextDocs, updatedAt: Date.now() };
+      }
+      return s;
+    });
+    if (tddChanged) {
+      localStorage.setItem(STORAGE_KEY_TDD, JSON.stringify(cleanedTdd));
+    }
+  } catch {}
+
   const openIds = getOpenTabIds(pid).filter((tabId) => tabId !== id);
   const remainingProjectDocs = updated.filter((w) => w.projectId === pid);
   if (openIds.length === 0 && remainingProjectDocs.length > 0) {
@@ -1159,7 +1218,11 @@ export function createProjectTask(
   const pid = projectId || getActiveProjectId();
   const all = getAllTasksRaw();
   const existingForProj = all.filter((t) => t.projectId === pid);
-  const nextNum = existingForProj.length + 1;
+  const maxNum = existingForProj.reduce((max, t) => {
+    const m = typeof t.key === "string" ? t.key.match(/(\d+)$/) : null;
+    return m ? Math.max(max, parseInt(m[1], 10)) : max;
+  }, 0);
+  const nextNum = maxNum + 1;
   const now = Date.now();
 
   const newTask: ProjectTask = {
@@ -1171,10 +1234,10 @@ export function createProjectTask(
     status: input.status || "backlog",
     priority: input.priority || "medium",
     assigneeId: input.assigneeId ?? null,
-    acceptanceCriteria: (input.acceptanceCriteria || []).map((text, idx) => ({
+    acceptanceCriteria: (input.acceptanceCriteria || []).map((item: any, idx) => ({
       id: `ac_${now}_${idx}`,
-      text,
-      completed: false,
+      text: typeof item === "string" ? item : String(item?.text || ""),
+      completed: Boolean(item?.completed),
     })),
     linkedDocIds: input.linkedDocIds || [],
     linkedArtboards: [],
@@ -1210,6 +1273,23 @@ export function updateProjectTask(
 export function deleteProjectTask(taskId: string): void {
   const all = getAllTasksRaw().filter((t) => t.id !== taskId);
   localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(all));
+
+  // Unlink any TDD scenarios pointing to this deleted task
+  try {
+    const allTdd = getAllTDDRaw();
+    let changed = false;
+    const cleaned = allTdd.map((s) => {
+      if (s.linkedTaskId === taskId) {
+        changed = true;
+        return { ...s, linkedTaskId: null, updatedAt: Date.now() };
+      }
+      return s;
+    });
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY_TDD, JSON.stringify(cleaned));
+    }
+  } catch {}
+
   notify();
 }
 
@@ -1375,7 +1455,7 @@ export function createTDDScenario(
     given: string;
     when: string;
     then: string;
-    assertions?: string[];
+    assertions?: Array<string | { text?: string; description?: string; passed?: boolean }>;
     linkedTaskId?: string | null;
     linkedDocIds?: string[];
     assigneeId?: string | null;
@@ -1385,7 +1465,11 @@ export function createTDDScenario(
   const pid = projectId || getActiveProjectId();
   const all = getAllTDDRaw();
   const existingForProj = all.filter((s) => s.projectId === pid);
-  const nextNum = existingForProj.length + 1;
+  const maxNum = existingForProj.reduce((max, s) => {
+    const m = typeof s.key === "string" ? s.key.match(/(\d+)$/) : null;
+    return m ? Math.max(max, parseInt(m[1], 10)) : max;
+  }, 0);
+  const nextNum = maxNum + 1;
   const now = Date.now();
 
   const scenario: TDDScenario = {
@@ -1398,10 +1482,13 @@ export function createTDDScenario(
     given: input.given.trim() || "Başlangıç koşulu",
     when: input.when.trim() || "Tetiklenen eylem",
     then: input.then.trim() || "Beklenen sonuç",
-    assertions: (input.assertions || []).map((text, idx) => ({
+    assertions: (input.assertions || []).map((item, idx) => ({
       id: `as_${now}_${idx}`,
-      text,
-      passed: false,
+      text:
+        typeof item === "string"
+          ? item
+          : String(item?.text || item?.description || ""),
+      passed: typeof item === "object" && item !== null ? Boolean(item.passed) : false,
     })),
     linkedTaskId: input.linkedTaskId ?? null,
     linkedDocIds: input.linkedDocIds || [],
@@ -1430,6 +1517,49 @@ export function updateTDDScenario(
   };
   all[idx] = updated;
   localStorage.setItem(STORAGE_KEY_TDD, JSON.stringify(all));
+
+  // Bidirectional state propagation: when a TDD scenario becomes green/refactor,
+  // sync matching acceptance criteria on the linked task
+  if (
+    updated.linkedTaskId &&
+    (updated.status === "green" || updated.status === "refactor")
+  ) {
+    try {
+      const allTasks = getAllTasksRaw();
+      const tIdx = allTasks.findIndex((t) => t.id === updated.linkedTaskId);
+      if (tIdx !== -1) {
+        const targetTask = allTasks[tIdx];
+        let criteriaChanged = false;
+        const nextCriteria = targetTask.acceptanceCriteria.map((crit) => {
+          if (crit.completed) return crit;
+          const matchesThen =
+            updated.then &&
+            (updated.then.toLowerCase().includes(crit.text.toLowerCase()) ||
+              crit.text.toLowerCase().includes(updated.then.toLowerCase()));
+          const matchesAssertion = updated.assertions.some(
+            (a) =>
+              a.passed &&
+              a.text.toLowerCase().includes(crit.text.toLowerCase()),
+          );
+          if (matchesThen || matchesAssertion) {
+            criteriaChanged = true;
+            return { ...crit, completed: true };
+          }
+          return crit;
+        });
+
+        if (criteriaChanged) {
+          allTasks[tIdx] = {
+            ...targetTask,
+            acceptanceCriteria: nextCriteria,
+            updatedAt: Date.now(),
+          };
+          localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(allTasks));
+        }
+      }
+    } catch {}
+  }
+
   notify();
   return updated;
 }
@@ -1538,6 +1668,31 @@ export function toggleTaskArtboardLink(
     linkedArtboards: nextArtboards,
     linkedDocIds: nextDocIds,
   });
+}
+
+export function cleanupDeletedArtboardLinks(
+  docId: string,
+  artboardId: string,
+): void {
+  try {
+    const allTasks = getAllTasksRaw();
+    let changed = false;
+    const cleaned = allTasks.map((t) => {
+      const current = Array.isArray(t.linkedArtboards) ? t.linkedArtboards : [];
+      const next = current.filter(
+        (la) => !(la.docId === docId && la.artboardId === artboardId),
+      );
+      if (next.length !== current.length) {
+        changed = true;
+        return { ...t, linkedArtboards: next, updatedAt: Date.now() };
+      }
+      return t;
+    });
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(cleaned));
+      notify();
+    }
+  } catch {}
 }
 
 // ============================================================================
@@ -2415,17 +2570,34 @@ export async function runLiveAgentPipeline(
   }
 
   const team = getProjectTeam(task.projectId);
+  const assignedMember = team.find((m) => m.id === task.assigneeId);
+
+  let resolvedMode: "architecture" | "design" | "tdd" | "analysis" = "design";
+  if (mode !== "auto") {
+    resolvedMode = mode;
+  } else if (assignedMember?.role === "qa" || task.status === "testing") {
+    resolvedMode = "tdd";
+  } else if (assignedMember?.role === "architect") {
+    resolvedMode = "architecture";
+  } else if (assignedMember?.role === "po" || task.status === "backlog") {
+    resolvedMode = "analysis";
+  } else {
+    resolvedMode = "design";
+  }
+
   const assignedAgent =
     team.find((m) => m.id === task.assigneeId && m.kind === "ai_agent") ||
     team.find(
       (m) =>
         m.kind === "ai_agent" &&
-        ((mode === "architecture" && m.role === "architect") ||
-          (mode === "design" && m.role === "designer") ||
-          (mode === "tdd" && m.role === "qa") ||
-          (mode === "analysis" && m.role === "po")),
+        ((resolvedMode === "architecture" && m.role === "architect") ||
+          (resolvedMode === "design" && m.role === "designer") ||
+          (resolvedMode === "tdd" && m.role === "qa") ||
+          (resolvedMode === "analysis" && m.role === "po")),
     ) ||
     team.find((m) => m.kind === "ai_agent");
+
+  const docs = getProjectWorkspaces(task.projectId);
 
   // Route through agent-specific provider (OpenRouter / Ollama / OpenAI) or fallback gateway settings
   try {
@@ -2437,14 +2609,18 @@ export async function runLiveAgentPipeline(
 
     const provider: AgentModelProvider =
       assignedAgent?.modelProvider ||
-      (legacySettings.provider === "custom" ? "openai" : "ollama");
+      (legacySettings.provider === "openrouter"
+        ? "openrouter"
+        : legacySettings.provider === "custom"
+        ? "openai"
+        : "ollama");
 
     const model =
       assignedAgent?.modelId ||
       (provider === "ollama"
         ? legacySettings.ollamaModel || "gemma4:26b"
         : provider === "openrouter"
-        ? "anthropic/claude-3.7-sonnet"
+        ? legacySettings.openRouterModel || "anthropic/claude-3.7-sonnet"
         : legacySettings.customModel || "gpt-4o-mini");
 
     const isOllama = provider === "ollama";
@@ -2466,27 +2642,37 @@ export async function runLiveAgentPipeline(
 
     const apiKey =
       provider === "openrouter"
-        ? gateway.openRouterApiKey
+        ? gateway.openRouterApiKey || legacySettings.openRouterApiKey || ""
         : gateway.openAiApiKey || legacySettings.customApiKey || "";
 
-    // Only attempt cloud call if API key is present or provider is local Ollama
-    if ((isOllama || apiKey) && (mode === "design" || mode === "analysis")) {
+    if (isOllama || apiKey) {
       const ctrl = new AbortController();
-      const timeoutId = setTimeout(() => ctrl.abort(), 5500);
+      const timeoutId = setTimeout(() => ctrl.abort(), 9000);
 
-      const sysPrompt =
-        mode === "design"
-          ? `${
-              assignedAgent?.systemPrompt || "Sen bir UI/UX tasarım uzmanısın."
-            } Yalnızca temiz, modern, inline-style içeren bir HTML <div> kart bileşeni döndür. Markdown açıklaması yazma.`
-          : `${
-              assignedAgent?.systemPrompt || "Sen bir yazılım analistisin."
-            } Görev için 3 adet net kabul kriterini her satırda bir madde olacak şekilde düz metin olarak döndür.`;
+      let sysPrompt = "";
+      if (resolvedMode === "design") {
+        sysPrompt = `${
+          assignedAgent?.systemPrompt || "Sen kıdemli bir UI/UX tasarım uzmanısın."
+        }\nGörev ve kabul kriterlerine uygun, modern, pixel-perfect, inline-style kullanan bağımsız bir HTML <div> bileşeni üret.\nKRİTİK KURALLAR:\n- Yalnızca saf HTML döndür (\`\`\`html veya açıklama metni yazma).\n- En dış kapsayıcı <div style="width:460px;padding:28px;border-radius:16px;background:#ffffff;border:1px solid #e2e8f0;font-family:Assistant,system-ui,sans-serif;color:#0f172a;"> yapısında olsun.`;
+      } else if (resolvedMode === "architecture") {
+        sysPrompt = `${
+          assignedAgent?.systemPrompt || "Sen kıdemli bir sistem mimarısın."
+        }\nGörev ve kabul kriterlerine uygun, geçerli bir Mermaid.js (graph TD) sistem mimarisi diyagramı üret.\nKRİTİK KURALLAR:\n- Yalnızca saf Mermaid kodu döndür (\`\`\`mermaid veya açıklama yazma).\n- İlk satır mutlaka 'graph TD' olsun.\n- Tüm düğüm etiketlerini çift tırnak içinde yaz: A["İstemci Katmanı"] -->|"REST / JSON"| B["Servis Katmanı"].`;
+      } else if (resolvedMode === "tdd") {
+        sysPrompt = `${
+          assignedAgent?.systemPrompt || "Sen kıdemli bir TDD ve QA test mühendisisin."
+        }\nGörev ve kabul kriterleri için 2 veya 3 adet BDD/TDD test senaryosunu YALNIZCA geçerli bir JSON dizisi olarak döndür.\nFormat: [{"title":"...","category":"acceptance","given":"...","when":"...","then":"...","assertions":["...","..."]}]\nAçıklama veya markdown kod bloğu ekleme.`;
+      } else {
+        sysPrompt = `${
+          assignedAgent?.systemPrompt || "Sen kıdemli bir iş analisti ve Product Owner'sın."
+        }\nGörev için 3 adet net, doğrulanabilir kabul kriterini her satırda bir madde olacak şekilde düz metin olarak döndür. Açıklama veya başlık yazma.`;
+      }
+
       const userPrompt = `Görev: ${task.key} - ${task.title}\nAçıklama: ${
         task.description || ""
       }\nMevcut Kriterler: ${task.acceptanceCriteria
         .map((c) => c.text)
-        .join(", ")}`;
+        .join(" | ")}`;
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -2516,42 +2702,383 @@ export async function runLiveAgentPipeline(
 
       if (res.ok) {
         const data = await res.json();
-        const content: string =
+        const rawContent: string = (
           data?.message?.content ||
           data?.choices?.[0]?.message?.content ||
-          "";
-        if (content.trim().length > 24 && mode === "analysis") {
-          const lines = content
-            .split("\n")
-            .map((l) => l.replace(/^[-*•\d.)\s]+/, "").trim())
-            .filter((l) => l.length > 6)
-            .slice(0, 4);
-          if (lines.length > 0) {
-            const now = Date.now();
-            const merged = [
-              ...task.acceptanceCriteria,
-              ...lines.map((text, idx) => ({
-                id: `ac_llm_${now}_${idx}`,
-                text,
-                completed: false,
-              })),
-            ];
-            updateProjectTask(task.id, { acceptanceCriteria: merged });
-            addTaskComment(
-              task.id,
-              assignedAgent?.id || task.assigneeId || "system",
-              `${
-                assignedAgent?.name || "AI Agent"
-              } (${provider.toUpperCase()} · ${model}) ile ${
-                lines.length
-              } yeni kabul kriteri üretildi.`,
+          ""
+        ).trim();
+
+        if (rawContent.length > 20) {
+          // 1. ANALYSIS MODE
+          if (resolvedMode === "analysis") {
+            const lines = rawContent
+              .split("\n")
+              .map((l) => l.replace(/^[-*•\d.)\s]+/, "").trim())
+              .filter((l) => l.length > 6 && !l.startsWith("```"))
+              .slice(0, 4);
+            if (lines.length > 0) {
+              const now = Date.now();
+              const analysisDocs = docs.filter((d) => d.canvasType === "sketch");
+              const nextLinkedDocs = Array.from(
+                new Set([
+                  ...task.linkedDocIds,
+                  ...(analysisDocs[0] ? [analysisDocs[0].id] : []),
+                ]),
+              );
+              const merged = [
+                ...task.acceptanceCriteria,
+                ...lines.map((text, idx) => ({
+                  id: `ac_llm_${now}_${idx}`,
+                  text,
+                  completed: false,
+                })),
+              ];
+              updateProjectTask(task.id, {
+                acceptanceCriteria: merged,
+                linkedDocIds: nextLinkedDocs,
+                status: task.status === "backlog" ? "design" : task.status,
+              });
+              addTaskComment(
+                task.id,
+                assignedAgent?.id || task.assigneeId || "system",
+                `📋 ${
+                  assignedAgent?.name || "AI Agent"
+                } (${provider.toUpperCase()} · ${model}) ile ${
+                  lines.length
+                } yeni kabul kriteri üretildi.`,
+              );
+              return {
+                summary: `${
+                  assignedAgent?.name || "Agent"
+                } (${model}) ile ${lines.length} kriter eklendi`,
+                usedLiveLLM: true,
+              };
+            }
+          }
+
+          // 2. DESIGN MODE (Live HTML/CSS Artboard Generation)
+          if (resolvedMode === "design") {
+            const { sanitizeHtml } = await import("../utils/htmlToExcalidraw");
+            const { sanitizeAndTagDesignHtml } = await import(
+              "../design/sanitize"
             );
-            return {
-              summary: `${
-                assignedAgent?.name || "Agent"
-              } (${model}) ile ${lines.length} kriter eklendi`,
-              usedLiveLLM: true,
-            };
+            const cleanedHtml = sanitizeHtml(rawContent);
+            if (cleanedHtml.includes("<") && cleanedHtml.includes(">")) {
+              let designDoc =
+                docs.find(
+                  (d) =>
+                    d.canvasType === "design" &&
+                    task.linkedDocIds.includes(d.id),
+                ) || docs.find((d) => d.canvasType === "design");
+
+              if (!designDoc) {
+                designDoc = createWorkspace(
+                  `${task.key} UI Tasarımı`,
+                  "design",
+                  "ui_design",
+                  `${task.title} için ekran tasarımları`,
+                );
+              }
+
+              const storageKey = `synapdraw_design_doc_${designDoc.id}`;
+              let parsedDesign: any = {
+                id: designDoc.id,
+                name: designDoc.name,
+                artboards: [],
+                selectedArtboardId: null,
+                selectedNodeId: null,
+                zoom: 1,
+                panX: 0,
+                panY: 0,
+              };
+              try {
+                const existingRaw = ownerWindow.localStorage.getItem(storageKey);
+                if (existingRaw) {
+                  parsedDesign = JSON.parse(existingRaw);
+                  if (!Array.isArray(parsedDesign.artboards)) {
+                    parsedDesign.artboards = [];
+                  }
+                }
+              } catch {}
+
+              let nextX = 120;
+              let nextY = 100;
+              if (parsedDesign.artboards.length > 0) {
+                const last =
+                  parsedDesign.artboards[parsedDesign.artboards.length - 1];
+                const lastW =
+                  typeof last.width === "number"
+                    ? last.width
+                    : last.measuredWidth || 460;
+                nextX = Math.round((last.x || 100) + lastW + 72);
+                nextY = Math.round(last.y || 100);
+              }
+
+              const artboardId = `ab_${Date.now()}_${Math.random()
+                .toString(36)
+                .substring(2, 6)}`;
+              const artboardName = `${task.key} · ${task.title.slice(
+                0,
+                34,
+              )} (AI UI)`;
+              const taggedHtml = sanitizeAndTagDesignHtml(
+                cleanedHtml,
+                ownerWindow.document,
+              );
+
+              parsedDesign.artboards.push({
+                id: artboardId,
+                name: artboardName,
+                x: nextX,
+                y: nextY,
+                width: "auto",
+                height: "auto",
+                html: taggedHtml,
+                css: "",
+                backgroundColor: "transparent",
+                locked: false,
+                allowMove: true,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+              });
+              parsedDesign.selectedArtboardId = artboardId;
+              ownerWindow.localStorage.setItem(
+                storageKey,
+                JSON.stringify(parsedDesign),
+              );
+
+              const currentLinkedArtboards = Array.isArray(task.linkedArtboards)
+                ? task.linkedArtboards
+                : [];
+              const nextLinkedDocs = Array.from(
+                new Set([...task.linkedDocIds, designDoc.id]),
+              );
+
+              updateProjectTask(task.id, {
+                linkedDocIds: nextLinkedDocs,
+                linkedArtboards: [
+                  ...currentLinkedArtboards,
+                  {
+                    docId: designDoc.id,
+                    artboardId,
+                    label: artboardName,
+                  },
+                ],
+                status:
+                  task.status === "backlog" || task.status === "design"
+                    ? "in_progress"
+                    : task.status,
+              });
+
+              addTaskComment(
+                task.id,
+                assignedAgent?.id || "system",
+                `🎨 ${
+                  assignedAgent?.name || "UI/UX Agent"
+                } (${provider.toUpperCase()} · ${model}) ile canlı "${artboardName}" bileşeni üretildi ve göreve bağlandı.`,
+              );
+
+              requestArtboardFocus(designDoc.id, artboardId, true);
+              return {
+                summary: `${
+                  assignedAgent?.name || "UI Agent"
+                } (${model}) ile "${artboardName}" üretildi`,
+                usedLiveLLM: true,
+              };
+            }
+          }
+
+          // 3. ARCHITECTURE MODE (Live Mermaid -> Excalidraw Container Frame)
+          if (resolvedMode === "architecture") {
+            const cleanedMermaid = rawContent
+              .replace(/```(?:mermaid)?/gi, "")
+              .replace(/```/g, "")
+              .trim();
+            const { parseMermaidToExcalidraw } = await import(
+              "@excalidraw/mermaid-to-excalidraw"
+            );
+            const { convertToExcalidrawElements, restoreElements } =
+              await import("@excalidraw/excalidraw");
+            const { wrapInContainerFrame } = await import(
+              "../utils/containerHelper"
+            );
+
+            const parsedMermaid = await parseMermaidToExcalidraw(cleanedMermaid);
+            if (parsedMermaid?.elements && parsedMermaid.elements.length > 0) {
+              let archDoc =
+                docs.find(
+                  (d) =>
+                    d.canvasType === "sketch" &&
+                    d.category === "architecture" &&
+                    task.linkedDocIds.includes(d.id),
+                ) ||
+                docs.find(
+                  (d) =>
+                    d.canvasType === "sketch" && d.category === "architecture",
+                ) ||
+                docs.find((d) => d.canvasType === "sketch");
+
+              if (!archDoc) {
+                archDoc = createWorkspace(
+                  "Sistem Mimarisi",
+                  "sketch",
+                  "architecture",
+                  "Servis sınırları ve sistem mimarisi şemaları",
+                );
+              }
+
+              const storageKey = `synapdraw_ws_${archDoc.id}_elements`;
+              let existingElements: any[] = [];
+              try {
+                const raw = ownerWindow.localStorage.getItem(storageKey);
+                if (raw) {
+                  const parsed = JSON.parse(raw);
+                  if (Array.isArray(parsed)) {
+                    existingElements = parsed.filter((el: any) => !el.isDeleted);
+                  }
+                }
+              } catch {}
+
+              let maxRight = 80;
+              for (const el of existingElements) {
+                if (typeof el.x === "number" && typeof el.width === "number") {
+                  maxRight = Math.max(maxRight, el.x + el.width + 120);
+                }
+              }
+              const originX = existingElements.length > 0 ? maxRight : 100;
+              const refLabel = `${task.key} Mimari Şeması (${model})`;
+
+              const container = wrapInContainerFrame(
+                parsedMermaid.elements as any,
+                {
+                  title: refLabel,
+                  originX,
+                  originY: 100,
+                  locked: false,
+                  createFrame: true,
+                  createCard: true,
+                },
+              );
+              const converted = convertToExcalidrawElements(
+                container.elements as any,
+                { regenerateIds: true },
+              );
+              const restored = restoreElements(converted, null, {
+                repairBindings: true,
+                refreshDimensions: true,
+              });
+              const createdIds = restored.map((el) => el.id);
+              const mergedElements = [...existingElements, ...restored];
+
+              ownerWindow.localStorage.setItem(
+                storageKey,
+                JSON.stringify(mergedElements),
+              );
+
+              const currentSketchRefs = Array.isArray(task.linkedSketchRefs)
+                ? task.linkedSketchRefs
+                : [];
+              const nextLinkedDocs = Array.from(
+                new Set([...task.linkedDocIds, archDoc.id]),
+              );
+
+              updateProjectTask(task.id, {
+                linkedDocIds: nextLinkedDocs,
+                linkedSketchRefs: [
+                  ...currentSketchRefs,
+                  {
+                    docId: archDoc.id,
+                    elementIds: createdIds,
+                    label: refLabel,
+                  },
+                ],
+                status: task.status === "backlog" ? "design" : task.status,
+              });
+
+              addTaskComment(
+                task.id,
+                assignedAgent?.id || "system",
+                `🏗️ ${
+                  assignedAgent?.name || "Sistem Mimarı Agent"
+                } (${provider.toUpperCase()} · ${model}) ile canlı mimari diyagram (${
+                  restored.length
+                } öğe) çizildi ve göreve pinlendi.`,
+              );
+
+              requestSketchFocus(archDoc.id, createdIds, true);
+              return {
+                summary: `${
+                  assignedAgent?.name || "Mimari Agent"
+                } (${model}) ile "${refLabel}" çizildi`,
+                usedLiveLLM: true,
+              };
+            }
+          }
+
+          // 4. TDD MODE (Live BDD Scenario Suite Generation)
+          if (resolvedMode === "tdd") {
+            const cleanedJson = rawContent
+              .replace(/```(?:json)?/gi, "")
+              .replace(/```/g, "")
+              .trim();
+            const firstBracket = cleanedJson.search(/[\[\{]/);
+            const slice =
+              firstBracket >= 0 ? cleanedJson.slice(firstBracket) : cleanedJson;
+            const parsed = JSON.parse(slice);
+            const items = Array.isArray(parsed)
+              ? parsed
+              : parsed.scenarios || [parsed];
+
+            if (Array.isArray(items) && items.length > 0) {
+              let createdCount = 0;
+              for (const item of items.slice(0, 5)) {
+                if (!item?.title && !item?.then) continue;
+                createTDDScenario(
+                  {
+                    title: `${task.key}: ${String(
+                      item.title || item.then,
+                    ).slice(0, 64)}`,
+                    category: (item.category as any) || "acceptance",
+                    status: "red",
+                    given: String(
+                      item.given ||
+                        `"${task.title}" kapsamında ilgili servis/ekran hazırdır`,
+                    ),
+                    when: String(
+                      item.when || "Kullanıcı veya istemci ilgili aksiyonu tetikler",
+                    ),
+                    then: String(item.then || item.title),
+                    assertions: Array.isArray(item.assertions)
+                      ? item.assertions
+                      : [String(item.then || item.title)],
+                    linkedTaskId: task.id,
+                    linkedDocIds: task.linkedDocIds,
+                    assigneeId: assignedAgent?.id || null,
+                  },
+                  task.projectId,
+                );
+                createdCount++;
+              }
+
+              if (createdCount > 0) {
+                if (task.status === "backlog" || task.status === "design") {
+                  updateProjectTask(task.id, { status: "testing" });
+                }
+                addTaskComment(
+                  task.id,
+                  assignedAgent?.id || "system",
+                  `🧪 ${
+                    assignedAgent?.name || "TDD & QA Agent"
+                  } (${provider.toUpperCase()} · ${model}) ile ${createdCount} yeni BDD test senaryosu üretildi.`,
+                );
+                return {
+                  summary: `${
+                    assignedAgent?.name || "QA Agent"
+                  } (${model}) ile ${createdCount} TDD senaryosu üretildi`,
+                  usedLiveLLM: true,
+                };
+              }
+            }
           }
         }
       }
@@ -2560,7 +3087,7 @@ export async function runLiveAgentPipeline(
     // Seamless fallback to local deterministic agent execution
   }
 
-  const localRes = executeAgentOnTask(taskId, mode, ownerWindow);
+  const localRes = executeAgentOnTask(taskId, resolvedMode, ownerWindow);
   return {
     summary: localRes.summary,
     usedLiveLLM: false,

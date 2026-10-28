@@ -115,7 +115,7 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
               return;
             }
 
-            const engine = getActiveEngine();
+            const engine = getActiveEngine(data.type);
             if (engine) {
               if (!engine.supports(data.type)) {
                 setLastAction(`Bu tuvalde desteklenmiyor: ${data.type}`);

@@ -93,6 +93,8 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
   const [commentInput, setCommentInput] = useState("");
   const [commentAuthorId, setCommentAuthorId] = useState("");
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -297,7 +299,45 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                 (t) => t.status === col.status,
               );
               return (
-                <div key={col.status} className="sdlc-kanban-column">
+                <div
+                  key={col.status}
+                  className="sdlc-kanban-column"
+                  style={
+                    dragOverCol === col.status
+                      ? {
+                          outline: "2px dashed var(--color-primary)",
+                          outlineOffset: -2,
+                        }
+                      : undefined
+                  }
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (dragOverCol !== col.status) {
+                      setDragOverCol(col.status);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverCol === col.status) {
+                      setDragOverCol(null);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverCol(null);
+                    const taskId =
+                      draggedTaskId || e.dataTransfer.getData("text/plain");
+                    setDraggedTaskId(null);
+                    if (!taskId) return;
+                    const targetTask = tasks.find((t) => t.id === taskId);
+                    if (targetTask && targetTask.status !== col.status) {
+                      updateProjectTask(taskId, { status: col.status });
+                      showToast(
+                        `${targetTask.key} → "${col.label}" sütununa taşındı.`,
+                      );
+                    }
+                  }}
+                >
                   <div className="kanban-column-header">
                     <span className="col-title">{col.label}</span>
                     <span className="col-count">{colTasks.length}</span>
@@ -332,6 +372,16 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                       return (
                         <div
                           key={task.id}
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedTaskId(task.id);
+                            e.dataTransfer.setData("text/plain", task.id);
+                            e.dataTransfer.effectAllowed = "move";
+                          }}
+                          onDragEnd={() => {
+                            setDraggedTaskId(null);
+                            setDragOverCol(null);
+                          }}
                           className={`sdlc-task-card Island ${
                             selectedTaskId === task.id
                               ? "sdlc-task-card--selected"
@@ -492,8 +542,8 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                                       "var(--color-on-primary-container)",
                                     fontWeight: 700,
                                   }}
-                                  onClick={() => {
-                                    const res = executeAgentOnTask(
+                                  onClick={async () => {
+                                    const res = await runLiveAgentPipeline(
                                       task.id,
                                       "auto",
                                     );
@@ -982,8 +1032,8 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                     type="button"
                     className="detail-mini-btn"
                     style={{ justifyContent: "center", padding: "6px 8px" }}
-                    onClick={() => {
-                      const res = executeAgentOnTask(
+                    onClick={async () => {
+                      const res = await runLiveAgentPipeline(
                         selectedTask.id,
                         "architecture",
                       );
@@ -997,8 +1047,11 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                     type="button"
                     className="detail-mini-btn"
                     style={{ justifyContent: "center", padding: "6px 8px" }}
-                    onClick={() => {
-                      const res = executeAgentOnTask(selectedTask.id, "design");
+                    onClick={async () => {
+                      const res = await runLiveAgentPipeline(
+                        selectedTask.id,
+                        "design",
+                      );
                       showToast(`🎨 ${res.summary}`);
                     }}
                     title="UI/UX Tasarımcı Agent ile bu görev için pixel-perfect bileşen tasarla ve yan yana aç"
@@ -1009,8 +1062,11 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                     type="button"
                     className="detail-mini-btn"
                     style={{ justifyContent: "center", padding: "6px 8px" }}
-                    onClick={() => {
-                      const res = executeAgentOnTask(selectedTask.id, "tdd");
+                    onClick={async () => {
+                      const res = await runLiveAgentPipeline(
+                        selectedTask.id,
+                        "tdd",
+                      );
                       showToast(`🧪 ${res.summary}`);
                     }}
                     title="TDD & QA Agent ile kabul ve uç durum (edge-case) test senaryoları üret"

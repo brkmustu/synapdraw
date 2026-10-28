@@ -15,7 +15,10 @@ import {
   adjustmentsIcon,
   TrashIcon,
 } from "@excalidraw/excalidraw/components/icons";
-import { registerActiveEngine } from "../engine/engineRegistry";
+import {
+  registerActiveEngine,
+  unregisterEngine,
+} from "../engine/engineRegistry";
 import { LiveMcpBridge } from "../components/LiveMcpBridge";
 import {
   subscribeWorkspaces,
@@ -24,6 +27,7 @@ import {
   getProjectWorkspaces,
   setActiveWorkspaceId,
   toggleTaskArtboardLink,
+  cleanupDeletedArtboardLinks,
   type ProjectTask,
 } from "../workspace/workspaceStore";
 import { ArtboardHost } from "./ArtboardHost";
@@ -66,6 +70,9 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
   const [doc, setDoc] = useState<DesignDocument>(() =>
     loadDesignDocument(documentId, documentName),
   );
+  const docRef = useRef<DesignDocument>(doc);
+  docRef.current = doc;
+  const wheelSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeTool, setActiveTool] = useState<"select" | "hand" | "inspect">(
     "select",
   );
@@ -125,7 +132,12 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
         const shouldReload =
           prev.id !== loaded.id ||
           loaded.artboards.length !== prev.artboards.length ||
-          Boolean(pendingFocusId);
+          Boolean(pendingFocusId) ||
+          loaded.artboards.some(
+            (a, idx) =>
+              a.id !== prev.artboards[idx]?.id ||
+              a.updatedAt !== prev.artboards[idx]?.updatedAt,
+          );
         if (!shouldReload) return prev;
 
         const targetFocusId = pendingFocusId || loaded.selectedArtboardId;
@@ -177,10 +189,11 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
     const engine = new DesignEngine(
       documentId,
       (updatedDoc) => {
+        const currentDoc = docRef.current;
         historyRef.current.push({
-          artboards: doc.artboards,
-          selectedArtboardId: doc.selectedArtboardId,
-          selectedNodeId: doc.selectedNodeId,
+          artboards: currentDoc.artboards,
+          selectedArtboardId: currentDoc.selectedArtboardId,
+          selectedNodeId: currentDoc.selectedNodeId,
         });
         setDoc({ ...updatedDoc });
         setHistoryTick((t) => t + 1);
@@ -194,10 +207,10 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
       (artboardId) => shadowRootsRef.current.get(artboardId) || null,
       getOwnerDoc,
     );
-    registerActiveEngine(engine);
+    registerActiveEngine(engine, documentId);
 
     return () => {
-      registerActiveEngine(null);
+      unregisterEngine(documentId);
     };
   }, [documentId, getOwnerDoc, refreshSelectedDomTree]);
 
@@ -303,6 +316,19 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
     return () => ownerDoc.removeEventListener("keydown", onKeyDown);
   }, [getOwnerDoc, handleUndo, handleRedo]);
 
+  const scheduleWheelSave = useCallback(
+    (updatedDoc: DesignDocument) => {
+      if (wheelSaveTimerRef.current) {
+        clearTimeout(wheelSaveTimerRef.current);
+      }
+      wheelSaveTimerRef.current = setTimeout(() => {
+        saveDesignDocument(updatedDoc, getOwnerWin());
+        wheelSaveTimerRef.current = null;
+      }, 220);
+    },
+    [getOwnerWin],
+  );
+
   // Pan & Zoom
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
@@ -323,7 +349,7 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
           panX: Math.round(nextPanX),
           panY: Math.round(nextPanY),
         };
-        saveDesignDocument(updated, getOwnerWin());
+        scheduleWheelSave(updated);
         return updated;
       });
     } else {
@@ -334,7 +360,7 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
           panX: prev.panX - e.deltaX,
           panY: prev.panY - e.deltaY,
         };
-        saveDesignDocument(updated, getOwnerWin());
+        scheduleWheelSave(updated);
         return updated;
       });
     }
@@ -669,6 +695,7 @@ ${ab.html}
 
   const handleDeleteArtboard = useCallback(
     (artboardId: string) => {
+      cleanupDeletedArtboardLinks(documentId, artboardId);
       setDoc((prev) => {
         pushHistoryBeforeMutation(prev);
         const artboards = prev.artboards.filter((a) => a.id !== artboardId);
@@ -686,7 +713,7 @@ ${ab.html}
         return updated;
       });
     },
-    [getOwnerWin, pushHistoryBeforeMutation],
+    [documentId, getOwnerWin, pushHistoryBeforeMutation],
   );
 
   const handleAddPresetArtboard = (mode: "desktop" | "mobile") => {

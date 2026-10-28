@@ -34,6 +34,7 @@ import {
   requestSketchFocus,
   toggleTaskSketchLink,
   executeAgentOnTask,
+  runLiveAgentPipeline,
   subscribeWorkspaces,
   type WorkspaceDocument,
   type ProjectTask,
@@ -440,9 +441,9 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                     <button
                       type="button"
                       className="context-link-btn"
-                      onClick={() =>
-                        executeAgentOnTask(task.id, "architecture")
-                      }
+                      onClick={() => {
+                        void runLiveAgentPipeline(task.id, "architecture");
+                      }}
                       title="Sistem Mimarı Agent ile bu görev için mimari şema çiz"
                     >
                       🏗️ Mimari
@@ -451,7 +452,9 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                     <button
                       type="button"
                       className="context-link-btn"
-                      onClick={() => executeAgentOnTask(task.id, "design")}
+                      onClick={() => {
+                        void runLiveAgentPipeline(task.id, "design");
+                      }}
                       title="UI/UX Tasarımcı Agent ile bu görev için bileşen tasarla"
                     >
                       🎨 UI Üret
@@ -460,7 +463,9 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                     <button
                       type="button"
                       className="context-link-btn"
-                      onClick={() => executeAgentOnTask(task.id, "tdd")}
+                      onClick={() => {
+                        void runLiveAgentPipeline(task.id, "tdd");
+                      }}
                       title="TDD & QA Agent ile bu görev için BDD test senaryoları üret"
                     >
                       🧪 TDD Üret
