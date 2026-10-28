@@ -120,9 +120,6 @@ export const isContainerElement = <T extends ExcalidrawElement>(
   ) {
     return true;
   }
-  if (isFrameLikeElement(element)) {
-    return true;
-  }
   if (element.frameId && elementsMap) {
     const parent = elementsMap.get(element.frameId);
     if (parent && isContainerElement(parent, elementsMap)) {

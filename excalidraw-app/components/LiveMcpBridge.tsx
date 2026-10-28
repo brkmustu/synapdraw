@@ -1,24 +1,46 @@
 import React, { useEffect, useState, useRef } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { getActiveEngine, subscribeActiveEngine } from "../engine/engineRegistry";
+import { getActiveWorkspace, subscribeWorkspaces } from "../workspace/workspaceStore";
 import "./LiveMcpBridge.scss";
 
 interface LiveMcpBridgeProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
   onOpenModal?: () => void;
   syncUrl?: string;
+  forCanvasType?: "sketch" | "design";
 }
 
 export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
   excalidrawAPI,
   onOpenModal,
   syncUrl = "http://localhost:3001/api/live-events",
+  forCanvasType = excalidrawAPI ? "sketch" : "design",
 }) => {
+  const [activeWs, setActiveWs] = useState(getActiveWorkspace());
   const [isConnected, setIsConnected] = useState(false);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const containerRef = useRef<HTMLButtonElement | null>(null);
 
+  const isCurrentActive = activeWs.canvasType === forCanvasType;
+
   useEffect(() => {
+    return subscribeWorkspaces(() => {
+      setActiveWs(getActiveWorkspace());
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isCurrentActive) {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setIsConnected(false);
+      return;
+    }
+
     let reconnectTimer: any = null;
 
     const connect = () => {
@@ -33,6 +55,21 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
         es.onmessage = async (e) => {
           try {
             const data = JSON.parse(e.data);
+            const engine = getActiveEngine();
+            if (engine) {
+              if (!engine.supports(data.type)) {
+                setLastAction(`Bu tuvalde desteklenmiyor: ${data.type}`);
+                setTimeout(() => setLastAction(null), 4000);
+                return;
+              }
+              const res = await engine.applyEvent(data);
+              if (res.message) {
+                setLastAction(res.message);
+                setTimeout(() => setLastAction(null), 4000);
+              }
+              return;
+            }
+
             if (!excalidrawAPI) return;
 
             if (data.type === "mermaid" && data.code) {
@@ -246,31 +283,57 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
         eventSourceRef.current.close();
       }
     };
-  }, [excalidrawAPI, syncUrl]);
+  }, [isCurrentActive, excalidrawAPI, syncUrl]);
 
   // Periodically sync canvas semantic context to MCP server (port 3001)
   useEffect(() => {
-    if (!excalidrawAPI || !isConnected) return;
+    if (!isConnected || !isCurrentActive) return;
 
     const pushContext = async () => {
       try {
-        const { extractCanvasSemanticContext } = await import("../utils/canvasContext");
-        const ctx = extractCanvasSemanticContext(excalidrawAPI);
+        const engine = getActiveEngine();
+        let ctx: any = null;
+        if (engine) {
+          ctx = await engine.getContext();
+        } else if (excalidrawAPI) {
+          const { extractCanvasSemanticContext } = await import("../utils/canvasContext");
+          ctx = extractCanvasSemanticContext(excalidrawAPI);
+        }
+
+        if (!ctx) return;
+
+        const currentWs = getActiveWorkspace();
+        const payload = {
+          ...ctx,
+          canvasType: currentWs.canvasType,
+          workspaceId: currentWs.id,
+          workspaceName: currentWs.name,
+        };
+
         await fetch("http://localhost:3001/api/canvas-context", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(ctx),
+          body: JSON.stringify(payload),
         });
       } catch {}
     };
+
+    const unsubEngine = subscribeActiveEngine(() => {
+      pushContext();
+    });
 
     const interval = setInterval(pushContext, 4000);
     pushContext();
 
     return () => {
       clearInterval(interval);
+      unsubEngine();
     };
-  }, [excalidrawAPI, isConnected]);
+  }, [isCurrentActive, isConnected, excalidrawAPI]);
+
+  if (!isCurrentActive) {
+    return null;
+  }
 
   return (
     <button
