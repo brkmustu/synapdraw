@@ -155,6 +155,7 @@ import {
   getSplitWorkspace,
   setActiveWorkspaceId,
   setSplitWorkspaceId,
+  consumePendingSketchFocus,
   getCategoryLabel,
   subscribeWorkspaces,
   type WorkspaceDocument,
@@ -448,7 +449,12 @@ const ExcalidrawWrapper = () => {
 
     registerActiveEngine(new ExcalidrawEngine(activeWs.id, excalidrawAPI));
 
-    if (currentSketchWsIdRef.current !== activeWs.id) {
+    const pendingSketchElementIds = consumePendingSketchFocus(activeWs.id);
+
+    if (
+      currentSketchWsIdRef.current !== activeWs.id ||
+      Boolean(pendingSketchElementIds)
+    ) {
       try {
         const rawNext = localStorage.getItem(
           `synapdraw_ws_${activeWs.id}_elements`,
@@ -463,6 +469,30 @@ const ExcalidrawWrapper = () => {
           elements: nextElements,
           captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
+
+        if (pendingSketchElementIds && pendingSketchElementIds.length > 0) {
+          const targetEls = nextElements.filter((el) =>
+            pendingSketchElementIds.includes(el.id),
+          );
+          if (targetEls.length > 0) {
+            setTimeout(() => {
+              if (typeof excalidrawAPI.setViewport === "function") {
+                excalidrawAPI.setViewport({
+                  target: targetEls,
+                  fit: "scale-down",
+                  animation: true,
+                });
+              } else if (
+                typeof (excalidrawAPI as any).scrollToContent === "function"
+              ) {
+                (excalidrawAPI as any).scrollToContent(targetEls, {
+                  fitToViewport: true,
+                  animate: true,
+                });
+              }
+            }, 80);
+          }
+        }
       } catch {}
     }
 
@@ -1464,6 +1494,7 @@ const ExcalidrawWrapper = () => {
           <SDLCContextDrawer
             isOpen={isContextDrawerOpen}
             onClose={() => setIsContextDrawerOpen(false)}
+            excalidrawAPI={excalidrawAPI}
           />
         </div>
 

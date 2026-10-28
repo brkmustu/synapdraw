@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
   CloseIcon,
   PlusIcon,
@@ -20,6 +21,8 @@ import {
   setActiveWorkspaceId,
   setSplitWorkspaceId,
   requestArtboardFocus,
+  requestSketchFocus,
+  toggleTaskSketchLink,
   executeAgentOnTask,
   subscribeWorkspaces,
   type WorkspaceDocument,
@@ -40,11 +43,13 @@ import "./sdlc.scss";
 interface SDLCContextDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  excalidrawAPI?: ExcalidrawImperativeAPI | null;
 }
 
 export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
   isOpen,
   onClose,
+  excalidrawAPI,
 }) => {
   const [activeDoc, setActiveDoc] = useState<WorkspaceDocument | null>(null);
   const [allDocs, setAllDocs] = useState<WorkspaceDocument[]>([]);
@@ -53,6 +58,8 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
 
   const [quickTaskTitle, setQuickTaskTitle] = useState("");
   const [quickTestTitle, setQuickTestTitle] = useState("");
+  const [sketchFeedback, setSketchFeedback] = useState<string | null>(null);
+  const [, setSelectionTick] = useState(0);
 
   useEffect(() => {
     const sync = () => {
@@ -109,6 +116,63 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
     setQuickTestTitle("");
   };
 
+  // Inspect selected or active Excalidraw sketch elements for deep-linking
+  const getSketchSelectionInfo = () => {
+    if (!excalidrawAPI || activeDoc.canvasType !== "sketch") {
+      return { ids: [] as string[], label: "", texts: [] as string[] };
+    }
+    const allEls = excalidrawAPI
+      .getSceneElements()
+      .filter((el) => !el.isDeleted);
+    const selectedMap = excalidrawAPI.getAppState().selectedElementIds || {};
+    const selectedEls = allEls.filter((el) => Boolean(selectedMap[el.id]));
+    const targetEls = selectedEls.length > 0 ? selectedEls : allEls;
+
+    const texts = targetEls
+      .filter((el: any) => el.type === "text" && typeof el.text === "string")
+      .map((el: any) => el.text.trim())
+      .filter(Boolean);
+    const frameEl: any = targetEls.find(
+      (el: any) => el.type === "frame" && el.name,
+    );
+    const label =
+      frameEl?.name ||
+      texts[0]?.slice(0, 42) ||
+      `${activeDoc.name} (${targetEls.length} çizim öğesi)`;
+
+    return {
+      ids: targetEls.map((el) => el.id),
+      label,
+      texts,
+      isExplicitSelection: selectedEls.length > 0,
+    };
+  };
+
+  const sketchInfo = getSketchSelectionInfo();
+
+  const handleCreateTaskFromSketch = () => {
+    if (sketchInfo.ids.length === 0) return;
+    const criteria =
+      sketchInfo.texts.length > 1
+        ? sketchInfo.texts.slice(1, 5)
+        : [`"${sketchInfo.label}" diyagram akışı gerçeklenmeli`];
+    const created = createProjectTask({
+      title: sketchInfo.label,
+      description: `"${activeDoc.name}" çizim tuvalindeki seçili diyagram akışından (${sketchInfo.ids.length} öğe) oluşturuldu.`,
+      status: "design",
+      priority: "high",
+      acceptanceCriteria: criteria,
+      linkedDocIds: [activeDoc.id],
+    });
+    toggleTaskSketchLink(created.id, {
+      docId: activeDoc.id,
+      elementIds: sketchInfo.ids,
+      label: sketchInfo.label,
+    });
+    setSketchFeedback(`✓ "${created.key}" oluşturuldu ve çizime pinlendi`);
+    setTimeout(() => setSketchFeedback(null), 3200);
+  };
+
   return (
     <aside className="sdlc-context-drawer Island">
       <div className="context-drawer-header">
@@ -152,6 +216,86 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
             </button>
           )}
         </div>
+
+        {/* Excalidraw Sketch Selection -> Task Deep-Pinning */}
+        {activeDoc.canvasType === "sketch" && (
+          <div className="context-section">
+            <div className="context-section-header">
+              <span>📐 ÇİZİMDEN GÖREVE DERİN PİNLEME</span>
+              <button
+                type="button"
+                className="context-link-btn"
+                onClick={() => setSelectionTick((t) => t + 1)}
+                title="Tuvaldeki aktif seçimi yenile"
+              >
+                🔄 Seçimi Yenile
+              </button>
+            </div>
+            {sketchInfo.ids.length === 0 ? (
+              <div className="context-empty">
+                Tuvalde henüz çizim öğesi yok. Bir akış çizip seçerek doğrudan
+                göreve dönüştürebilirsiniz.
+              </div>
+            ) : (
+              <div className="context-mini-card">
+                <div style={{ fontSize: 11.5, fontWeight: 700 }}>
+                  {sketchInfo.isExplicitSelection
+                    ? `Seçili Akış: ${sketchInfo.label}`
+                    : `Tuval Akışı: ${sketchInfo.label}`}
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.72 }}>
+                  {sketchInfo.ids.length} çizim elemanı ·{" "}
+                  {sketchInfo.texts.length} metin düğümü algılandı
+                </div>
+                <button
+                  type="button"
+                  className="context-split-btn"
+                  style={{ marginTop: 4 }}
+                  onClick={handleCreateTaskFromSketch}
+                >
+                  <span>➕ Bu Akıştan Görev (Task) Oluştur & Pinle</span>
+                </button>
+                {tasks.length > 0 && (
+                  <select
+                    className="context-attach-select"
+                    value=""
+                    onChange={(e) => {
+                      const targetTaskId = e.target.value;
+                      if (!targetTaskId) return;
+                      toggleTaskSketchLink(targetTaskId, {
+                        docId: activeDoc.id,
+                        elementIds: sketchInfo.ids,
+                        label: sketchInfo.label,
+                      });
+                      setSketchFeedback("✓ Çizim akışı göreve pinlendi");
+                      setTimeout(() => setSketchFeedback(null), 2800);
+                    }}
+                  >
+                    <option value="">
+                      🔗 Bu Çizim Akışını Mevcut Göreve Pinle...
+                    </option>
+                    {tasks.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.key}: {t.title}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {sketchFeedback && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "var(--color-primary)",
+                    }}
+                  >
+                    {sketchFeedback}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Linked Tasks Section */}
         <div className="context-section">
@@ -223,7 +367,8 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                     </div>
                   )}
 
-                  {(task.linkedArtboards || []).length > 0 && (
+                  {((task.linkedArtboards || []).length > 0 ||
+                    (task.linkedSketchRefs || []).length > 0) && (
                     <div
                       style={{
                         display: "flex",
@@ -232,6 +377,23 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                         marginTop: 4,
                       }}
                     >
+                      {(task.linkedSketchRefs || []).map((sr, idx) => (
+                        <button
+                          key={`${sr.docId}_${idx}`}
+                          type="button"
+                          className="artifact-chip"
+                          onClick={() =>
+                            requestSketchFocus(
+                              sr.docId,
+                              sr.elementIds,
+                              false,
+                            )
+                          }
+                          title={`"${sr.label}" çizim diyagramına zoom yap`}
+                        >
+                          <span>📐 {sr.label}</span>
+                        </button>
+                      ))}
                       {(task.linkedArtboards || []).map((la) => (
                         <button
                           key={`${la.docId}_${la.artboardId}`}
@@ -262,6 +424,17 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                       borderTop: "1px dashed var(--default-border-color)",
                     }}
                   >
+                    <button
+                      type="button"
+                      className="context-link-btn"
+                      onClick={() =>
+                        executeAgentOnTask(task.id, "architecture")
+                      }
+                      title="Sistem Mimarı Agent ile bu görev için mimari şema çiz"
+                    >
+                      🏗️ Mimari
+                    </button>
+                    <span style={{ opacity: 0.35 }}>·</span>
                     <button
                       type="button"
                       className="context-link-btn"

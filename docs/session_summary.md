@@ -130,4 +130,16 @@ Harici AI Agent'ların ve IDE'lerin projedeki tüm SDLC verileriyle canlı etkil
      - **📋 Kriter Analizi (`analysis`):** Eksik kabul kriterlerini yapılandırır, analiz/mimari tuvali bağlantısını kurar ve Analist Agent notu düşer.
 3. **Taşınabilir Proje Paketi Dışa / İçe Aktarma (`.synapdraw.json` Bundle Export / Import):**
    - Farklı bilgisayarlar arasında kesintisiz geçiş için **Proje Gezgini (Project Explorer Drawer)** alt barına **"📦 Projeyi İndir (.json)"** ve **"📂 Proje Yükle"** butonları eklendi ([`exportProjectBundle`](../excalidraw-app/workspace/workspaceStore.ts), [`importProjectBundle`](../excalidraw-app/workspace/workspaceStore.ts)).
-   - Tek bir `.synapdraw.json` dosyası; proje üst verisini, tüm açık/kapalı çalışma yüzeylerini, Excalidraw çizim sahnelerini, DesignCanvas artboard'larını, Kanban görevlerini, TDD test senaryolarını ve İnsan + AI Agent ekip kadrosunu eksiksiz taşır.
+   - Tek bir `.synapdraw.json` dosyası; proje üst verisini, tüm açık/kapalı çalışma yüzeylerini, Excalidraw çizim sahnelerini (`synapdraw_ws_${id}_elements`), DesignCanvas artboard'larını (`synapdraw_design_doc_${id}`), Kanban görevlerini, TDD test senaryolarını ve İnsan + AI Agent ekip kadrosunu eksiksiz taşır.
+4. **Excalidraw Çizim / Mimari Tuvali Derin Pinleme ve "Çizimden Göreve" Akışı (`requestSketchFocus` & `toggleTaskSketchLink`):**
+   - Herhangi bir Analiz veya Mimari (`sketch`) tuvalindeyken sağdaki **Bağlam (`SDLCContextDrawer`)** çekmecesi açıldığında, tuvalde seçili olan çizim elemanları ve metin düğümleri algılanır.
+   - **"➕ Bu Akıştan Görev (Task) Oluştur & Pinle"** ile seçili diyagram akışı doğrudan kabul kriterleriyle birlikte yeni bir göreve dönüştürülür ve eleman kimlikleri (`elementIds`) göreve pinlenir (`ProjectTask.linkedSketchRefs`).
+   - Görev kartlarındaki `📐 Şema Adı` rozetine tıklandığında ilgili Excalidraw tuvali açılır ve kamera otomatik olarak o diyagram elemanlarına (`excalidrawAPI.setViewport`) odaklanır.
+5. **Sistem Mimarı Agent (`🏗️ Mimari Şema Çiz`) ve Canlı LLM Agent Zinciri (`runLiveAgentPipeline`):**
+   - Görev orkestrasyonuna **`🏗️ Mimari Şema Çiz`** aksiyonu eklendi; Sistem Mimarı Agent, görev ve kabul kriterleri için çok katmanlı (*UI / İstemci → İş Mantığı Servisi → Veri & Olay Katmanı*) mimari diyagramı doğrudan **Sistem Mimarisi** tuvaline çizer, göreve pinler ve kamerayı diyagrama odaklar.
+   - `runLiveAgentPipeline`, `excalidraw_ai_settings` altında yapılandırılmış canlı LLM (Ollama veya OpenAI uyumlu endpoint) erişilebilir olduğunda canlı modelden üretim yapar; çevrimdışı durumda kesintisiz olarak yerel deterministik motora başvurur.
+6. **TDD Stüdyosundan Çalıştırılabilir Test Kodu Üretimi (`generateExecutableTestSpec`):**
+   - [`TDDStudioSurface.tsx`](../excalidraw-app/sdlc/TDDStudioSurface.tsx) üst barına ve senaryo detay çekmecesine **"💻 Test Kodu"** çekmecesi eklendi.
+   - Seçili senaryoyu veya tüm test paketini tek tıkla **`Vitest (.test.ts)`**, **`Playwright E2E (.spec.ts)`** veya **`Cucumber BDD (.feature)`** koduna dönüştürür; panoya kopyalama ve dosya olarak indirme imkânı sunar.
+7. **SDLC İzlenebilirlik & Eksik Halka Denetçisi (`computeProjectTraceabilityPulse`):**
+   - Sol üstteki **Proje Gezgini** çekmecesine eklenen **📊 SDLC İzlenebilirlik Özeti** kartı; görev tamamlanma yüzdesini, TDD geçiş oranını, henüz TDD testi yazılmamış görevleri (tek tıkla **`⚡ Üret`** aksiyonuyla birlikte) ve görsel bağlantısı eksik görevleri anlık olarak denetler.

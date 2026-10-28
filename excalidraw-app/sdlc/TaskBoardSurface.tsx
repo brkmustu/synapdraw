@@ -20,7 +20,9 @@ import {
   setActiveWorkspaceId,
   setSplitWorkspaceId,
   requestArtboardFocus,
+  requestSketchFocus,
   executeAgentOnTask,
+  runLiveAgentPipeline,
   getCategoryLabel,
   subscribeWorkspaces,
   type ProjectTask,
@@ -353,6 +355,8 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                           {(linkedDocs.length > 0 ||
                             (task.linkedArtboards &&
                               task.linkedArtboards.length > 0) ||
+                            (task.linkedSketchRefs &&
+                              task.linkedSketchRefs.length > 0) ||
                             taskScenarios.length > 0) && (
                             <div
                               className="task-links-row"
@@ -372,6 +376,25 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                                     {getDocumentIcon(doc)}
                                   </span>
                                   <span className="chip-text">{doc.name}</span>
+                                </button>
+                              ))}
+
+                              {(task.linkedSketchRefs || []).map((sr, idx) => (
+                                <button
+                                  key={`${sr.docId}_${idx}`}
+                                  type="button"
+                                  className="artifact-chip"
+                                  onClick={() =>
+                                    requestSketchFocus(
+                                      sr.docId,
+                                      sr.elementIds,
+                                      true,
+                                    )
+                                  }
+                                  title={`"${sr.label}" çizim akışını yan yana (Split-Peek) aç ve odaklan`}
+                                >
+                                  <span className="chip-icon">📐</span>
+                                  <span className="chip-text">{sr.label}</span>
                                 </button>
                               ))}
 
@@ -813,6 +836,59 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                 </div>
               </div>
 
+              {/* Linked Sketch Diagrams */}
+              {(selectedTask.linkedSketchRefs || []).length > 0 && (
+                <div className="detail-section">
+                  <label className="detail-label">
+                    PİNLENMİŞ ÇİZİM & MİMARİ AKIŞLAR (
+                    {(selectedTask.linkedSketchRefs || []).length})
+                  </label>
+                  <div className="linked-docs-list">
+                    {(selectedTask.linkedSketchRefs || []).map((sr, idx) => (
+                      <div
+                        key={`${sr.docId}_${idx}`}
+                        className="linked-doc-row linked-doc-row--active"
+                      >
+                        <div className="doc-check-label">
+                          <span className="doc-icon">📐</span>
+                          <span className="doc-name">{sr.label}</span>
+                        </div>
+                        <div className="doc-jump-actions">
+                          <button
+                            type="button"
+                            className="jump-btn"
+                            onClick={() =>
+                              requestSketchFocus(
+                                sr.docId,
+                                sr.elementIds,
+                                false,
+                              )
+                            }
+                            title="Çizim Tuvaline git ve bu akışa zoom yap"
+                          >
+                            Odaklan
+                          </button>
+                          <button
+                            type="button"
+                            className="jump-btn"
+                            onClick={() =>
+                              requestSketchFocus(
+                                sr.docId,
+                                sr.elementIds,
+                                true,
+                              )
+                            }
+                            title="Yan Yana (Split-Peek) aç ve bu akışa zoom yap"
+                          >
+                            {SplitViewIcon}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Linked Design Artboards */}
               {(selectedTask.linkedArtboards || []).length > 0 && (
                 <div className="detail-section">
@@ -874,8 +950,11 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                 <button
                   type="button"
                   className="ai-orchestrate-btn"
-                  onClick={() => {
-                    const res = executeAgentOnTask(selectedTask.id, "auto");
+                  onClick={async () => {
+                    const res = await runLiveAgentPipeline(
+                      selectedTask.id,
+                      "auto",
+                    );
                     showToast(`🤖 ${res.summary}`);
                   }}
                 >
@@ -887,11 +966,26 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gridTemplateColumns: "repeat(2, 1fr)",
                     gap: 6,
                     marginTop: 6,
                   }}
                 >
+                  <button
+                    type="button"
+                    className="detail-mini-btn"
+                    style={{ justifyContent: "center", padding: "6px 8px" }}
+                    onClick={() => {
+                      const res = executeAgentOnTask(
+                        selectedTask.id,
+                        "architecture",
+                      );
+                      showToast(`🏗️ ${res.summary}`);
+                    }}
+                    title="Sistem Mimarı Agent ile bu görev için Excalidraw mimari şeması çiz ve göreve pinle"
+                  >
+                    <span>🏗️ Mimari Şema Çiz</span>
+                  </button>
                   <button
                     type="button"
                     className="detail-mini-btn"
@@ -920,14 +1014,14 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                     type="button"
                     className="detail-mini-btn"
                     style={{ justifyContent: "center", padding: "6px 8px" }}
-                    onClick={() => {
-                      const res = executeAgentOnTask(
+                    onClick={async () => {
+                      const res = await runLiveAgentPipeline(
                         selectedTask.id,
                         "analysis",
                       );
                       showToast(`📋 ${res.summary}`);
                     }}
-                    title="Analist & Mimari Agent ile kabul kriterlerini yapılandır"
+                    title="Analist Agent (Canlı LLM / Yerel) ile kabul kriterlerini yapılandır"
                   >
                     <span>📋 Kriter Analizi</span>
                   </button>

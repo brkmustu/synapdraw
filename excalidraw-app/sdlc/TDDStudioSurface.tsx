@@ -17,10 +17,12 @@ import {
   getWorkspaces,
   setActiveWorkspaceId,
   setSplitWorkspaceId,
+  generateExecutableTestSpec,
   subscribeWorkspaces,
   type TDDScenario,
   type TDDStatus,
   type TDDCategory,
+  type TestExportFramework,
   type ProjectTask,
   type TeamMember,
   type WorkspaceDocument,
@@ -99,6 +101,10 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
 
   const [newAssertionInput, setNewAssertionInput] = useState("");
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [isCodeDrawerOpen, setIsCodeDrawerOpen] = useState(false);
+  const [exportFramework, setExportFramework] =
+    useState<TestExportFramework>("vitest");
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -235,8 +241,48 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
     setNewAssertionInput("");
   };
 
+  const targetScenariosForExport = selectedScenario
+    ? [selectedScenario]
+    : filteredScenarios;
+  const generatedSpec = generateExecutableTestSpec(
+    targetScenariosForExport,
+    exportFramework,
+    selectedScenario
+      ? `${selectedScenario.key} - ${selectedScenario.title}`
+      : "SynapDraw SDLC Test Paketi",
+  );
+
+  const handleCopyTestCode = async () => {
+    const ownerWin = rootRef.current?.ownerDocument?.defaultView;
+    if (!ownerWin) return;
+    try {
+      await ownerWin.navigator.clipboard.writeText(generatedSpec.code);
+      showToast(`"${generatedSpec.filename}" kodu panoya kopyalandı.`);
+    } catch {
+      showToast("Kopyalama başarısız oldu.");
+    }
+  };
+
+  const handleDownloadTestCode = () => {
+    const ownerDoc = rootRef.current?.ownerDocument;
+    const ownerWin = ownerDoc?.defaultView;
+    if (!ownerDoc || !ownerWin) return;
+    const blob = new Blob([generatedSpec.code], {
+      type: "text/plain;charset=utf-8",
+    });
+    const url = ownerWin.URL.createObjectURL(blob);
+    const a = ownerDoc.createElement("a");
+    a.href = url;
+    a.download = generatedSpec.filename;
+    ownerDoc.body.appendChild(a);
+    a.click();
+    a.remove();
+    ownerWin.URL.revokeObjectURL(url);
+    showToast(`"${generatedSpec.filename}" indirildi.`);
+  };
+
   return (
-    <div className="sdlc-surface-root">
+    <div ref={rootRef} className="sdlc-surface-root">
       {/* Top Excalidraw Island Toolbar */}
       <div className="sdlc-top-island Island" role="toolbar">
         <div className="sdlc-segmented">
@@ -313,6 +359,17 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
           title="Projedeki görevlerin kabul kriterlerinden eksik TDD senaryolarını otomatik oluştur"
         >
           <span>⚡ Görevlerden Üret</span>
+        </button>
+
+        <button
+          type="button"
+          className={`sdlc-secondary-btn ${
+            isCodeDrawerOpen ? "seg-btn--active" : ""
+          }`}
+          onClick={() => setIsCodeDrawerOpen((prev) => !prev)}
+          title="Çalıştırılabilir Test Kodunu Göster / İndir (Vitest, Playwright, Cucumber Gherkin)"
+        >
+          <span>💻 Test Kodu ({targetScenariosForExport.length})</span>
         </button>
 
         <button
@@ -752,6 +809,146 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                       );
                     })}
                 </div>
+              </div>
+              {/* Executable Test Code Quick Trigger inside Scenario Drawer */}
+              <div className="detail-section">
+                <button
+                  type="button"
+                  className="ai-orchestrate-btn"
+                  onClick={() => setIsCodeDrawerOpen(true)}
+                >
+                  <span>
+                    💻 Bu Senaryonun Test Kodunu Üret (.spec.ts / .feature)
+                  </span>
+                </button>
+              </div>
+            </div>
+          </aside>
+        )}
+
+        {/* Right Executable Test Code Drawer (Vitest / Playwright / Gherkin) */}
+        {isCodeDrawerOpen && (
+          <aside className="sdlc-detail-drawer Island">
+            <div className="detail-drawer-header">
+              <div className="header-left">
+                <span className="task-key">💻 TEST KODU</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700 }}>
+                  {generatedSpec.filename}
+                </span>
+              </div>
+              <div className="header-actions">
+                <button
+                  type="button"
+                  className="detail-icon-btn"
+                  title="Kapat"
+                  onClick={() => setIsCodeDrawerOpen(false)}
+                >
+                  {CloseIcon}
+                </button>
+              </div>
+            </div>
+
+            <div className="detail-drawer-body">
+              <div className="detail-section">
+                <label className="detail-label">
+                  HEDEF TEST ÇATISI (FRAMEWORK)
+                </label>
+                <div className="sdlc-segmented" style={{ width: "100%" }}>
+                  <button
+                    type="button"
+                    style={{ flex: 1, justifyContent: "center" }}
+                    className={`seg-btn ${
+                      exportFramework === "vitest" ? "seg-btn--active" : ""
+                    }`}
+                    onClick={() => setExportFramework("vitest")}
+                  >
+                    Vitest (.test.ts)
+                  </button>
+                  <button
+                    type="button"
+                    style={{ flex: 1, justifyContent: "center" }}
+                    className={`seg-btn ${
+                      exportFramework === "playwright" ? "seg-btn--active" : ""
+                    }`}
+                    onClick={() => setExportFramework("playwright")}
+                  >
+                    Playwright (.spec.ts)
+                  </button>
+                  <button
+                    type="button"
+                    style={{ flex: 1, justifyContent: "center" }}
+                    className={`seg-btn ${
+                      exportFramework === "gherkin" ? "seg-btn--active" : ""
+                    }`}
+                    onClick={() => setExportFramework("gherkin")}
+                  >
+                    Gherkin (.feature)
+                  </button>
+                </div>
+              </div>
+
+              <div className="detail-section">
+                <div className="detail-section-header">
+                  <label className="detail-label">
+                    KAPSAM:{" "}
+                    {selectedScenario
+                      ? `${selectedScenario.key} (Tekil Senaryo)`
+                      : `Filtrelenen Tüm Senaryolar (${targetScenariosForExport.length})`}
+                  </label>
+                  {selectedScenario && (
+                    <button
+                      type="button"
+                      className="detail-mini-btn"
+                      onClick={() => setSelectedId(null)}
+                    >
+                      Tüm Paketi Göster
+                    </button>
+                  )}
+                </div>
+
+                <pre
+                  style={{
+                    margin: 0,
+                    padding: 12,
+                    borderRadius: 8,
+                    background: "var(--color-surface-low)",
+                    border: "1px solid var(--default-border-color)",
+                    color: "var(--text-primary-color)",
+                    fontFamily:
+                      "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                    fontSize: 11.5,
+                    lineHeight: 1.5,
+                    overflowX: "auto",
+                    maxHeight: 380,
+                    whiteSpace: "pre",
+                  }}
+                >
+                  {generatedSpec.code}
+                </pre>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                }}
+              >
+                <button
+                  type="button"
+                  className="sdlc-secondary-btn"
+                  style={{ flex: 1, justifyContent: "center" }}
+                  onClick={handleCopyTestCode}
+                >
+                  <span>📋 Kodu Kopyala</span>
+                </button>
+                <button
+                  type="button"
+                  className="sdlc-primary-btn"
+                  style={{ flex: 1, justifyContent: "center" }}
+                  onClick={handleDownloadTestCode}
+                >
+                  <span>⬇️ Dosya İndir</span>
+                </button>
               </div>
             </div>
           </aside>

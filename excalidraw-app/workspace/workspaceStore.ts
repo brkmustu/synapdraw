@@ -76,6 +76,12 @@ export interface LinkedArtboardRef {
   label: string;
 }
 
+export interface LinkedSketchRef {
+  docId: string;
+  elementIds: string[];
+  label: string;
+}
+
 export interface ProjectTask {
   id: string;
   key: string;
@@ -88,6 +94,7 @@ export interface ProjectTask {
   acceptanceCriteria: TaskCriterion[];
   linkedDocIds: string[];
   linkedArtboards: LinkedArtboardRef[];
+  linkedSketchRefs?: LinkedSketchRef[];
   comments: TaskComment[];
   createdAt: number;
   updatedAt: number;
@@ -1399,17 +1406,77 @@ export function toggleTaskArtboardLink(
 }
 
 // ============================================================================
+// SKETCH (EXCALIDRAW) DEEP-LINKING & AUTO-FOCUS
+// ============================================================================
+
+const pendingSketchFocusMap: Record<string, string[]> = {};
+
+export function requestSketchFocus(
+  docId: string,
+  elementIds: string[],
+  openInSplit = false,
+): void {
+  pendingSketchFocusMap[docId] = elementIds;
+  if (openInSplit) {
+    setSplitWorkspaceId(docId);
+  } else {
+    setActiveWorkspaceId(docId);
+  }
+  notify();
+}
+
+export function consumePendingSketchFocus(docId: string): string[] | null {
+  const target = pendingSketchFocusMap[docId] || null;
+  if (target) {
+    delete pendingSketchFocusMap[docId];
+  }
+  return target;
+}
+
+export function toggleTaskSketchLink(
+  taskId: string,
+  link: LinkedSketchRef,
+): ProjectTask | null {
+  const tasks = getProjectTasks();
+  const task = tasks.find((t) => t.id === taskId);
+  if (!task) return null;
+
+  const currentLinks = Array.isArray(task.linkedSketchRefs)
+    ? task.linkedSketchRefs
+    : [];
+  const exists = currentLinks.some(
+    (item) => item.docId === link.docId && item.label === link.label,
+  );
+
+  const nextSketchRefs = exists
+    ? currentLinks.filter(
+        (item) => !(item.docId === link.docId && item.label === link.label),
+      )
+    : [...currentLinks, link];
+
+  const nextDocIds = exists
+    ? task.linkedDocIds
+    : Array.from(new Set([...task.linkedDocIds, link.docId]));
+
+  return updateProjectTask(task.id, {
+    linkedSketchRefs: nextSketchRefs,
+    linkedDocIds: nextDocIds,
+  });
+}
+
+// ============================================================================
 // AI AGENT TASK ORCHESTRATION ("AI AGENT İLE ÇALIŞTIR")
 // ============================================================================
 
 export function executeAgentOnTask(
   taskId: string,
-  mode: "auto" | "design" | "tdd" | "analysis" = "auto",
+  mode: "auto" | "architecture" | "design" | "tdd" | "analysis" = "auto",
   ownerWindow: Window = window,
 ): {
   summary: string;
   targetDocId?: string;
   targetArtboardId?: string;
+  targetSketchElementIds?: string[];
 } {
   const tasks = getProjectTasks();
   const task = tasks.find((t) => t.id === taskId);
@@ -1420,22 +1487,332 @@ export function executeAgentOnTask(
   const team = getProjectTeam(task.projectId);
   const assignedMember = team.find((m) => m.id === task.assigneeId);
 
-  let resolvedMode: "design" | "tdd" | "analysis" = "design";
+  let resolvedMode: "architecture" | "design" | "tdd" | "analysis" = "design";
   if (mode !== "auto") {
     resolvedMode = mode;
   } else if (assignedMember?.role === "qa" || task.status === "testing") {
     resolvedMode = "tdd";
-  } else if (
-    assignedMember?.role === "po" ||
-    assignedMember?.role === "architect" ||
-    task.status === "backlog"
-  ) {
+  } else if (assignedMember?.role === "architect") {
+    resolvedMode = "architecture";
+  } else if (assignedMember?.role === "po" || task.status === "backlog") {
     resolvedMode = "analysis";
   } else {
     resolvedMode = "design";
   }
 
   const docs = getProjectWorkspaces(task.projectId);
+
+  if (resolvedMode === "architecture") {
+    const archAgent =
+      team.find((m) => m.kind === "ai_agent" && m.role === "architect") ||
+      assignedMember;
+
+    let archDoc =
+      docs.find(
+        (d) =>
+          d.canvasType === "sketch" &&
+          d.category === "architecture" &&
+          task.linkedDocIds.includes(d.id),
+      ) ||
+      docs.find(
+        (d) => d.canvasType === "sketch" && d.category === "architecture",
+      ) ||
+      docs.find((d) => d.canvasType === "sketch");
+
+    if (!archDoc) {
+      archDoc = createWorkspace(
+        "Sistem Mimarisi",
+        "sketch",
+        "architecture",
+        "Servis sınırları ve sistem mimarisi şemaları",
+      );
+    }
+
+    const storageKey = `synapdraw_ws_${archDoc.id}_elements`;
+    let existingElements: any[] = [];
+    try {
+      const raw = ownerWindow.localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          existingElements = parsed.filter((el: any) => !el.isDeleted);
+        }
+      }
+    } catch {}
+
+    let maxRight = 80;
+    let baseY = 100;
+    for (const el of existingElements) {
+      if (typeof el.x === "number" && typeof el.width === "number") {
+        maxRight = Math.max(maxRight, el.x + el.width + 120);
+      }
+    }
+    const originX = existingElements.length > 0 ? maxRight : 100;
+    const originY = baseY;
+    const now = Date.now();
+    const prefix = `arch_${now}`;
+
+    const makeRect = (
+      id: string,
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      bg: string,
+      stroke: string,
+    ) => ({
+      type: "rectangle",
+      version: 1,
+      versionNonce: Math.floor(Math.random() * 1_000_000),
+      isDeleted: false,
+      id,
+      fillStyle: "solid",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      roughness: 0,
+      opacity: 100,
+      angle: 0,
+      x,
+      y,
+      strokeColor: stroke,
+      backgroundColor: bg,
+      width: w,
+      height: h,
+      seed: Math.floor(Math.random() * 100_000),
+      groupIds: [`${prefix}_grp`],
+      frameId: null,
+      roundness: { type: 3 },
+      boundElements: [],
+      updated: now,
+      link: null,
+      locked: false,
+    });
+
+    const makeText = (
+      id: string,
+      x: number,
+      y: number,
+      text: string,
+      fontSize = 16,
+      color = "#1e1e1e",
+    ) => ({
+      type: "text",
+      version: 1,
+      versionNonce: Math.floor(Math.random() * 1_000_000),
+      isDeleted: false,
+      id,
+      fillStyle: "solid",
+      strokeWidth: 1,
+      strokeStyle: "solid",
+      roughness: 0,
+      opacity: 100,
+      angle: 0,
+      x,
+      y,
+      strokeColor: color,
+      backgroundColor: "transparent",
+      width: Math.max(120, text.length * (fontSize * 0.54)),
+      height: fontSize * 1.4,
+      seed: Math.floor(Math.random() * 100_000),
+      groupIds: [`${prefix}_grp`],
+      frameId: null,
+      roundness: null,
+      boundElements: [],
+      updated: now,
+      link: null,
+      locked: false,
+      fontSize,
+      fontFamily: 1,
+      text,
+      textAlign: "left",
+      verticalAlign: "top",
+      containerId: null,
+      originalText: text,
+      autoResize: true,
+      lineHeight: 1.25,
+    });
+
+    const makeArrow = (
+      id: string,
+      x: number,
+      y: number,
+      dx: number,
+      dy: number,
+    ) => ({
+      type: "arrow",
+      version: 1,
+      versionNonce: Math.floor(Math.random() * 1_000_000),
+      isDeleted: false,
+      id,
+      fillStyle: "solid",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      roughness: 0,
+      opacity: 100,
+      angle: 0,
+      x,
+      y,
+      strokeColor: "#495057",
+      backgroundColor: "transparent",
+      width: Math.abs(dx),
+      height: Math.abs(dy),
+      seed: Math.floor(Math.random() * 100_000),
+      groupIds: [`${prefix}_grp`],
+      frameId: null,
+      roundness: { type: 2 },
+      boundElements: [],
+      updated: now,
+      link: null,
+      locked: false,
+      points: [
+        [0, 0],
+        [dx, dy],
+      ],
+      lastCommittedPoint: null,
+      startBinding: null,
+      endBinding: null,
+      startArrowhead: null,
+      endArrowhead: "arrow",
+    });
+
+    const archNodes = [
+      makeRect(
+        `${prefix}_bg`,
+        originX,
+        originY,
+        780,
+        360,
+        "#f8f9fa",
+        "#adb5bd",
+      ),
+      makeText(
+        `${prefix}_title`,
+        originX + 24,
+        originY + 18,
+        `${task.key} Mimari Akışı: ${task.title.slice(0, 44)}`,
+        18,
+        "#1e1e1e",
+      ),
+      makeRect(
+        `${prefix}_client`,
+        originX + 30,
+        originY + 80,
+        190,
+        85,
+        "#a5d8ff",
+        "#1971c2",
+      ),
+      makeText(
+        `${prefix}_client_t`,
+        originX + 46,
+        originY + 112,
+        "UI / İstemci Katmanı",
+        15,
+        "#1864ab",
+      ),
+      makeArrow(`${prefix}_arr1`, originX + 220, originY + 122, 70, 0),
+      makeRect(
+        `${prefix}_svc`,
+        originX + 290,
+        originY + 80,
+        210,
+        85,
+        "#d0bfff",
+        "#6741d9",
+      ),
+      makeText(
+        `${prefix}_svc_t`,
+        originX + 308,
+        originY + 112,
+        `${task.key} İş Mantığı Servisi`,
+        15,
+        "#5f3dc4",
+      ),
+      makeArrow(`${prefix}_arr2`, originX + 500, originY + 122, 65, 0),
+      makeRect(
+        `${prefix}_db`,
+        originX + 565,
+        originY + 80,
+        185,
+        85,
+        "#b2f2bb",
+        "#2f9e44",
+      ),
+      makeText(
+        `${prefix}_db_t`,
+        originX + 585,
+        originY + 112,
+        "Veri & Olay Katmanı",
+        15,
+        "#2b8a3e",
+      ),
+      makeRect(
+        `${prefix}_notes`,
+        originX + 30,
+        originY + 205,
+        720,
+        125,
+        "#fff3bf",
+        "#f08c00",
+      ),
+      makeText(
+        `${prefix}_notes_t`,
+        originX + 48,
+        originY + 222,
+        `Mimari Karar & Doğrulama Kriterleri (${task.acceptanceCriteria.length} Kriter):\n` +
+          (task.acceptanceCriteria
+            .slice(0, 3)
+            .map((c, idx) => `${idx + 1}. ${c.text.slice(0, 68)}`)
+            .join("\n") || `1. ${task.title}`),
+        14,
+        "#1e1e1e",
+      ),
+    ];
+
+    const createdIds = archNodes.map((n) => n.id);
+    const mergedElements = [...existingElements, ...archNodes];
+    try {
+      ownerWindow.localStorage.setItem(
+        storageKey,
+        JSON.stringify(mergedElements),
+      );
+    } catch {}
+
+    const currentSketchRefs = Array.isArray(task.linkedSketchRefs)
+      ? task.linkedSketchRefs
+      : [];
+    const refLabel = `${task.key} Mimari Şeması`;
+    const nextLinkedDocs = Array.from(
+      new Set([...task.linkedDocIds, archDoc.id]),
+    );
+
+    updateProjectTask(task.id, {
+      linkedDocIds: nextLinkedDocs,
+      linkedSketchRefs: [
+        ...currentSketchRefs,
+        {
+          docId: archDoc.id,
+          elementIds: createdIds,
+          label: refLabel,
+        },
+      ],
+      status: task.status === "backlog" ? "design" : task.status,
+    });
+
+    addTaskComment(
+      task.id,
+      archAgent?.id || "system",
+      `🏗️ Sistem Mimarı Agent çalıştırıldı: "${refLabel}" diyagramı "${archDoc.name}" tuvaline çizildi ve göreve pinlendi.`,
+    );
+
+    requestSketchFocus(archDoc.id, createdIds, true);
+
+    return {
+      summary: `"${refLabel}" mimari tuvale çizildi ve odaklandı`,
+      targetDocId: archDoc.id,
+      targetSketchElementIds: createdIds,
+    };
+  }
 
   if (resolvedMode === "tdd") {
     const qaAgent =
@@ -1761,9 +2138,9 @@ export function exportProjectBundle(
   for (const ws of workspaces) {
     try {
       if (ws.canvasType === "sketch") {
-        const rawScene = ownerWindow.localStorage.getItem(
-          `excalidraw_ws_scene_${ws.id}`,
-        );
+        const rawScene =
+          ownerWindow.localStorage.getItem(`synapdraw_ws_${ws.id}_elements`) ||
+          ownerWindow.localStorage.getItem(`excalidraw_ws_scene_${ws.id}`);
         if (rawScene) {
           sketchScenes[ws.id] = JSON.parse(rawScene);
         }
@@ -1852,9 +2229,14 @@ export function importProjectBundle(
   if (parsed.sketchScenes && typeof parsed.sketchScenes === "object") {
     for (const [docId, sceneData] of Object.entries(parsed.sketchScenes)) {
       try {
+        const serialized = JSON.stringify(sceneData);
+        ownerWindow.localStorage.setItem(
+          `synapdraw_ws_${docId}_elements`,
+          serialized,
+        );
         ownerWindow.localStorage.setItem(
           `excalidraw_ws_scene_${docId}`,
-          JSON.stringify(sceneData),
+          serialized,
         );
       } catch {}
     }
@@ -1877,4 +2259,294 @@ export function importProjectBundle(
   );
   setActiveProjectId(incomingProject.id);
   return incomingProject;
+}
+
+// ============================================================================
+// LIVE LLM AGENT PIPELINE (WITH DETERMINISTIC FALLBACK)
+// ============================================================================
+
+export async function runLiveAgentPipeline(
+  taskId: string,
+  mode: "auto" | "architecture" | "design" | "tdd" | "analysis" = "auto",
+  ownerWindow: Window = window,
+): Promise<{
+  summary: string;
+  usedLiveLLM: boolean;
+}> {
+  const tasks = getProjectTasks();
+  const task = tasks.find((t) => t.id === taskId);
+  if (!task) {
+    return { summary: "Görev bulunamadı.", usedLiveLLM: false };
+  }
+
+  // First try calling configured LLM in excalidraw_ai_settings with a fast timeout
+  try {
+    const rawSettings = ownerWindow.localStorage.getItem(
+      "excalidraw_ai_settings",
+    );
+    if (rawSettings && (mode === "design" || mode === "analysis")) {
+      const settings = JSON.parse(rawSettings);
+      const isOllama = settings.provider !== "custom";
+      const endpoint = isOllama
+        ? `${(settings.ollamaUrl || "http://127.0.0.1:11434").replace(
+            /\/$/,
+            "",
+          )}/api/chat`
+        : `${(settings.customUrl || "https://api.openai.com/v1").replace(
+            /\/$/,
+            "",
+          )}/chat/completions`;
+      const model = isOllama
+        ? settings.ollamaModel || "gemma4:26b"
+        : settings.customModel || "gpt-4o-mini";
+
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 4500);
+
+      const sysPrompt =
+        mode === "design"
+          ? "Sen bir UI/UX tasarım uzmanısın. Yalnızca temiz, modern, inline-style içeren bir HTML <div> kart bileşeni döndür. Markdown açıklaması yazma."
+          : "Sen bir yazılım analistisin. Görev için 3 adet net kabul kriterini her satırda bir madde olacak şekilde düz metin olarak döndür.";
+      const userPrompt = `Görev: ${task.key} - ${task.title}\nAçıklama: ${
+        task.description || ""
+      }\nMevcut Kriterler: ${task.acceptanceCriteria
+        .map((c) => c.text)
+        .join(", ")}`;
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (!isOllama && settings.customApiKey) {
+        headers.Authorization = `Bearer ${settings.customApiKey}`;
+      }
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          stream: false,
+          messages: [
+            { role: "system", content: sysPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        const content: string =
+          data?.message?.content ||
+          data?.choices?.[0]?.message?.content ||
+          "";
+        if (content.trim().length > 24 && mode === "analysis") {
+          const lines = content
+            .split("\n")
+            .map((l) => l.replace(/^[-*•\d.)\s]+/, "").trim())
+            .filter((l) => l.length > 6)
+            .slice(0, 4);
+          if (lines.length > 0) {
+            const now = Date.now();
+            const merged = [
+              ...task.acceptanceCriteria,
+              ...lines.map((text, idx) => ({
+                id: `ac_llm_${now}_${idx}`,
+                text,
+                completed: false,
+              })),
+            ];
+            updateProjectTask(task.id, { acceptanceCriteria: merged });
+            addTaskComment(
+              task.id,
+              task.assigneeId || "system",
+              `🤖 Canlı LLM (${model}) ile ${lines.length} yeni kabul kriteri üretildi.`,
+            );
+            return {
+              summary: `Canlı LLM (${model}) ile ${lines.length} kriter eklendi`,
+              usedLiveLLM: true,
+            };
+          }
+        }
+      }
+    }
+  } catch {
+    // Seamless fallback to local deterministic agent execution
+  }
+
+  const localRes = executeAgentOnTask(taskId, mode, ownerWindow);
+  return {
+    summary: localRes.summary,
+    usedLiveLLM: false,
+  };
+}
+
+// ============================================================================
+// EXECUTABLE TEST SPEC GENERATOR (VITEST / PLAYWRIGHT / GHERKIN)
+// ============================================================================
+
+export type TestExportFramework = "vitest" | "playwright" | "gherkin";
+
+export function generateExecutableTestSpec(
+  scenarios: TDDScenario[],
+  framework: TestExportFramework,
+  suiteTitle = "SynapDraw SDLC Test Suite",
+): { code: string; filename: string } {
+  const safeSlug = suiteTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/gi, "-")
+    .replace(/^-|-$/g, "");
+
+  if (framework === "gherkin") {
+    const blocks = scenarios.map((sc) => {
+      const assertionsAnd = sc.assertions
+        .map((a) => `    And ${a.text}`)
+        .join("\n");
+      return `  @${sc.category} @${sc.status}
+  Scenario: [${sc.key}] ${sc.title}
+    Given ${sc.given}
+    When ${sc.when}
+    Then ${sc.then}${assertionsAnd ? `\n${assertionsAnd}` : ""}`;
+    });
+
+    return {
+      filename: `${safeSlug || "sdlc-scenarios"}.feature`,
+      code: `Feature: ${suiteTitle}
+  # SynapDraw TDD Studio tarafından otomatik üretilmiştir
+
+${blocks.join("\n\n")}
+`,
+    };
+  }
+
+  if (framework === "playwright") {
+    const tests = scenarios.map((sc) => {
+      const checks =
+        sc.assertions.length > 0
+          ? sc.assertions
+              .map(
+                (a) =>
+                  `    // Doğrulama (${a.passed ? "GEÇTİ" : "BEKLİYOR"}): ${
+                    a.text
+                  }\n    await expect(page.locator("body")).toBeVisible();`,
+              )
+              .join("\n")
+          : `    await expect(page.locator("body")).toBeVisible();`;
+
+      return `  test("${sc.key}: ${sc.title.replace(/"/g, '\\"')}", async ({ page }) => {
+    // GIVEN: ${sc.given}
+    await page.goto("http://localhost:3000");
+
+    // WHEN: ${sc.when}
+    // TODO: İlgili kullanıcı etkileşimini tetikleyin
+
+    // THEN: ${sc.then}
+${checks}
+  });`;
+    });
+
+    return {
+      filename: `${safeSlug || "sdlc-e2e"}.spec.ts`,
+      code: `import { test, expect } from "@playwright/test";
+
+test.describe("${suiteTitle.replace(/"/g, '\\"')}", () => {
+${tests.join("\n\n")}
+});
+`,
+    };
+  }
+
+  // Default: Vitest / Jest (.test.ts)
+  const unitTests = scenarios.map((sc) => {
+    const asserts =
+      sc.assertions.length > 0
+        ? sc.assertions
+            .map(
+              (a) =>
+                `    // Assertion: ${a.text}\n    expect(${
+                  a.passed ? "true" : "true /* TODO: implement */"
+                }).toBe(true);`,
+            )
+            .join("\n")
+        : `    expect(true).toBe(true);`;
+
+    return `  it("${sc.key}: ${sc.title.replace(/"/g, '\\"')} [${sc.status.toUpperCase()}]", async () => {
+    // GIVEN: ${sc.given}
+    // WHEN:  ${sc.when}
+    // THEN:  ${sc.then}
+${asserts}
+  });`;
+  });
+
+  return {
+    filename: `${safeSlug || "sdlc-suite"}.test.ts`,
+    code: `import { describe, it, expect } from "vitest";
+
+describe("${suiteTitle.replace(/"/g, '\\"')}", () => {
+${unitTests.join("\n\n")}
+});
+`,
+  };
+}
+
+// ============================================================================
+// SDLC TRACEABILITY PULSE (PROJECT HEALTH & MISSING LINK AUDITOR)
+// ============================================================================
+
+export interface ProjectTraceabilityPulse {
+  totalTasks: number;
+  doneTasks: number;
+  taskCompletionPercent: number;
+  totalScenarios: number;
+  greenScenarios: number;
+  redScenarios: number;
+  tddPassPercent: number;
+  tasksMissingTDD: ProjectTask[];
+  tasksMissingVisualLink: ProjectTask[];
+}
+
+export function computeProjectTraceabilityPulse(
+  projectId?: string,
+): ProjectTraceabilityPulse {
+  const pid = projectId || getActiveProjectId();
+  const tasks = getProjectTasks(pid);
+  const scenarios = getProjectTDDScenarios(pid);
+
+  const totalTasks = tasks.length;
+  const doneTasks = tasks.filter((t) => t.status === "done").length;
+  const taskCompletionPercent =
+    totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+
+  const totalScenarios = scenarios.length;
+  const greenScenarios = scenarios.filter(
+    (s) => s.status === "green" || s.status === "refactor",
+  ).length;
+  const redScenarios = scenarios.filter((s) => s.status === "red").length;
+  const tddPassPercent =
+    totalScenarios > 0
+      ? Math.round((greenScenarios / totalScenarios) * 100)
+      : 0;
+
+  const tasksMissingTDD = tasks.filter(
+    (t) => !scenarios.some((s) => s.linkedTaskId === t.id),
+  );
+  const tasksMissingVisualLink = tasks.filter(
+    (t) =>
+      t.linkedDocIds.length === 0 &&
+      (!t.linkedArtboards || t.linkedArtboards.length === 0) &&
+      (!t.linkedSketchRefs || t.linkedSketchRefs.length === 0),
+  );
+
+  return {
+    totalTasks,
+    doneTasks,
+    taskCompletionPercent,
+    totalScenarios,
+    greenScenarios,
+    redScenarios,
+    tddPassPercent,
+    tasksMissingTDD,
+    tasksMissingVisualLink,
+  };
 }

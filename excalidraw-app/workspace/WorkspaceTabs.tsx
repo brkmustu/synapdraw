@@ -30,6 +30,8 @@ import {
   getProjectTasks,
   getProjectTDDScenarios,
   getProjectTeam,
+  generateTDDFromTask,
+  computeProjectTraceabilityPulse,
   exportProjectBundle,
   importProjectBundle,
   getCategoryLabel,
@@ -358,6 +360,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
   };
 
   const otherWorkspacesForSplit = allWorkspaces.filter((w) => w.id !== activeId);
+  const pulse = computeProjectTraceabilityPulse(activeProject?.id);
 
   return (
     <>
@@ -657,6 +660,115 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                   value={explorerSearch}
                   onChange={(e) => setExplorerSearch(e.target.value)}
                 />
+              </div>
+
+              {/* SDLC Traceability Pulse & Missing Link Auditor */}
+              <div
+                style={{
+                  marginTop: 6,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  background: "var(--color-surface-low)",
+                  border: "1px solid var(--default-border-color, #e5e5e5)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  <span>📊 SDLC İZLENEBİLİRLİK ÖZETİ</span>
+                  <span>
+                    Görev %{pulse.taskCompletionPercent} · TDD %
+                    {pulse.tddPassPercent}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    height: 5,
+                    borderRadius: 999,
+                    background: "var(--color-surface-mid)",
+                    overflow: "hidden",
+                    display: "flex",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${pulse.tddPassPercent}%`,
+                      background: "#2f9e44",
+                      transition: "width 0.25s ease",
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 3,
+                    fontSize: 11,
+                  }}
+                >
+                  {pulse.tasksMissingTDD.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 6,
+                      }}
+                    >
+                      <span style={{ color: "#e03131", fontWeight: 600 }}>
+                        ⚠️ {pulse.tasksMissingTDD.length} görevin TDD testi yok
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          for (const t of pulse.tasksMissingTDD) {
+                            generateTDDFromTask(t.id);
+                          }
+                        }}
+                        style={{
+                          border: "none",
+                          background: "var(--color-surface-primary-container)",
+                          color: "var(--color-on-primary-container)",
+                          borderRadius: 4,
+                          padding: "2px 6px",
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ⚡ Üret
+                      </button>
+                    </div>
+                  )}
+                  {pulse.tasksMissingVisualLink.length > 0 && (
+                    <span style={{ color: "#f08c00", fontWeight: 600 }}>
+                      ⚠️ {pulse.tasksMissingVisualLink.length} görevin
+                      çizim/tasarım bağı yok
+                    </span>
+                  )}
+                  {pulse.redScenarios > 0 && (
+                    <span style={{ color: "#e03131", fontWeight: 600 }}>
+                      🔴 {pulse.redScenarios} TDD senaryosu Red (bekliyor)
+                    </span>
+                  )}
+                  {pulse.tasksMissingTDD.length === 0 &&
+                    pulse.tasksMissingVisualLink.length === 0 &&
+                    pulse.redScenarios === 0 && (
+                      <span style={{ color: "#2f9e44", fontWeight: 600 }}>
+                        ✅ Tüm SDLC halkaları eksiksiz doğrulandı!
+                      </span>
+                    )}
+                </div>
               </div>
             </div>
 
