@@ -566,13 +566,14 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
       localStorage.setItem("excalidraw_ai_settings", JSON.stringify(settings));
       saveAIProviderGatewayConfig({
         activeProvider: settings.provider,
-        ollamaBaseUrl: settings.ollamaUrl,
+        ollamaUrl: settings.ollamaUrl,
         ollamaModel: settings.ollamaModel,
-        openRouterApiKey: settings.openrouterKey,
+        openRouterBaseUrl: settings.openrouterUrl,
+        openRouterApiKey: settings.openrouterApiKey,
         openRouterModel: settings.openrouterModel,
-        customApiBaseUrl: settings.openaiBaseUrl,
-        customApiKey: settings.openaiKey,
-        customApiModel: settings.openaiModel,
+        openAiBaseUrl: settings.customUrl,
+        openAiApiKey: settings.customApiKey,
+        customApiModel: settings.customModel,
       });
     } catch {}
   }, [settings]);

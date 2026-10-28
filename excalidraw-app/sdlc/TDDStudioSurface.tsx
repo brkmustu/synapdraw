@@ -226,6 +226,18 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
     });
   };
 
+  const handleDeleteAssertion = (
+    scenario: TDDScenario,
+    assertionId: string,
+  ) => {
+    const updatedAssertions = scenario.assertions.filter(
+      (a) => a.id !== assertionId,
+    );
+    updateTDDScenario(scenario.id, {
+      assertions: updatedAssertions,
+    });
+  };
+
   const handleAddAssertion = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedScenario || !newAssertionInput.trim()) return;
@@ -494,7 +506,12 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                       onClick={(e) => e.stopPropagation()}
                     >
                       {sc.assertions.map((asItem) => (
-                        <label key={asItem.id} className="assertion-check">
+                        <label
+                          key={asItem.id}
+                          className={`assertion-check ${
+                            asItem.passed ? "assertion-check--passed" : ""
+                          }`}
+                        >
                           <input
                             type="checkbox"
                             checked={asItem.passed}
@@ -517,17 +534,17 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                       {linkedTask && (
                         <button
                           type="button"
-                          className="artifact-chip"
+                          className="artifact-chip artifact-chip--task"
                           onClick={() => {
                             const taskBoard = docs.find(
                               (d) => d.canvasType === "tasks",
                             );
                             if (taskBoard) setActiveWorkspaceId(taskBoard.id);
                           }}
-                          title={`Görev: ${linkedTask.title}`}
+                          title={`Görev: ${linkedTask.key} - ${linkedTask.title}`}
                         >
                           <span className="chip-icon">{TaskBoardIcon}</span>
-                          <span>
+                          <span className="chip-text">
                             {linkedTask.key}: {linkedTask.title}
                           </span>
                         </button>
@@ -544,7 +561,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                             <span className="chip-icon">
                               {getDocumentIcon(doc)}
                             </span>
-                            <span>{doc.name}</span>
+                            <span className="chip-text">{doc.name}</span>
                           </button>
                           <button
                             type="button"
@@ -559,8 +576,14 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                     </div>
 
                     {sc.assertions.length > 0 && (
-                      <span className="assertion-summary">
-                        {passedCount}/{sc.assertions.length} Doğrulama
+                      <span
+                        className={`assertion-summary ${
+                          passedCount === sc.assertions.length
+                            ? "assertion-summary--all-passed"
+                            : ""
+                        }`}
+                      >
+                        ✓ {passedCount}/{sc.assertions.length} Doğrulama
                       </span>
                     )}
                   </div>
@@ -708,23 +731,49 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
 
               {/* Assertions */}
               <div className="detail-section">
-                <label className="detail-label">
-                  DOĞRULAMA KONTROLLERİ (ASSERTIONS)
-                </label>
+                <div className="detail-section-header">
+                  <label className="detail-label">
+                    DOĞRULAMA KONTROLLERİ (ASSERTIONS)
+                  </label>
+                  <span className="detail-count-badge">
+                    {
+                      selectedScenario.assertions.filter((a) => a.passed)
+                        .length
+                    }
+                    /{selectedScenario.assertions.length} Geçti
+                  </span>
+                </div>
                 <div className="criteria-list">
                   {selectedScenario.assertions.map((a) => (
-                    <label key={a.id} className="criterion-item">
-                      <input
-                        type="checkbox"
-                        checked={a.passed}
-                        onChange={() =>
-                          handleToggleAssertion(selectedScenario, a.id)
+                    <div
+                      key={a.id}
+                      className={`criterion-row ${
+                        a.passed ? "criterion-row--passed" : ""
+                      }`}
+                    >
+                      <label className="criterion-item">
+                        <input
+                          type="checkbox"
+                          checked={a.passed}
+                          onChange={() =>
+                            handleToggleAssertion(selectedScenario, a.id)
+                          }
+                        />
+                        <span className={a.passed ? "crit-done" : ""}>
+                          {a.text}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className="criterion-remove-btn"
+                        title="Assertion sil"
+                        onClick={() =>
+                          handleDeleteAssertion(selectedScenario, a.id)
                         }
-                      />
-                      <span className={a.passed ? "crit-done" : ""}>
-                        {a.text}
-                      </span>
-                    </label>
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))}
                 </div>
                 <form
