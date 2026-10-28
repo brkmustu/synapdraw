@@ -6,6 +6,7 @@ import {
   brainIcon,
   searchIcon,
   checkIcon,
+  frameToolIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import {
   getProjectTasks,
@@ -36,6 +37,7 @@ import {
   getDocumentIcon,
   SplitViewIcon,
   TDDTestIcon,
+  ArchitectureIcon,
 } from "../workspace/WorkspaceTabs";
 import "./sdlc.scss";
 
@@ -393,7 +395,9 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                                   }
                                   title={`"${sr.label}" çizim akışını yan yana (Split-Peek) aç ve odaklan`}
                                 >
-                                  <span className="chip-icon">📐</span>
+                                  <span className="chip-icon">
+                                    {ArchitectureIcon}
+                                  </span>
                                   <span className="chip-text">{sr.label}</span>
                                 </button>
                               ))}
@@ -412,7 +416,9 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                                   }
                                   title={`"${la.label}" Artboard'unu yan yana (Split-Peek) aç ve odaklan`}
                                 >
-                                  <span className="chip-icon">🎨</span>
+                                  <span className="chip-icon">
+                                    {frameToolIcon}
+                                  </span>
                                   <span className="chip-text">
                                     {la.label}
                                   </span>
@@ -495,7 +501,8 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                                   }}
                                   title={`${assignee.name} ile bu görevi çalıştır`}
                                 >
-                                  <span>🤖 Çalıştır</span>
+                                  <span className="chip-icon">{brainIcon}</span>
+                                  <span>Çalıştır</span>
                                 </button>
                               )}
                               {task.acceptanceCriteria.length > 0 && (

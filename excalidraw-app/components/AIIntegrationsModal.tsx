@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import React, { useState, useEffect, useRef } from "react";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
-import { CheckboxItem } from "@excalidraw/excalidraw/components/CheckboxItem";
 import {
   brainIcon,
   settingsIcon,
@@ -9,8 +8,29 @@ import {
   copyIcon,
   checkIcon,
   RetryIcon,
+  FreedrawIcon,
+  frameToolIcon,
+  PlusIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import {
+  getActiveProject,
+  getWorkspaces,
+  getProjectTasks,
+  getProjectTDDScenarios,
+  getProjectTeam,
+  createProjectTask,
+  createTDDScenario,
+  executeAgentOnTask,
+  runLiveAgentPipeline,
+  setActiveWorkspaceId,
+  subscribeWorkspaces,
+} from "../workspace/workspaceStore";
+import {
+  ArchitectureIcon,
+  TaskBoardIcon,
+  TDDTestIcon,
+} from "../workspace/WorkspaceTabs";
 
 import "./AIIntegrationsModal.scss";
 
@@ -22,12 +42,12 @@ const StopSquareIcon = (
 
 const UpArrowIcon = (
   <svg
-    width="16"
-    height="16"
+    width="15"
+    height="15"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2.5"
+    strokeWidth="2.25"
     strokeLinecap="round"
     strokeLinejoin="round"
   >
@@ -68,6 +88,56 @@ const TrashIcon = (
   </svg>
 );
 
+const McpPlugIcon = (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M12 22v-5" />
+    <path d="M9 8V2" />
+    <path d="M15 8V2" />
+    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+  </svg>
+);
+
+const UserIcon = (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+const CodeEditIcon = (
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polyline points="16 18 22 12 16 6" />
+    <polyline points="8 6 2 12 8 18" />
+  </svg>
+);
+
 interface AIIntegrationsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -95,34 +165,125 @@ const DEFAULT_SETTINGS: AISettings = {
 };
 
 const PRESET_TYPES = [
-  { label: "Architecture", hint: "Sistem ve mikroservis mimarisi (graph TB)" },
-  { label: "Flowchart", hint: "İşlem ve akış şeması (graph TD)" },
-  { label: "UI Wireframe (HTML)", hint: "HTML/CSS ile modern arayüz ve bileşen tasarımı" },
-  { label: "Sequence", hint: "Sıralı etkileşim diyagramı (sequenceDiagram)" },
-  { label: "Class Diagram", hint: "Sınıf ve nesne ilişkileri (classDiagram)" },
-  { label: "Mindmap", hint: "Zihin haritası (mindmap)" },
+  {
+    id: "Architecture",
+    label: "Mimari Şema",
+    targetBadge: "Çizim Tuvali",
+    hint: "Sistem ve mikroservis mimarisi (Mermaid graph TB)",
+  },
+  {
+    id: "Flowchart",
+    label: "Analiz & Akış",
+    targetBadge: "Çizim Tuvali",
+    hint: "İş akışı ve süreç analizi diyagramı (Mermaid graph TD)",
+  },
+  {
+    id: "UI Wireframe (HTML)",
+    label: "UI Tasarım (HTML/CSS)",
+    targetBadge: "Tasarım Tuvali",
+    hint: "HTML/CSS ile Tasarım Tuvaline (Artboard) veya Çizim Tuvaline bileşen üretimi",
+  },
+  {
+    id: "SDLC Tasks",
+    label: "Görev & Kriter Üret",
+    targetBadge: "Görev Panosu",
+    hint: "Proje Görev Panosuna kabul kriterleriyle birlikte yeni görevler üretir",
+  },
+  {
+    id: "TDD Suite",
+    label: "TDD Test Üret",
+    targetBadge: "TDD Stüdyosu",
+    hint: "TDD Stüdyosuna Given/When/Then BDD senaryoları ve assertion listesi üretir",
+  },
+  {
+    id: "Sequence",
+    label: "Sequence Diyagramı",
+    targetBadge: "Çizim Tuvali",
+    hint: "Servisler arası sıralı etkileşim diyagramı (sequenceDiagram)",
+  },
 ];
 
 const PROMPT_SUGGESTIONS = [
-  "Modern SaaS dashboard giriş ve kayıt kartı bileşeni",
-  "Redis Cache, PostgreSQL ve Kafka içeren mikroservis sipariş mimarisi",
-  "Fiyatlandırma planları (Free, Pro, Enterprise) karşılaştırma tablosu",
-  "JWT Authentication ve OAuth2 oturum açma sıralı etkileşim diyagramı",
-  "Kullanıcı kayıt, e-posta doğrulama ve yetkilendirme akış şeması",
+  {
+    preset: "Architecture",
+    badge: "Mimari",
+    text: "Redis Cache, PostgreSQL ve Kafka içeren mikroservis sipariş mimarisi",
+  },
+  {
+    preset: "UI Wireframe (HTML)",
+    badge: "UI Tasarım",
+    text: "Modern SaaS sipariş özeti, kupon girişi ve fiyatlandırma kartı bileşeni",
+  },
+  {
+    preset: "SDLC Tasks",
+    badge: "Görev Panosu",
+    text: "Sipariş iptali, stok iadesi ve ödeme geri bildirimi için SDLC görevleri oluştur",
+  },
+  {
+    preset: "TDD Suite",
+    badge: "TDD Test",
+    text: "İndirim kuponu doğrulama ve sepet KDV hesaplama servisi için BDD test senaryoları üret",
+  },
 ];
 
-const MCP_CONFIG_JSON = JSON.stringify(
+const MCP_CONFIG_CLAUDE = JSON.stringify(
   {
     mcpServers: {
-      excalidraw: {
+      "synapdraw-sdlc": {
         command: "node",
-        args: ["C:/Users/mburakmustu/.excalidraw/mcp/index.js", "--stdio"],
+        args: ["C:/Users/mburakmustu/source/repos/synapdraw-mcp/dist/index.js", "--stdio"],
       },
     },
   },
   null,
   2,
 );
+
+const MCP_TOOLS_CATALOG = [
+  {
+    group: "Proje & Görev Orkestrasyonu",
+    tools: [
+      {
+        name: "get_project_sdlc_overview",
+        desc: "Aktif projenin tüm tuvallerini, görevlerini, TDD testlerini ve izlenebilirlik nabzını okur.",
+      },
+      {
+        name: "upsert_project_task",
+        desc: "Görev panosunda yeni görev oluşturur, durumunu veya kabul kriterlerini günceller.",
+      },
+      {
+        name: "run_sdlc_agent_pipeline",
+        desc: "Projedeki tüm AI Agent'ları (Mimari + UI + TDD) sırayla çalıştırır.",
+      },
+    ],
+  },
+  {
+    group: "TDD & Kalite Doğrulama",
+    tools: [
+      {
+        name: "upsert_tdd_scenario",
+        desc: "Given/When/Then BDD test senaryosu oluşturur veya Red-Green-Refactor durumunu günceller.",
+      },
+    ],
+  },
+  {
+    group: "Analiz, Mimari & UI Tasarım Tuvalleri",
+    tools: [
+      {
+        name: "render_mermaid",
+        desc: "Analiz veya Mimari çizim tuvaline Mermaid diyagramı çizer.",
+      },
+      {
+        name: "render_design",
+        desc: "Tasarım tuvaline (Shadow DOM Artboard) pixel-perfect HTML/CSS bileşeni yerleştirir.",
+      },
+      {
+        name: "get_canvas_state / update_node_styles",
+        desc: "Tuvaldeki mevcut bileşenleri okur ve seçili düğümleri revize eder.",
+      },
+    ],
+  },
+];
 
 /**
  * Sanitizes common LLM Mermaid syntax mistakes before parsing.
@@ -133,7 +294,6 @@ function sanitizeMermaid(rawCode: string): string {
     .replace(/```/g, "")
     .trim();
 
-  // Extract from the first diagram keyword if there is preamble
   const diagramKeywords = [
     "graph",
     "flowchart",
@@ -159,7 +319,6 @@ function sanitizeMermaid(rawCode: string): string {
 
   const isClassDiagram = /^classDiagram\b/im.test(cleaned);
 
-  // If NOT a class diagram, UML class diagram connectors are invalid in flowcharts/graphs
   if (!isClassDiagram) {
     cleaned = cleaned
       .replace(/<\|--/g, "-->")
@@ -172,29 +331,21 @@ function sanitizeMermaid(rawCode: string): string {
       .replace(/--o/g, "-->");
   }
 
-  // Clean invalid token combinations across all diagram types
-  // 1. Strip broken operators at the end of lines (e.g. &|, |&, or dangling & / |)
   cleaned = cleaned.replace(/(&\||\|\&|\&|\|)\s*$/gm, "");
-  // 2. Broken operators between nodes (e.g. A &| B -> A & B)
   cleaned = cleaned.replace(/(&\||\|\&)/g, " & ");
-
-  // 3. Fix broken arrow combinations like <--| or |--
   cleaned = cleaned.replace(/<--\|/g, "<--");
   cleaned = cleaned.replace(/\|-->/g, "-->");
 
-  // Process line by line for any hanging syntax or malformed lines
   const lines = cleaned.split("\n");
   const filteredLines = lines
     .map((line) => {
       let l = line.trimEnd();
-      // Remove trailing dangling operators at line end
       l = l.replace(/(&|\+|\|)\s*$/, "").trimEnd();
       return l;
     })
     .filter((line) => {
       const t = line.trim();
       if (!t) return false;
-      // Filter out markdown artifacts or commentary lines that don't belong in mermaid
       if (
         t.startsWith("Note:") ||
         t.startsWith("Explanation:") ||
@@ -273,16 +424,28 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
   onClose,
   excalidrawAPI,
 }) => {
-  const [activeSidebarTab, setActiveSidebarTab] = useState<"studio" | "history" | "settings">(
-    "studio",
-  );
+  const [activeSidebarTab, setActiveSidebarTab] = useState<
+    "studio" | "mcp" | "history" | "settings"
+  >("studio");
   const [copiedTarget, setCopiedTarget] = useState<"user" | "ai" | null>(null);
+
+  // SDLC Project Live State
+  const [, setSdlcTick] = useState(0);
+  useEffect(() => {
+    if (!isOpen) return;
+    return subscribeWorkspaces(() => setSdlcTick((t) => t + 1));
+  }, [isOpen]);
+
+  const activeProject = getActiveProject();
+  const projectDocs = getWorkspaces();
+  const projectTasks = getProjectTasks();
+  const projectScenarios = getProjectTDDScenarios();
+  const projectTeam = getProjectTeam();
 
   // Chat History
   const [chatHistory, setChatHistory] = useState<AIChatHistoryItem[]>(loadChatHistory);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
 
-  // Load last session from localStorage so closing and reopening preserves state
   const savedSession = useRef(loadSavedSession()).current;
 
   const [prompt, setPrompt] = useState("");
@@ -328,7 +491,8 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
   const codePreRef = useRef<HTMLPreElement | null>(null);
   const modalContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Canvas Context Awareness & Selection-based Revision
+  // Full SDLC Context & Canvas Context Awareness
+  const [includeSdlcContext, setIncludeSdlcContext] = useState<boolean>(true);
   const [includeCanvasContext, setIncludeCanvasContext] = useState<boolean>(true);
   const [reviseSelectionMode, setReviseSelectionMode] = useState<boolean>(false);
   const [canvasStats, setCanvasStats] = useState<{ total: number; selected: number } | null>(null);
@@ -385,7 +549,6 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     } catch {}
   }, [settings]);
 
-  // Save session state to localStorage so closing the modal doesn't lose anything
   useEffect(() => {
     try {
       if (submittedPrompt || streamedContent) {
@@ -412,7 +575,6 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     renderMode,
   ]);
 
-  // Elapsed timer while generating
   useEffect(() => {
     let timer: any = null;
     if (isGenerating) {
@@ -426,7 +588,6 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     };
   }, [isGenerating]);
 
-  // Auto-scroll both the inner code pre and outer workspace canvas down as new tokens stream
   useEffect(() => {
     if (codePreRef.current) {
       codePreRef.current.scrollTop = codePreRef.current.scrollHeight;
@@ -454,7 +615,6 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     checkMcp();
   }, [isOpen]);
 
-  // Fetch Ollama models with IPv4 fallback
   const fetchOllamaModels = async (explicitUrl?: string) => {
     setIsFetchingModels(true);
     setStatusMessage(null);
@@ -509,14 +669,13 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
       if (lastError) {
         setStatusMessage({
           type: "error",
-          text: `Ollama bağlantı hatası (${targetUrl}): ${lastError}. Ollama açık mı?`,
+          text: `Ollama bağlantı hatası (${targetUrl}): ${lastError}.`,
         });
       }
       return [];
     }
   };
 
-  // Auto-fetch Ollama models on modal open or when provider changes
   useEffect(() => {
     if (!isOpen) return;
     if (settings.provider === "ollama") {
@@ -526,7 +685,8 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
 
   const handleCopyConfig = async () => {
     try {
-      await navigator.clipboard.writeText(MCP_CONFIG_JSON);
+      const ownerWin = modalContainerRef.current?.ownerDocument?.defaultView || window;
+      await ownerWin.navigator.clipboard.writeText(MCP_CONFIG_CLAUDE);
       setIsConfigCopied(true);
       setTimeout(() => setIsConfigCopied(false), 2000);
     } catch (err) {
@@ -534,7 +694,6 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     }
   };
 
-  // Sync chat history to localStorage
   useEffect(() => {
     try {
       localStorage.setItem("excalidraw_ai_chat_history", JSON.stringify(chatHistory));
@@ -561,14 +720,20 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     setCurrentChatId(item.id);
     setSubmittedPrompt(item.prompt);
     setStreamedContent(item.mermaidCode);
-    setEditableMermaidCode(sanitizeMermaid(item.mermaidCode));
+    setEditableMermaidCode(
+      item.preset === "UI Wireframe (HTML)" ||
+        item.preset === "SDLC Tasks" ||
+        item.preset === "TDD Suite"
+        ? item.mermaidCode
+        : sanitizeMermaid(item.mermaidCode),
+    );
     setSelectedPreset(item.preset);
     setIsEditingCode(false);
     setGenerationStatus(item.status);
     setParseErrorDetails(null);
     setStatusMessage({
       type: "success",
-      text: `"${item.title}" sohbeti yüklendi.`,
+      text: `"${item.title}" oturumu yüklendi.`,
     });
     if (item.mermaidCode) {
       renderCodeToScene(item.mermaidCode).catch(() => {});
@@ -584,7 +749,8 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
   };
 
   const handleClearAllHistory = () => {
-    if (window.confirm("Tüm sohbet geçmişini silmek istediğinize emin misiniz?")) {
+    const ownerWin = modalContainerRef.current?.ownerDocument?.defaultView || window;
+    if (ownerWin.confirm("Tüm sohbet geçmişini silmek istediğinize emin misiniz?")) {
       setChatHistory([]);
       try {
         localStorage.removeItem("excalidraw_ai_chat_history");
@@ -596,7 +762,8 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
   const handleCopy = async (text: string, target: "user" | "ai") => {
     if (!text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      const ownerWin = modalContainerRef.current?.ownerDocument?.defaultView || window;
+      await ownerWin.navigator.clipboard.writeText(text);
       setCopiedTarget(target);
       setTimeout(() => setCopiedTarget(null), 2000);
     } catch (err) {
@@ -613,8 +780,34 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     setGenerationStatus("error");
     setStatusMessage({
       type: "error",
-      text: "Çizim üretimi kullanıcı tarafından durduruldu.",
+      text: "Üretim kullanıcı tarafından durduruldu.",
     });
+  };
+
+  const buildSdlcProjectContextPrompt = (): string => {
+    if (!includeSdlcContext) return "";
+    const docsSummary = projectDocs
+      .map((d) => `- [${d.category}] "${d.name}" (tip: ${d.canvasType})`)
+      .join("\n");
+    const tasksSummary = projectTasks
+      .slice(0, 12)
+      .map(
+        (t) =>
+          `- ${t.key} [${t.status}/${t.priority}]: "${t.title}" (${t.acceptanceCriteria.filter((c) => c.completed).length}/${t.acceptanceCriteria.length} kriter tamamlandı)`,
+      )
+      .join("\n");
+    const tddSummary = projectScenarios
+      .slice(0, 10)
+      .map((s) => `- ${s.key} [${s.status.toUpperCase()}]: "${s.title}"`)
+      .join("\n");
+
+    return `\n\nSDLC PROJECT CONTEXT (${activeProject?.name || "Aktif Proje"}):
+Belgeler & Tuvaller:
+${docsSummary || "- Yok"}
+Mevcut Görevler (${projectTasks.length}):
+${tasksSummary || "- Yok"}
+TDD Test Senaryoları (${projectScenarios.length}):
+${tddSummary || "- Yok"}`;
   };
 
   // Renders the provided Mermaid code directly to Excalidraw canvas
@@ -656,7 +849,6 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
       createCard: true,
     });
 
-    // Convert skeleton elements into fully qualified Excalidraw elements with bound centered text elements
     const converted = convertToExcalidrawElements(container.elements, {
       regenerateIds: true,
       renderEnvironment: (excalidrawAPI as any)?.renderEnvironment,
@@ -690,12 +882,111 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     setGenerationStatus("success");
     setStatusMessage({
       type: "success",
-      text: `Harika! ${converted.length} çizim elemanı (şekiller ve metinler) tuvale aktarıldı.`,
+      text: `${converted.length} çizim elemanı Analiz/Mimari tuvaline aktarıldı.`,
     });
   };
 
-  // Renders either HTML Wireframe or Mermaid diagram into Excalidraw canvas
+  // Applies generated JSON Tasks or TDD Scenarios to the SDLC Project Store
+  const applySdlcResourceOutput = async (rawOutput: string, mode: "SDLC Tasks" | "TDD Suite") => {
+    const cleaned = rawOutput
+      .replace(/```(?:json)?/gi, "")
+      .replace(/```/g, "")
+      .trim();
+    setEditableMermaidCode(cleaned);
+    setGenerationStatus("parsing");
+    setParseErrorDetails(null);
+
+    const firstBracket = cleaned.search(/[\[\{]/);
+    const jsonSlice = firstBracket >= 0 ? cleaned.slice(firstBracket) : cleaned;
+    const parsed = JSON.parse(jsonSlice);
+    const items = Array.isArray(parsed)
+      ? parsed
+      : parsed.tasks || parsed.scenarios || [parsed];
+
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error("Geçerli bir JSON görev veya test listesi bulunamadı.");
+    }
+
+    if (mode === "SDLC Tasks") {
+      const linkedDocIds = projectDocs
+        .filter((d) => d.canvasType === "sketch" || d.canvasType === "design")
+        .slice(0, 2)
+        .map((d) => d.id);
+      let createdCount = 0;
+      for (const item of items) {
+        if (!item?.title) continue;
+        createProjectTask({
+          title: String(item.title),
+          description: String(item.description || ""),
+          status: (item.status as any) || "backlog",
+          priority: (item.priority as any) || "high",
+          assigneeId: projectTeam[0]?.id || null,
+          linkedDocIds,
+          acceptanceCriteria: Array.isArray(item.acceptanceCriteria)
+            ? item.acceptanceCriteria.map((c: any, idx: number) => ({
+                id: `ac_${Date.now()}_${idx}`,
+                text: typeof c === "string" ? c : String(c.text || ""),
+                completed: false,
+              }))
+            : [],
+        });
+        createdCount++;
+      }
+      const taskDoc = projectDocs.find((d) => d.canvasType === "tasks");
+      if (taskDoc && settings.autoScroll) {
+        setActiveWorkspaceId(taskDoc.id);
+      }
+      setGenerationStatus("success");
+      setStatusMessage({
+        type: "success",
+        text: `${createdCount} yeni görev ve kabul kriterleri Proje Görev Panosuna eklendi.`,
+      });
+      return;
+    }
+
+    if (mode === "TDD Suite") {
+      let createdCount = 0;
+      const defaultTask = projectTasks[0];
+      for (const item of items) {
+        if (!item?.title) continue;
+        createTDDScenario({
+          title: String(item.title),
+          category: (item.category as any) || "integration",
+          status: "red",
+          given: String(item.given || "Sistem başlangıç durumunda olduğunda"),
+          when: String(item.when || "İlgili aksiyon tetiklendiğinde"),
+          then: String(item.then || "Beklenen doğrulama kriterleri sağlanmalı"),
+          linkedTaskId: defaultTask?.id || null,
+          linkedDocIds: defaultTask?.linkedDocIds || [],
+          assertions: Array.isArray(item.assertions)
+            ? item.assertions.map((a: any, idx: number) => ({
+                id: `as_${Date.now()}_${idx}`,
+                description: typeof a === "string" ? a : String(a.description || ""),
+                passed: false,
+              }))
+            : [],
+        });
+        createdCount++;
+      }
+      const tddDoc = projectDocs.find((d) => d.canvasType === "tdd");
+      if (tddDoc && settings.autoScroll) {
+        setActiveWorkspaceId(tddDoc.id);
+      }
+      setGenerationStatus("success");
+      setStatusMessage({
+        type: "success",
+        text: `${createdCount} yeni BDD/TDD test senaryosu TDD Stüdyosuna eklendi.`,
+      });
+    }
+  };
+
+  // Renders HTML Wireframe, Mermaid diagram, or SDLC Tasks/TDD into the project
   const renderCodeToScene = async (rawCode: string) => {
+    if (selectedPreset === "SDLC Tasks" || selectedPreset === "TDD Suite") {
+      await applySdlcResourceOutput(rawCode, selectedPreset);
+      return;
+    }
+
     const isHtml =
       selectedPreset === "UI Wireframe (HTML)" ||
       /^\s*<(!DOCTYPE|html|div|section|form|header|main|table|button|card)/i.test(rawCode.trim());
@@ -828,19 +1119,23 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
       setGenerationStatus("success");
       setStatusMessage({
         type: "success",
-        text: `Harika! ${converted.length} UI wireframe elemanı tuvale başarıyla aktarıldı.`,
+        text: `${converted.length} UI wireframe elemanı tuvale başarıyla aktarıldı.`,
       });
       return;
     }
 
-    // Default: Mermaid rendering
     await renderMermaidToScene(rawCode);
   };
 
-  const handleGenerate = async (customPromptText?: string) => {
+  const handleGenerate = async (customPromptText?: string, overridePreset?: string) => {
     const activePrompt = customPromptText || prompt;
+    const activePreset = overridePreset || selectedPreset;
+    if (overridePreset) {
+      setSelectedPreset(overridePreset);
+    }
+
     if (!activePrompt.trim()) {
-      setStatusMessage({ type: "error", text: "Lütfen bir çizim açıklaması girin." });
+      setStatusMessage({ type: "error", text: "Lütfen bir istem (prompt) girin." });
       return;
     }
 
@@ -848,7 +1143,7 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     setCurrentChatId(sessionChatId);
 
     setSubmittedPrompt(activePrompt.trim());
-    setPrompt(""); // Clear input textbox immediately
+    setPrompt("");
     setIsGenerating(true);
     setGenerationStatus("connecting");
     setStreamedContent("");
@@ -861,7 +1156,7 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
     abortControllerRef.current = abortController;
 
     let systemPrompt = "";
-    let contextPromptSection = "";
+    let contextPromptSection = buildSdlcProjectContextPrompt();
 
     if (includeCanvasContext && excalidrawAPI) {
       try {
@@ -869,62 +1164,63 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
           "../utils/canvasContext"
         );
         const ctx = extractCanvasSemanticContext(excalidrawAPI, reviseSelectionMode);
-        contextPromptSection = `\n\nCANVAS CONTEXT / CURRENT BOARD STATE:\n${formatContextForPrompt(ctx)}`;
+        contextPromptSection += `\n\nCANVAS CONTEXT / CURRENT BOARD STATE:\n${formatContextForPrompt(ctx)}`;
         if (reviseSelectionMode && ctx.hasSelection) {
-          contextPromptSection += `\n\nIMPORTANT: The user specifically wants to REVISE the selected element(s). Generate an improved / updated design for the selected section that seamlessly fits with the rest of the board.`;
+          contextPromptSection += `\n\nIMPORTANT: The user specifically wants to REVISE the selected element(s).`;
         }
       } catch (e) {
         console.warn("Failed to extract canvas context:", e);
       }
     }
 
-    if (selectedPreset === "UI Wireframe (HTML)") {
+    if (activePreset === "SDLC Tasks") {
+      systemPrompt = `You are a Principal Product Manager and Software Architect inside SynapDraw SDLC Super-App.
+Generate a JSON array of software development tasks based on the user's request and the project context.
+Output ONLY a valid JSON array (no markdown fences, no commentary):
+[
+  {
+    "title": "Task Title in Turkish",
+    "description": "Clear technical description in Turkish",
+    "status": "backlog",
+    "priority": "high",
+    "acceptanceCriteria": [
+      "Kabul kriteri 1",
+      "Kabul kriteri 2",
+      "Kabul kriteri 3"
+    ]
+  }
+]${contextPromptSection}`;
+    } else if (activePreset === "TDD Suite") {
+      systemPrompt = `You are a Principal QA & TDD Engineer inside SynapDraw SDLC Super-App.
+Generate a JSON array of BDD/TDD test scenarios based on the user's request and the project context.
+Output ONLY a valid JSON array (no markdown fences, no commentary):
+[
+  {
+    "title": "Test Scenario Title in Turkish",
+    "category": "integration",
+    "given": "Başlangıç koşulu (Given)",
+    "when": "Tetiklenen eylem (When)",
+    "then": "Beklenen sonuç (Then)",
+    "assertions": [
+      "HTTP 200 veya beklenen yanıt dönmeli",
+      "Veri bütünlüğü doğrulanmalı"
+    ]
+  }
+]${contextPromptSection}`;
+    } else if (activePreset === "UI Wireframe (HTML)") {
       systemPrompt = `You are an expert UI/UX designer and design system architect.
 Generate clean, modern, semantic HTML wireframe snippets based on the user's description.
-
-CRITICAL HTML WIREFRAME RULES:
-- Output ONLY pure, valid HTML code. Do NOT output markdown ticks (\`\`\`html), explanations, conversational notes or introductory text.
-- Use semantic tags: <header>, <nav>, <main>, <section>, <article>, <form>, <button>, <input>, <table>, <ul>, <li>, <hr>.
-- For cards and containers, use <div class="card" style="..."> with explicit width (e.g. 380px or 640px), padding, border (e.g. 1px solid #e2e8f0), border-radius (e.g. 8px or 12px), and background color.
-- For buttons, use <button style="..."> with clear action labels, padding, background color (#3b82f6 or similar), text color (#ffffff), and border-radius (6px).
-- For inputs, use <label> followed by <input type="..." placeholder="..." style="..." />.
-- For badges and tags, use <span class="badge" style="...">.
-- Use clean layout structures (flexbox: display: flex; flex-direction: column/row; gap: 12px;).
-- Palette: Modern, clean aesthetics. #3b82f6 (primary), #ffffff (card/bg), #1e293b (text), #64748b (muted text), #e2e8f0 (border), #f8fafc (panel bg).${contextPromptSection}`;
+CRITICAL RULES:
+- Output ONLY pure, valid HTML code. Do NOT output markdown ticks (\`\`\`html) or explanations.
+- Use <div class="card" style="..."> with explicit width, padding, border, border-radius, and clean flexbox layout.${contextPromptSection}`;
     } else {
       systemPrompt = `You are an expert software architect and technical diagram creator.
 Generate ONLY valid, syntactically correct Mermaid.js diagram code based on the user's description.
-
 CRITICAL MERMAID SYNTAX RULES:
-- Output ONLY pure Mermaid diagram code. Do NOT output markdown ticks, explanations, conversational text or notes.
-- Line 1 MUST start with the diagram type:
-  - If preset is Architecture or Flowchart: "graph TD"
-  - If preset is Sequence: "sequenceDiagram"
-  - If preset is Class Diagram: "classDiagram"
-  - If preset is Mindmap: "mindmap"
-
-MANDATORY NODE LABELS & DETAILED TEXTS:
-- EVERY shape and component MUST have an explicit, informative descriptive label in brackets with quotes. Never leave bare node IDs!
-- Always describe what each node is and its technology/role:
-  - For services/components: NodeId["Service Name\\n(Technology / Role)"]
-  - For relational databases: NodeId[("Database Name\\n(PostgreSQL / Relational DB)")]
-  - For in-memory caches: NodeId[("Cache Name\\n(Redis / In-Memory Cache)")]
-  - For message brokers/queues: NodeId[["Broker Name\\n(Apache Kafka / Pub-Sub)"]]
-- Label connecting arrows with protocols, actions or event names:
-  - -->|HTTPS / REST API|
-  - -->|SQL Query / Read-Write|
-  - -->|In-Memory Cache Get/Set|
-  - -->|Publish: 'OrderCreated'|
-  - -->|Subscribe / Consume|
-
-FLOWCHART / ARCHITECTURE SYNTAX:
-- Use ONLY valid flowchart arrows: -->, ---, -.->, ==> or labeled arrows like -->|text|
-- NEVER use UML class diagram arrows like '<|--', '--|>', '*--', 'o--' inside graph or flowchart diagrams.
-- NEVER output invalid character combinations like '&|', '|&', or trailing '&'.
-- Keep node IDs simple alphanumeric with underscores (e.g. API_Gateway, Order_Service).
-- Enclose any label containing spaces, special characters, newlines or Turkish letters in quotes: Node_A["Node Label (details)"]
-- If using 'style' statements, ensure correct syntax: style NodeId fill:#f9f,stroke:#333,stroke-width:2px
-- Preset type requested: ${selectedPreset}.${contextPromptSection}`;
+- Output ONLY pure Mermaid diagram code. Do NOT output markdown ticks or explanations.
+- Line 1 MUST start with the diagram type ("graph TD" for Architecture/Flowchart, "sequenceDiagram" for Sequence).
+- Every node MUST have descriptive labels in quotes: NodeId["Service Name\\n(Technology / Role)"].
+- Preset type requested: ${activePreset}.${contextPromptSection}`;
     }
 
     try {
@@ -1040,7 +1336,6 @@ FLOWCHART / ARCHITECTURE SYNTAX:
         }
       }
 
-      // Try rendering the accumulated diagram or HTML wireframe
       try {
         await renderCodeToScene(accumulatedCode);
         const historyItem: AIChatHistoryItem = {
@@ -1048,34 +1343,43 @@ FLOWCHART / ARCHITECTURE SYNTAX:
           title: activePrompt.slice(0, 42).trim() + (activePrompt.length > 42 ? "..." : ""),
           prompt: activePrompt,
           mermaidCode: accumulatedCode,
-          preset: selectedPreset,
+          preset: activePreset,
           timestamp: Date.now(),
           model: settings.provider === "ollama" ? settings.ollamaModel : settings.customModel,
           status: "success",
         };
-        setChatHistory((prev) => [historyItem, ...prev.filter((i) => i.id !== sessionChatId)].slice(0, 50));
+        setChatHistory((prev) =>
+          [historyItem, ...prev.filter((i) => i.id !== sessionChatId)].slice(0, 50),
+        );
       } catch (err: any) {
         console.warn("[AIIntegrations] Parse error, opening code editor:", err);
-        const isHtmlPreset = selectedPreset === "UI Wireframe (HTML)";
+        const isRawPreset =
+          activePreset === "UI Wireframe (HTML)" ||
+          activePreset === "SDLC Tasks" ||
+          activePreset === "TDD Suite";
         setGenerationStatus("error");
         setParseErrorDetails(err.message);
-        setEditableMermaidCode(isHtmlPreset ? accumulatedCode : sanitizeMermaid(accumulatedCode));
+        setEditableMermaidCode(
+          isRawPreset ? accumulatedCode : sanitizeMermaid(accumulatedCode),
+        );
         setIsEditingCode(true);
         setStatusMessage({
           type: "error",
-          text: `${isHtmlPreset ? "HTML Wireframe" : "Mermaid"} ayrıştırma hatası: ${err.message}. Koddaki hatayı düzelterek 'Tuvale Çiz' butonuna basabilirsiniz.`,
+          text: `Ayrıştırma hatası: ${err.message}. Çıktıyı düzenleyerek tekrar uygulayabilirsiniz.`,
         });
         const historyItem: AIChatHistoryItem = {
           id: sessionChatId,
           title: activePrompt.slice(0, 42).trim() + (activePrompt.length > 42 ? "..." : ""),
           prompt: activePrompt,
           mermaidCode: accumulatedCode,
-          preset: selectedPreset,
+          preset: activePreset,
           timestamp: Date.now(),
           model: settings.provider === "ollama" ? settings.ollamaModel : settings.customModel,
           status: "error",
         };
-        setChatHistory((prev) => [historyItem, ...prev.filter((i) => i.id !== sessionChatId)].slice(0, 50));
+        setChatHistory((prev) =>
+          [historyItem, ...prev.filter((i) => i.id !== sessionChatId)].slice(0, 50),
+        );
       }
     } catch (err: any) {
       if (err.name === "AbortError") {
@@ -1113,19 +1417,47 @@ FLOWCHART / ARCHITECTURE SYNTAX:
     }
   };
 
+  const handleRunFullPipeline = async () => {
+    const targetTasks = projectTasks.filter((t) => t.status !== "done").slice(0, 3);
+    if (targetTasks.length === 0) {
+      setStatusMessage({
+        type: "success",
+        text: "Projedeki tüm görevler tamamlanmış durumda.",
+      });
+      return;
+    }
+    const summaries: string[] = [];
+    for (const t of targetTasks) {
+      try {
+        const res = await runLiveAgentPipeline(t.id, "auto");
+        summaries.push(res.summary);
+      } catch {
+        const fallback = executeAgentOnTask(t.id, "auto");
+        summaries.push(fallback.summary);
+      }
+    }
+    setStatusMessage({
+      type: "success",
+      text: `${targetTasks.length} görev üzerinde AI Agent Pipeline çalıştırıldı: ${summaries.join(" • ")}`,
+    });
+  };
+
   if (!isOpen) return null;
 
+  const activePresetMeta =
+    PRESET_TYPES.find((p) => p.id === selectedPreset) || PRESET_TYPES[0];
+
   return (
-    <Dialog size={1060} onCloseRequest={onClose} title={false} className="gemini-studio-dialog">
+    <Dialog size={1080} onCloseRequest={onClose} title={false} className="gemini-studio-dialog">
       <div className="ai-gemini-container" ref={modalContainerRef}>
-        {/* LEFT SIDEBAR (Controls & Settings) */}
+        {/* LEFT SIDEBAR */}
         <aside className="ai-gemini-sidebar">
-          {/* Logo / Header */}
+          {/* Brand Header */}
           <div className="sidebar-brand">
             <span className="brand-icon">{brainIcon}</span>
             <div className="brand-text">
-              <h3>AI Diagram Studio</h3>
-              <span>Local LLM & MCP</span>
+              <h3>SDLC AI & MCP Stüdyosu</h3>
+              <span>Proje Orkestrasyonu & Harici IDE</span>
             </div>
           </div>
 
@@ -1137,7 +1469,20 @@ FLOWCHART / ARCHITECTURE SYNTAX:
               onClick={() => setActiveSidebarTab("studio")}
             >
               <span className="tab-icon">{brainIcon}</span>
-              <span>Studio</span>
+              <span>Stüdyo</span>
+            </button>
+            <button
+              type="button"
+              className={clsx("sidebar-tab-btn", { active: activeSidebarTab === "mcp" })}
+              onClick={() => setActiveSidebarTab("mcp")}
+            >
+              <span className="tab-icon">{McpPlugIcon}</span>
+              <span>MCP</span>
+              <span
+                className={clsx("tab-status-dot", {
+                  online: mcpStatus === "connected",
+                })}
+              />
             </button>
             <button
               type="button"
@@ -1162,9 +1507,29 @@ FLOWCHART / ARCHITECTURE SYNTAX:
 
           {activeSidebarTab === "studio" && (
             <div className="sidebar-content">
-              {/* Provider Selection */}
+              {/* Orchestration Target / Preset */}
               <div className="sidebar-section">
-                <label className="section-label">Sağlayıcı</label>
+                <label className="section-label">Orkestrasyon Hedefi</label>
+                <div className="preset-pill-grid">
+                  {PRESET_TYPES.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={clsx("preset-pill-btn", {
+                        selected: selectedPreset === p.id,
+                      })}
+                      onClick={() => setSelectedPreset(p.id)}
+                      title={p.hint}
+                    >
+                      <span>{p.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Provider & Model Selection */}
+              <div className="sidebar-section">
+                <label className="section-label">Model Sağlayıcı</label>
                 <select
                   className="sidebar-select"
                   value={settings.provider}
@@ -1177,7 +1542,6 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                 </select>
               </div>
 
-              {/* Model Selection */}
               {settings.provider === "ollama" ? (
                 <div className="sidebar-section">
                   <div className="section-header-row">
@@ -1236,90 +1600,151 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                 </div>
               )}
 
-              {/* Diagram Preset */}
-              <div className="sidebar-section">
-                <label className="section-label">Diyagram Türü</label>
-                <div className="preset-pill-grid">
-                  {PRESET_TYPES.map((p) => (
-                    <button
-                      key={p.label}
-                      type="button"
-                      className={clsx("preset-pill-btn", {
-                        selected: selectedPreset === p.label,
-                      })}
-                      onClick={() => setSelectedPreset(p.label)}
-                      title={p.hint}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Canvas Mode */}
               <div className="sidebar-section">
-                <label className="section-label">Tuval Çizim Modu</label>
+                <label className="section-label">Tuval Aktarım Modu</label>
                 <select
                   className="sidebar-select"
                   value={renderMode}
                   onChange={(e) => setRenderMode(e.target.value as any)}
                 >
-                  <option value="replace">Tuvali Temizle ve Yeni Çiz</option>
-                  <option value="append">Mevcut Çizimi Koru, Yanına Ekle</option>
+                  <option value="replace">Tuvali Temizle ve Yeni Oluştur</option>
+                  <option value="append">Mevcut İçeriği Koru, Yanına Ekle</option>
                 </select>
               </div>
 
-              {/* Context Awareness & Revision */}
+              {/* Clean Excalidraw-native Context Switches */}
               <div className="sidebar-section">
-                <label className="section-label">Tuval Bağlamı & Revizyon</label>
-                <div className="checkbox-section">
-                  <CheckboxItem
-                    checked={includeCanvasContext}
-                    onChange={(checked) => setIncludeCanvasContext(checked)}
-                  >
-                    Tuval Bağlamını İlet ({canvasStats?.total ?? 0} bileşen)
-                  </CheckboxItem>
+                <label className="section-label">Proje & Tuval Bağlamı</label>
+                <div className="studio-toggle-list">
+                  <label className="studio-toggle-row">
+                    <input
+                      type="checkbox"
+                      checked={includeSdlcContext}
+                      onChange={(e) => setIncludeSdlcContext(e.target.checked)}
+                    />
+                    <span>
+                      Tüm SDLC Proje Kaynaklarını İlet ({projectDocs.length} belge,{" "}
+                      {projectTasks.length} görev)
+                    </span>
+                  </label>
+                  <label className="studio-toggle-row">
+                    <input
+                      type="checkbox"
+                      checked={includeCanvasContext}
+                      onChange={(e) => setIncludeCanvasContext(e.target.checked)}
+                    />
+                    <span>
+                      Aktif Çizim Tuvali Bağlamı ({canvasStats?.total ?? 0} eleman)
+                    </span>
+                  </label>
                   {canvasStats && canvasStats.selected > 0 && (
-                    <CheckboxItem
-                      checked={reviseSelectionMode}
-                      onChange={(checked) => setReviseSelectionMode(checked)}
-                    >
-                      🎯 Seçili Elemanı Revize Et ({canvasStats.selected} seçili)
-                    </CheckboxItem>
+                    <label className="studio-toggle-row">
+                      <input
+                        type="checkbox"
+                        checked={reviseSelectionMode}
+                        onChange={(e) => setReviseSelectionMode(e.target.checked)}
+                      />
+                      <span>
+                        Seçili Elemanları Revize Et ({canvasStats.selected} seçili)
+                      </span>
+                    </label>
                   )}
+                  <label className="studio-toggle-row">
+                    <input
+                      type="checkbox"
+                      checked={settings.autoScroll}
+                      onChange={(e) =>
+                        setSettings({ ...settings, autoScroll: e.target.checked })
+                      }
+                    />
+                    <span>Tamamlanınca hedef yüzeye odaklan</span>
+                  </label>
                 </div>
               </div>
 
-              {/* Auto Scroll Checkbox */}
-              <div className="sidebar-section checkbox-section">
-                <CheckboxItem
-                  checked={settings.autoScroll}
-                  onChange={(checked) =>
-                    setSettings({ ...settings, autoScroll: checked })
-                  }
-                >
-                  Tamamlanınca tuvali odakla
-                </CheckboxItem>
+              {/* Live MCP Quick Status Bar */}
+              <button
+                type="button"
+                className="sidebar-mcp-badge"
+                onClick={() => setActiveSidebarTab("mcp")}
+                title="Claude Desktop & Gemini Antigravity MCP Orkestrasyon Ayarlarını Aç"
+              >
+                <span className={clsx("dot", { online: mcpStatus === "connected" })} />
+                <span>
+                  Live MCP:{" "}
+                  {mcpStatus === "connected"
+                    ? "Port 3001 Aktif (Claude / Antigravity)"
+                    : "Çevrimdışı (Kurulum için tıklayın)"}
+                </span>
+              </button>
+            </div>
+          )}
+
+          {activeSidebarTab === "mcp" && (
+            <div className="sidebar-content mcp-tab-content">
+              <div className="mcp-status-card">
+                <div className="mcp-status-header">
+                  <span className={clsx("dot", { online: mcpStatus === "connected" })} />
+                  <strong>
+                    {mcpStatus === "connected"
+                      ? "Live MCP Köprüsü Aktif (3001)"
+                      : "Live MCP Köprüsü Bekleniyor"}
+                  </strong>
+                </div>
+                <p>
+                  Claude Desktop veya Gemini Antigravity IDE üzerinden projenizin tüm
+                  kaynaklarını (Analiz, Mimari, UI Tasarım, Görev Panosu ve TDD Testleri)
+                  doğrudan orkestre edebilirsiniz.
+                </p>
               </div>
 
-              {/* Mini MCP Status Card in sidebar */}
-              <div className="sidebar-mcp-badge">
-                <span className={clsx("dot", { online: mcpStatus === "connected" })} />
-                <span>Live MCP: {mcpStatus === "connected" ? "3001 Aktif" : "Çevrimdışı"}</span>
+              <div className="sidebar-section">
+                <div className="section-header-row">
+                  <label className="section-label">
+                    Claude Desktop / Antigravity Config
+                  </label>
+                  <button
+                    type="button"
+                    className="refresh-link"
+                    onClick={handleCopyConfig}
+                  >
+                    <span>{isConfigCopied ? "Kopyalandı ✓" : "JSON Kopyala"}</span>
+                  </button>
+                </div>
+                <pre className="sidebar-code-snippet">
+                  <code>{MCP_CONFIG_CLAUDE}</code>
+                </pre>
+              </div>
+
+              <div className="sidebar-section">
+                <label className="section-label">Aktif SDLC MCP Araçları (11 Tool)</label>
+                <div className="mcp-tools-list">
+                  {MCP_TOOLS_CATALOG.map((grp) => (
+                    <div key={grp.group} className="mcp-tool-group">
+                      <div className="group-title">{grp.group}</div>
+                      {grp.tools.map((tool) => (
+                        <div key={tool.name} className="mcp-tool-item">
+                          <code>{tool.name}</code>
+                          <span>{tool.desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
           {activeSidebarTab === "history" && (
             <div className="sidebar-content history-tab-content">
-              {/* Start new chat button */}
               <button
                 type="button"
                 className="sidebar-new-chat-btn"
                 onClick={handleStartNewChat}
               >
-                <span className="btn-icon">＋</span>
-                <span>Yeni Sohbet Başlat</span>
+                <span className="btn-icon">{PlusIcon}</span>
+                <span>Yeni Oturum Başlat</span>
               </button>
 
               {chatHistory.length > 0 ? (
@@ -1337,14 +1762,16 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                           <span className="history-item-title">{item.title}</span>
                           <div className="history-item-meta">
                             <span className="history-badge">{item.preset}</span>
-                            <span className="history-time">{formatHistoryTime(item.timestamp)}</span>
+                            <span className="history-time">
+                              {formatHistoryTime(item.timestamp)}
+                            </span>
                           </div>
                         </div>
                         <button
                           type="button"
                           className="delete-history-btn"
                           onClick={(e) => handleDeleteHistoryItem(item.id, e)}
-                          title="Sohbeti Sil"
+                          title="Oturumu Sil"
                         >
                           {TrashIcon}
                         </button>
@@ -1363,9 +1790,10 @@ FLOWCHART / ARCHITECTURE SYNTAX:
               ) : (
                 <div className="history-empty-state">
                   <span className="empty-icon">{HistoryIcon}</span>
-                  <p>Henüz kayıtlı sohbet yok.</p>
+                  <p>Henüz kayıtlı oturum yok.</p>
                   <span className="empty-sub">
-                    Ürettiğiniz çizimler ve istemler otomatik olarak burada listelenecektir.
+                    Ürettiğiniz mimari şemalar, UI tasarımlar, görevler ve TDD testleri
+                    burada listelenir.
                   </span>
                 </div>
               )}
@@ -1374,7 +1802,6 @@ FLOWCHART / ARCHITECTURE SYNTAX:
 
           {activeSidebarTab === "settings" && (
             <div className="sidebar-content">
-              {/* Ollama URL */}
               <div className="sidebar-section">
                 <label className="section-label">Ollama API URL</label>
                 <div className="input-with-button">
@@ -1398,9 +1825,8 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                 </div>
               </div>
 
-              {/* Custom API credentials */}
               <div className="sidebar-section">
-                <label className="section-label">OpenAI API Base URL</label>
+                <label className="section-label">OpenAI / Özel API Base URL</label>
                 <input
                   type="text"
                   className="sidebar-input"
@@ -1412,7 +1838,7 @@ FLOWCHART / ARCHITECTURE SYNTAX:
               </div>
 
               <div className="sidebar-section">
-                <label className="section-label">OpenAI API Key</label>
+                <label className="section-label">API Anahtarı (Key)</label>
                 <input
                   type="password"
                   className="sidebar-input"
@@ -1423,36 +1849,21 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                   }
                 />
               </div>
-
-              {/* Claude Desktop Config Snippet */}
-              <div className="sidebar-section">
-                <div className="section-header-row">
-                  <label className="section-label">Claude Desktop MCP</label>
-                  <button
-                    type="button"
-                    className="refresh-link"
-                    onClick={handleCopyConfig}
-                  >
-                    <span>{isConfigCopied ? "Kopyalandı" : "Kopyala"}</span>
-                  </button>
-                </div>
-                <pre className="sidebar-code-snippet">
-                  <code>{MCP_CONFIG_JSON}</code>
-                </pre>
-              </div>
             </div>
           )}
         </aside>
 
-        {/* RIGHT MAIN WORKSPACE (Gemini UI Canvas) */}
+        {/* RIGHT MAIN WORKSPACE */}
         <main className="ai-gemini-workspace">
-          {/* Top Bar with model chip, clear session and close button */}
+          {/* Top Bar */}
           <header className="workspace-header">
             <div className="header-chips">
               <span className="model-chip">
                 {settings.provider === "ollama" ? settings.ollamaModel : settings.customModel}
               </span>
-              <span className="type-chip">{selectedPreset}</span>
+              <span className="type-chip">
+                {activePresetMeta.label} → {activePresetMeta.targetBadge}
+              </span>
               {isGenerating && (
                 <span className="generating-chip">
                   <span className="pulse-dot" />
@@ -1464,34 +1875,87 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                   type="button"
                   className="new-session-chip-btn"
                   onClick={handleStartNewChat}
-                  title="Geçmişi temizle ve yeni bir çizim başlat"
+                  title="Yeni bir oturum başlat"
                 >
-                  <span className="btn-icon">✨</span>
-                  <span>Yeni Çizim</span>
+                  <span className="btn-icon">{PlusIcon}</span>
+                  <span>Yeni İstem</span>
                 </button>
               )}
             </div>
+
+            <div className="header-right-actions">
+              <button
+                type="button"
+                className="pipeline-quick-btn"
+                onClick={handleRunFullPipeline}
+                title="Projedeki atanmış AI Agent görevlerini sırayla çalıştır"
+              >
+                <span className="btn-icon">{brainIcon}</span>
+                <span>SDLC Pipeline Çalıştır</span>
+              </button>
+              <button
+                type="button"
+                className="workspace-close-btn"
+                onClick={onClose}
+                title="Kapat"
+                aria-label="Kapat"
+              >
+                {CloseIcon}
+              </button>
+            </div>
+          </header>
+
+          {/* SDLC Project Resource Strip */}
+          <div className="sdlc-resource-strip">
+            <span className="strip-label">Aktif Proje Kaynakları:</span>
+            <span className="resource-pill">
+              <span className="res-icon">{FreedrawIcon}</span>
+              <span>
+                {projectDocs.filter((d) => d.canvasType === "sketch").length} Çizim/Mimari
+              </span>
+            </span>
+            <span className="resource-pill">
+              <span className="res-icon">{frameToolIcon}</span>
+              <span>
+                {projectDocs.filter((d) => d.canvasType === "design").length} UI Tasarım
+              </span>
+            </span>
+            <span className="resource-pill">
+              <span className="res-icon">{TaskBoardIcon}</span>
+              <span>{projectTasks.length} Görev</span>
+            </span>
+            <span className="resource-pill">
+              <span className="res-icon">{TDDTestIcon}</span>
+              <span>{projectScenarios.length} TDD Senaryosu</span>
+            </span>
             <button
               type="button"
-              className="workspace-close-btn"
-              onClick={onClose}
-              title="Kapat"
-              aria-label="Kapat"
+              className={clsx("resource-mcp-pill", {
+                online: mcpStatus === "connected",
+              })}
+              onClick={() => setActiveSidebarTab("mcp")}
             >
-              {CloseIcon}
+              <span className="res-icon">{McpPlugIcon}</span>
+              <span>
+                {mcpStatus === "connected"
+                  ? "Claude / Antigravity MCP Hazır"
+                  : "MCP Kurulumu"}
+              </span>
             </button>
-          </header>
+          </div>
 
           {/* Chat / Canvas Area */}
           <div className="workspace-canvas" ref={workspaceCanvasRef}>
-            {/* If no prompt submitted yet, show welcome empty state */}
             {!submittedPrompt && !isGenerating && !streamedContent && (
               <div className="gemini-empty-state">
                 <div className="empty-sparkle-icon">{brainIcon}</div>
-                <h2>Mimari veya Akış Şeması Çizin</h2>
+                <h2>Projenizi AI veya MCP ile Orkestre Edin</h2>
                 <p>
-                  Yapay zekaya sistem bileşenlerinizi, veri tabanlarınızı ve mikroservislerinizi
-                  anlatın; anında Excalidraw tuvalinize çizsin.
+                  Yerleşik asistan tüm proje kaynaklarınıza (Analiz, Mimari, UI Tasarım,
+                  Görev Panosu ve TDD Testleri) erişebilir; dilerseniz{" "}
+                  <strong>Claude Desktop</strong> veya{" "}
+                  <strong>Gemini Antigravity</strong> üzerinden Live MCP araçlarıyla da
+                  yönetebilirsiniz.
                 </p>
 
                 <div className="suggestion-cards">
@@ -1502,24 +1966,23 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                       className="suggestion-card"
                       onClick={() => {
                         setPrompt("");
-                        handleGenerate(sug);
+                        handleGenerate(sug.text, sug.preset);
                       }}
                     >
-                      <span className="sug-arrow">➔</span>
-                      <span>{sug}</span>
+                      <span className="sug-badge">{sug.badge}</span>
+                      <span className="sug-text">{sug.text}</span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* If prompt submitted, display user message bubble with copy button */}
             {submittedPrompt && (
               <div className="gemini-message user-message">
-                <div className="message-avatar">👤</div>
+                <div className="message-avatar">{UserIcon}</div>
                 <div className="message-bubble">
                   <div className="user-message-header">
-                    <span className="bubble-header">İstemi (Prompt)</span>
+                    <span className="bubble-header">İstem (Prompt)</span>
                     <button
                       type="button"
                       className="copy-bubble-btn"
@@ -1537,7 +2000,6 @@ FLOWCHART / ARCHITECTURE SYNTAX:
               </div>
             )}
 
-            {/* AI Response Bubble */}
             {(isGenerating || streamedContent || parseErrorDetails) && (
               <div className="gemini-message ai-message">
                 <div className="message-avatar ai-avatar">{brainIcon}</div>
@@ -1554,19 +2016,22 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                         })}
                       />
                       <span className="status-label-text">
-                        {generationStatus === "connecting" && "Ollama modeline bağlanılıyor..."}
+                        {generationStatus === "connecting" && "Modele bağlanılıyor..."}
                         {generationStatus === "generating" &&
-                          `Canlı Kod Akışı (${settings.provider === "ollama" ? settings.ollamaModel : settings.customModel})`}
-                        {generationStatus === "parsing" && "Mermaid kodu tuvale dönüştürülüyor..."}
-                        {generationStatus === "success" && "✓ Çizim başarıyla tuvale aktarıldı"}
-                        {generationStatus === "error" && "Üretimde sözdizimi hatası veya kesinti oluştu"}
+                          `Canlı Yanıt Akışı (${settings.provider === "ollama" ? settings.ollamaModel : settings.customModel})`}
+                        {generationStatus === "parsing" &&
+                          "Çıktı hedef SDLC yüzeyine aktarılıyor..."}
+                        {generationStatus === "success" &&
+                          `Çıktı başarıyla ${activePresetMeta.targetBadge} yüzeyine uygulandı`}
+                        {generationStatus === "error" &&
+                          "Ayrıştırma veya bağlantı sırasında hata oluştu"}
                       </span>
                     </div>
 
                     <div className="status-stats-row">
                       <span className="stats-time">
                         {elapsedTime > 0 && `${elapsedTime}s`}
-                        {streamedContent.length > 0 && ` • ${streamedContent.length} karakter`}
+                        {streamedContent.length > 0 && ` • ${streamedContent.length} krktr`}
                       </span>
                       {isGenerating && (
                         <button
@@ -1582,12 +2047,14 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                     </div>
                   </div>
 
-                  {/* Code Editor or Read-only Display with code header & copy button */}
                   <div className="ai-code-viewer">
                     {isEditingCode ? (
                       <div className="code-editor-wrap">
                         <div className="editor-banner">
-                          <span>🛠️ Üretilen {selectedPreset === "UI Wireframe (HTML)" ? "HTML Wireframe" : "Mermaid"} kodunu düzenleyip tuvale aktarabilirsiniz:</span>
+                          <span>
+                            Üretilen çıktıyı düzenleyip doğrudan hedef yüzeye
+                            uygulayabilirsiniz:
+                          </span>
                           <div className="editor-banner-actions">
                             <button
                               type="button"
@@ -1598,14 +2065,16 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                               <span className="btn-icon">
                                 {copiedTarget === "ai" ? checkIcon : copyIcon}
                               </span>
-                              <span>{copiedTarget === "ai" ? "Kopyalandı" : "Kodu Kopyala"}</span>
+                              <span>
+                                {copiedTarget === "ai" ? "Kopyalandı" : "Kopyala"}
+                              </span>
                             </button>
                             <button
                               type="button"
                               className="render-now-btn"
                               onClick={handleManualRender}
                             >
-                              🚀 Düzeltilmiş Kodu Tuvale Çiz
+                              Hedef Yüzeye Uygula
                             </button>
                           </div>
                         </div>
@@ -1621,7 +2090,12 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                       <div className="code-viewer-container">
                         <div className="code-viewer-header">
                           <span className="code-lang-label">
-                            {selectedPreset === "UI Wireframe (HTML)" ? "html" : "mermaid"}
+                            {selectedPreset === "UI Wireframe (HTML)"
+                              ? "html"
+                              : selectedPreset === "SDLC Tasks" ||
+                                selectedPreset === "TDD Suite"
+                              ? "json"
+                              : "mermaid"}
                           </span>
                           {streamedContent && (
                             <button
@@ -1633,19 +2107,20 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                               <span className="btn-icon">
                                 {copiedTarget === "ai" ? checkIcon : copyIcon}
                               </span>
-                              <span>{copiedTarget === "ai" ? "Kopyalandı" : "Kodu Kopyala"}</span>
+                              <span>
+                                {copiedTarget === "ai" ? "Kopyalandı" : "Kodu Kopyala"}
+                              </span>
                             </button>
                           )}
                         </div>
                         <pre className="mermaid-pre" ref={codePreRef}>
-                          <code>{streamedContent || "Modelden ilk token bekleniyor..."}</code>
+                          <code>{streamedContent || "Modelden ilk yanıt bekleniyor..."}</code>
                           {isGenerating && <span className="stream-cursor">▊</span>}
                         </pre>
                       </div>
                     )}
                   </div>
 
-                  {/* Actions when done or error */}
                   {!isGenerating && streamedContent && !isEditingCode && (
                     <div className="post-generation-actions">
                       <button
@@ -1662,34 +2137,37 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                         type="button"
                         className="secondary-action-btn"
                         onClick={() => {
-                          const isHtml = selectedPreset === "UI Wireframe (HTML)";
-                          setEditableMermaidCode(isHtml ? streamedContent : sanitizeMermaid(streamedContent));
+                          const isRaw =
+                            selectedPreset === "UI Wireframe (HTML)" ||
+                            selectedPreset === "SDLC Tasks" ||
+                            selectedPreset === "TDD Suite";
+                          setEditableMermaidCode(
+                            isRaw ? streamedContent : sanitizeMermaid(streamedContent),
+                          );
                           setIsEditingCode(true);
                         }}
                       >
-                        ✏️ Kodu Düzenle
+                        <span className="btn-icon">{CodeEditIcon}</span>
+                        <span>Çıktıyı Düzenle</span>
                       </button>
                       <button
                         type="button"
                         className="primary-action-btn"
                         onClick={() => renderCodeToScene(streamedContent)}
                       >
-                        🔄 Tuvalde Yeniden Çiz
+                        <span className="btn-icon">{RetryIcon}</span>
+                        <span>Hedef Yüzeye Yeniden Uygula</span>
                       </button>
                     </div>
                   )}
 
-                  {/* Error banner with auto-fix trigger */}
                   {parseErrorDetails && (
                     <div className="parse-error-card">
-                      <div className="error-title">
-                        ⚠️ {selectedPreset === "UI Wireframe (HTML)" ? "HTML Wireframe Hatası" : "Mermaid Sözdizimi Hatası"}
-                      </div>
+                      <div className="error-title">Ayrıştırma Hatası</div>
                       <div className="error-text">{parseErrorDetails}</div>
                       <div className="error-tip">
-                        {selectedPreset === "UI Wireframe (HTML)"
-                          ? "Yapay zeka modeli geçersiz veya kapanmamış HTML etiketleri üretmiş olabilir. Yukarıdaki kod düzenleyicide kodu düzelterek tuvale aktarabilirsiniz."
-                          : "Yapay zeka modeli geçersiz bir ok veya etiket sözdizimi üretmiş olabilir. Yukarıdaki kod düzenleyicide hatalı satırı düzelterek doğrudan tuvale aktarabilirsiniz."}
+                        Yukarıdaki düzenleyicide çıktıyı düzelterek doğrudan hedef yüzeye
+                        aktarabilirsiniz.
                       </div>
                     </div>
                   )}
@@ -1697,35 +2175,29 @@ FLOWCHART / ARCHITECTURE SYNTAX:
               </div>
             )}
 
-            {/* Status message */}
             {statusMessage && (
               <div className={clsx("floating-alert", statusMessage.type)}>
                 <span className="alert-icon">
-                  {statusMessage.type === "success" ? checkIcon : "⚠️"}
+                  {statusMessage.type === "success" ? checkIcon : "!"}
                 </span>
                 <span>{statusMessage.text}</span>
               </div>
             )}
           </div>
 
-          {/* Bottom Gemini-style Input Bar */}
+          {/* Bottom Input Bar */}
           <footer className="gemini-input-bar-wrap">
-            {includeCanvasContext && canvasStats && canvasStats.total > 0 && (
-              <div className="gemini-input-context-pill">
-                <span className="pill-dot" />
-                <span>Tuval Bağlamı: {canvasStats.total} eleman</span>
-                {reviseSelectionMode && canvasStats.selected > 0 && (
-                  <span className="pill-selected">🎯 {canvasStats.selected} seçili revize edilecek</span>
-                )}
-              </div>
-            )}
             <div className="gemini-input-bar">
               <textarea
                 className="gemini-textarea"
                 placeholder={
-                  selectedPreset === "UI Wireframe (HTML)"
-                    ? "İstediğiniz web/mobil UI tasarımını açıklayın (örn: Modern giriş kartı, fiyatlandırma tablosu)..."
-                    : "Bir mimari veya akış şeması açıklayın... (Enter: Gönder, Shift+Enter: Yeni satır)"
+                  selectedPreset === "SDLC Tasks"
+                    ? "Hangi özellik veya modül için görevler ve kabul kriterleri üretilsin? (Enter: Gönder)"
+                    : selectedPreset === "TDD Suite"
+                    ? "Hangi servis veya akış için Given/When/Then TDD test senaryoları üretilsin?"
+                    : selectedPreset === "UI Wireframe (HTML)"
+                    ? "Tasarım Tuvali için istediğiniz web/mobil ekran veya bileşeni açıklayın..."
+                    : "Analiz veya mimari şemasını açıklayın... (Enter: Gönder, Shift+Enter: Yeni satır)"
                 }
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -1763,7 +2235,7 @@ FLOWCHART / ARCHITECTURE SYNTAX:
                       }
                     }}
                     disabled={!prompt.trim() || isGenerating}
-                    title="Diyagramı Çiz"
+                    title="Üret ve Hedef Yüzeye Uygula"
                   >
                     {UpArrowIcon}
                   </button>
@@ -1771,8 +2243,9 @@ FLOWCHART / ARCHITECTURE SYNTAX:
               </div>
             </div>
             <div className="input-hint">
-              {settings.provider === "ollama" ? `Lokal: ${settings.ollamaModel}` : settings.customModel} •
-              Model yanıtı anında yukarıdaki alana akacak ve tuvale çizilecektir.
+              Hedef: <strong>{activePresetMeta.targetBadge}</strong> • Model:{" "}
+              {settings.provider === "ollama" ? settings.ollamaModel : settings.customModel}{" "}
+              • SDLC Proje Bağlamı: {includeSdlcContext ? "Aktif" : "Kapalı"}
             </div>
           </footer>
         </main>
