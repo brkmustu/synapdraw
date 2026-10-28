@@ -31,6 +31,8 @@ interface ArtboardHostProps {
     artboardId: string,
     shadowRoot: ShadowRoot | null,
   ) => void;
+  linkedTasks?: { id: string; key: string; title: string; status: string }[];
+  onOpenLinkedTask?: (taskId: string) => void;
 }
 
 interface NodeBoxOverlay {
@@ -59,6 +61,8 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
   onDelete,
   onMeasuredSize,
   onRegisterShadowRoot,
+  linkedTasks,
+  onOpenLinkedTask,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const shadowHostRef = useRef<HTMLDivElement | null>(null);
@@ -439,6 +443,44 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
               {displayW} × {displayH}
               {isHug ? " · Hug" : ""}
             </span>
+          )}
+          {linkedTasks && linkedTasks.length > 0 && (
+            <div
+              className="artboard-linked-tasks"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                marginLeft: 4,
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {linkedTasks.map((lt) => (
+                <button
+                  key={lt.id}
+                  type="button"
+                  onClick={() => onOpenLinkedTask?.(lt.id)}
+                  title={`${lt.key}: ${lt.title} (${lt.status}) — Görev Panosunda aç`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 3,
+                    padding: "1px 6px",
+                    borderRadius: 4,
+                    border: "1px solid rgba(91, 87, 209, 0.28)",
+                    background: "rgba(91, 87, 209, 0.12)",
+                    color: "var(--color-primary, #5b57d1)",
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  <span>📌 {lt.key}</span>
+                </button>
+              ))}
+            </div>
           )}
         </div>
 

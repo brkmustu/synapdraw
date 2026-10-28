@@ -26,6 +26,7 @@ import {
   getProjectTasks,
   getProjectWorkspaces,
   setActiveWorkspaceId,
+  setSplitWorkspaceId,
   toggleTaskArtboardLink,
   cleanupDeletedArtboardLinks,
   type ProjectTask,
@@ -1218,31 +1219,56 @@ ${ab.html}
             transformOrigin: "0 0",
           }}
         >
-          {doc.artboards.map((artboard) => (
-            <ArtboardHost
-              key={artboard.id}
-              artboard={artboard}
-              zoom={doc.zoom}
-              activeTool={activeTool}
-              isSelected={doc.selectedArtboardId === artboard.id}
-              selectedNodeId={
-                doc.selectedArtboardId === artboard.id
-                  ? doc.selectedNodeId || null
-                  : null
-              }
-              onSelect={handleSelectArtboard}
-              onMoveStart={handleMoveStart}
-              onMove={handleMoveArtboard}
-              onMoveEnd={handleMoveEnd}
-              onSetLockMode={handleSetLockMode}
-              onRename={handleRenameArtboard}
-              onDuplicate={handleDuplicateArtboard}
-              onExportCode={handleCopyArtboardCode}
-              onDelete={handleDeleteArtboard}
-              onMeasuredSize={handleMeasuredSize}
-              onRegisterShadowRoot={handleRegisterShadowRoot}
-            />
-          ))}
+          {doc.artboards.map((artboard) => {
+            const artboardLinkedTasks = projectTasks
+              .filter((t) =>
+                (t.linkedArtboards || []).some(
+                  (la) =>
+                    la.docId === documentId && la.artboardId === artboard.id,
+                ),
+              )
+              .map((t) => ({
+                id: t.id,
+                key: t.key,
+                title: t.title,
+                status: t.status,
+              }));
+
+            return (
+              <ArtboardHost
+                key={artboard.id}
+                artboard={artboard}
+                zoom={doc.zoom}
+                activeTool={activeTool}
+                isSelected={doc.selectedArtboardId === artboard.id}
+                selectedNodeId={
+                  doc.selectedArtboardId === artboard.id
+                    ? doc.selectedNodeId || null
+                    : null
+                }
+                onSelect={handleSelectArtboard}
+                onMoveStart={handleMoveStart}
+                onMove={handleMoveArtboard}
+                onMoveEnd={handleMoveEnd}
+                onSetLockMode={handleSetLockMode}
+                onRename={handleRenameArtboard}
+                onDuplicate={handleDuplicateArtboard}
+                onExportCode={handleCopyArtboardCode}
+                onDelete={handleDeleteArtboard}
+                onMeasuredSize={handleMeasuredSize}
+                onRegisterShadowRoot={handleRegisterShadowRoot}
+                linkedTasks={artboardLinkedTasks}
+                onOpenLinkedTask={() => {
+                  const taskDoc = getProjectWorkspaces().find(
+                    (w) => w.canvasType === "tasks",
+                  );
+                  if (taskDoc) {
+                    setSplitWorkspaceId(taskDoc.id);
+                  }
+                }}
+              />
+            );
+          })}
         </div>
 
         {/* Excalidraw-styled Welcome / Empty State */}
