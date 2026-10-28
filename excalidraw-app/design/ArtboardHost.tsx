@@ -1,177 +1,560 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  LockedIconFilled,
+  MoveUnlockedIcon,
+  TrashIcon,
+  DuplicateIcon,
+  codeIcon,
+  frameToolIcon,
+} from "@excalidraw/excalidraw/components/icons";
 import type { Artboard } from "./model";
+import { sanitizeAndTagDesignHtml } from "./sanitize";
 import "./ArtboardHost.scss";
 
 interface ArtboardHostProps {
   artboard: Artboard;
+  zoom: number;
+  activeTool: "select" | "hand" | "inspect";
   isSelected: boolean;
-  onSelect: (artboardId: string) => void;
+  selectedNodeId: string | null;
+  onSelect: (artboardId: string, nodeId?: string | null) => void;
+  onMoveStart?: (artboardId: string) => void;
   onMove: (artboardId: string, deltaX: number, deltaY: number) => void;
-  onToggleLock: (artboardId: string) => void;
-  onToggleMove: (artboardId: string) => void;
+  onMoveEnd?: (artboardId: string) => void;
+  onSetLockMode: (artboardId: string, mode: "full-lock" | "moveable") => void;
+  onRename: (artboardId: string, newName: string) => void;
+  onDuplicate: (artboardId: string) => void;
+  onExportCode: (artboardId: string) => void;
   onDelete: (artboardId: string) => void;
+  onMeasuredSize?: (artboardId: string, width: number, height: number) => void;
+  onRegisterShadowRoot?: (
+    artboardId: string,
+    shadowRoot: ShadowRoot | null,
+  ) => void;
+}
+
+interface NodeBoxOverlay {
+  nodeId: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export const ArtboardHost: React.FC<ArtboardHostProps> = ({
   artboard,
+  zoom,
+  activeTool,
   isSelected,
+  selectedNodeId,
   onSelect,
+  onMoveStart,
   onMove,
-  onToggleLock,
-  onToggleMove,
+  onMoveEnd,
+  onSetLockMode,
+  onRename,
+  onDuplicate,
+  onExportCode,
   onDelete,
+  onMeasuredSize,
+  onRegisterShadowRoot,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const shadowHostRef = useRef<HTMLDivElement | null>(null);
   const shadowRootRef = useRef<ShadowRoot | null>(null);
   const isDraggingRef = useRef(false);
+  const hasMovedRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
 
-  // Initialize and update Shadow DOM
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(artboard.name);
+  const [measured, setMeasured] = useState<{ w: number; h: number }>({
+    w:
+      typeof artboard.width === "number"
+        ? artboard.width
+        : artboard.measuredWidth || 0,
+    h:
+      typeof artboard.height === "number"
+        ? artboard.height
+        : artboard.measuredHeight || 0,
+  });
+
+  const [hoveredNodeBox, setHoveredNodeBox] = useState<NodeBoxOverlay | null>(
+    null,
+  );
+  const [selectedNodeBox, setSelectedNodeBox] = useState<NodeBoxOverlay | null>(
+    null,
+  );
+
   useEffect(() => {
-    if (!shadowHostRef.current) return;
+    setNameDraft(artboard.name);
+  }, [artboard.name]);
+
+  // Initialize and update Shadow DOM + ResizeObserver
+  useEffect(() => {
+    const hostEl = shadowHostRef.current;
+    if (!hostEl) return;
+
+    const ownerDoc = hostEl.ownerDocument;
+    const ownerWin = ownerDoc.defaultView;
 
     if (!shadowRootRef.current) {
-      shadowRootRef.current = shadowHostRef.current.attachShadow({ mode: "open" });
+      shadowRootRef.current = hostEl.attachShadow({ mode: "open" });
+      onRegisterShadowRoot?.(artboard.id, shadowRootRef.current);
     }
 
     const shadow = shadowRootRef.current;
-    const combinedHtml = `
+    const safeHtml = sanitizeAndTagDesignHtml(artboard.html, ownerDoc);
+
+    const isFixedW = typeof artboard.width === "number";
+    const isFixedH = typeof artboard.height === "number";
+    const bg =
+      artboard.backgroundColor && artboard.backgroundColor !== "transparent"
+        ? artboard.backgroundColor
+        : "transparent";
+
+    shadow.innerHTML = `
       <style>
         :host {
           display: block;
-          width: ${typeof artboard.width === "number" ? `${artboard.width}px` : "fit-content"};
-          height: ${typeof artboard.height === "number" ? `${artboard.height}px` : "auto"};
-          overflow: visible;
+          width: ${isFixedW ? `${artboard.width}px` : "fit-content"};
+          height: ${isFixedH ? `${artboard.height}px` : "auto"};
           box-sizing: border-box;
-          background: ${artboard.backgroundColor || "transparent"};
-          color: #1e293b;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          background: ${bg};
+          color: #1b1b1f;
+          font-family: Assistant, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
-        * {
+        *, *::before, *::after {
           box-sizing: border-box;
+        }
+        .artboard-inner-content {
+          display: ${isFixedW ? "block" : " inline-block"};
+          width: ${isFixedW ? "100%" : "fit-content"};
+          height: ${isFixedH ? "100%" : "auto"};
         }
         ${artboard.css || ""}
       </style>
-      <div class="artboard-inner-content">
-        ${artboard.html}
-      </div>
+      <div class="artboard-inner-content">${safeHtml}</div>
     `;
 
-    shadow.innerHTML = combinedHtml;
-  }, [artboard.html, artboard.css, artboard.backgroundColor, artboard.width, artboard.height]);
+    const innerEl = shadow.querySelector(
+      ".artboard-inner-content",
+    ) as HTMLElement | null;
+    if (!innerEl || !ownerWin) return;
 
-  const handleHeaderMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return; // Only left click
+    const measureNow = () => {
+      const w = Math.round(
+        isFixedW
+          ? (artboard.width as number)
+          : innerEl.offsetWidth || innerEl.scrollWidth || 0,
+      );
+      const h = Math.round(
+        isFixedH
+          ? (artboard.height as number)
+          : innerEl.offsetHeight || innerEl.scrollHeight || 0,
+      );
+      if (w > 0 && h > 0) {
+        setMeasured((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+        onMeasuredSize?.(artboard.id, w, h);
+      }
+    };
+
+    measureNow();
+    const RO = (ownerWin as any).ResizeObserver as
+      | typeof ResizeObserver
+      | undefined;
+    let observer: ResizeObserver | null = null;
+    if (RO) {
+      observer = new RO(() => measureNow());
+      observer.observe(innerEl);
+    }
+
+    return () => {
+      observer?.disconnect();
+    };
+  }, [
+    artboard.id,
+    artboard.html,
+    artboard.css,
+    artboard.backgroundColor,
+    artboard.width,
+    artboard.height,
+    onMeasuredSize,
+    onRegisterShadowRoot,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      onRegisterShadowRoot?.(artboard.id, null);
+    };
+  }, [artboard.id, onRegisterShadowRoot]);
+
+  // Compute selected node overlay box whenever selectedNodeId or measured size changes
+  useEffect(() => {
+    const shadow = shadowRootRef.current;
+    const hostEl = shadowHostRef.current;
+    if (!shadow || !hostEl || !isSelected || !selectedNodeId) {
+      setSelectedNodeBox(null);
+      return;
+    }
+
+    const targetEl = shadow.querySelector(
+      `[data-node-id="${CSS.escape(selectedNodeId)}"]`,
+    );
+    if (!targetEl) {
+      setSelectedNodeBox(null);
+      return;
+    }
+
+    const hostRect = hostEl.getBoundingClientRect();
+    const elRect = targetEl.getBoundingClientRect();
+    const safeZoom = zoom > 0 ? zoom : 1;
+    const tag = targetEl.tagName.toLowerCase();
+    const cls =
+      typeof targetEl.className === "string" && targetEl.className.trim()
+        ? `.${targetEl.className.trim().split(/\s+/)[0]}`
+        : "";
+    const w = Math.round(elRect.width / safeZoom);
+    const h = Math.round(elRect.height / safeZoom);
+
+    setSelectedNodeBox({
+      nodeId: selectedNodeId,
+      label: `${tag}${cls} · ${w} × ${h}`,
+      x: Math.round((elRect.left - hostRect.left) / safeZoom),
+      y: Math.round((elRect.top - hostRect.top) / safeZoom),
+      width: w,
+      height: h,
+    });
+  }, [
+    isSelected,
+    selectedNodeId,
+    measured,
+    zoom,
+    artboard.html,
+    artboard.css,
+  ]);
+
+  // Dual-mode lock state matching Excalidraw's UnlockPopup:
+  // Full Lock: artboard.locked === true && !artboard.allowMove
+  // Moveable Mode: !isFullLocked
+  const isFullLocked = Boolean(artboard.locked && !artboard.allowMove);
+  const isMovable = !isFullLocked;
+
+  const startDrag = (e: React.MouseEvent) => {
+    if (e.button !== 0 || activeTool === "hand") return;
+    const ownerDoc = containerRef.current?.ownerDocument;
+    if (!ownerDoc) return;
+
     e.stopPropagation();
-    onSelect(artboard.id);
 
-    // Can only move if allowMove is true OR if not locked
-    const canMove = artboard.allowMove || !artboard.locked;
-    if (!canMove) return;
+    // In inspect mode (or Alt+Click), clicking inside the shadow host inspects the inner DOM element
+    if (
+      (activeTool === "inspect" || e.altKey) &&
+      shadowRootRef.current &&
+      shadowHostRef.current &&
+      shadowHostRef.current.contains(e.target as Node)
+    ) {
+      const innerTarget = shadowRootRef.current.elementFromPoint(
+        e.clientX,
+        e.clientY,
+      );
+      const tagged = innerTarget?.closest("[data-node-id]");
+      if (tagged) {
+        const nodeId = tagged.getAttribute("data-node-id");
+        onSelect(artboard.id, nodeId);
+        return;
+      }
+    }
+
+    onSelect(artboard.id, null);
+
+    if (!isMovable) return;
 
     isDraggingRef.current = true;
+    hasMovedRef.current = false;
     dragStartRef.current = { x: e.clientX, y: e.clientY };
+    const safeZoom = zoom > 0 ? zoom : 1;
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isDraggingRef.current) return;
-      const dx = moveEvent.clientX - dragStartRef.current.x;
-      const dy = moveEvent.clientY - dragStartRef.current.y;
+      const rawDx = moveEvent.clientX - dragStartRef.current.x;
+      const rawDy = moveEvent.clientY - dragStartRef.current.y;
+
+      if (!hasMovedRef.current && Math.hypot(rawDx, rawDy) < 3) {
+        return;
+      }
+      if (!hasMovedRef.current) {
+        hasMovedRef.current = true;
+        onMoveStart?.(artboard.id);
+      }
+
       dragStartRef.current = { x: moveEvent.clientX, y: moveEvent.clientY };
-      onMove(artboard.id, dx, dy);
+      onMove(artboard.id, rawDx / safeZoom, rawDy / safeZoom);
     };
 
     const handleMouseUp = () => {
+      if (isDraggingRef.current && hasMovedRef.current) {
+        onMoveEnd?.(artboard.id);
+      }
       isDraggingRef.current = false;
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      hasMovedRef.current = false;
+      ownerDoc.removeEventListener("mousemove", handleMouseMove);
+      ownerDoc.removeEventListener("mouseup", handleMouseUp);
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    ownerDoc.addEventListener("mousemove", handleMouseMove);
+    ownerDoc.addEventListener("mouseup", handleMouseUp);
   };
 
-  const isMovable = artboard.allowMove || !artboard.locked;
+  const handleBodyMouseMove = (e: React.MouseEvent) => {
+    if (activeTool !== "inspect" && !e.altKey) {
+      if (hoveredNodeBox) setHoveredNodeBox(null);
+      return;
+    }
+    const shadow = shadowRootRef.current;
+    const hostEl = shadowHostRef.current;
+    if (!shadow || !hostEl) return;
+
+    const innerTarget = shadow.elementFromPoint(e.clientX, e.clientY);
+    const tagged = innerTarget?.closest("[data-node-id]");
+    if (!tagged) {
+      setHoveredNodeBox(null);
+      return;
+    }
+
+    const nodeId = tagged.getAttribute("data-node-id") || "";
+    const hostRect = hostEl.getBoundingClientRect();
+    const elRect = tagged.getBoundingClientRect();
+    const safeZoom = zoom > 0 ? zoom : 1;
+    const tag = tagged.tagName.toLowerCase();
+    const cls =
+      typeof tagged.className === "string" && tagged.className.trim()
+        ? `.${tagged.className.trim().split(/\s+/)[0]}`
+        : "";
+    const w = Math.round(elRect.width / safeZoom);
+    const h = Math.round(elRect.height / safeZoom);
+
+    setHoveredNodeBox({
+      nodeId,
+      label: `${tag}${cls} · ${w} × ${h}`,
+      x: Math.round((elRect.left - hostRect.left) / safeZoom),
+      y: Math.round((elRect.top - hostRect.top) / safeZoom),
+      width: w,
+      height: h,
+    });
+  };
+
+  const commitName = () => {
+    setIsEditingName(false);
+    if (nameDraft.trim() && nameDraft.trim() !== artboard.name) {
+      onRename(artboard.id, nameDraft.trim());
+    } else {
+      setNameDraft(artboard.name);
+    }
+  };
+
+  const isHug = artboard.width === "auto" || artboard.width === undefined;
+  const hasExplicitBackground =
+    Boolean(artboard.backgroundColor) &&
+    artboard.backgroundColor !== "transparent";
+  const displayW =
+    typeof artboard.width === "number" ? artboard.width : measured.w;
+  const displayH =
+    typeof artboard.height === "number" ? artboard.height : measured.h;
 
   return (
     <div
       ref={containerRef}
-      className={`artboard-host ${isSelected ? "artboard-host--selected" : ""} ${
-        artboard.locked ? "artboard-host--locked" : ""
-      }`}
+      className={[
+        "artboard-host",
+        isSelected ? "artboard-host--selected" : "",
+        isFullLocked ? "artboard-host--locked" : "artboard-host--moveable",
+        hasExplicitBackground ? "artboard-host--has-surface" : "artboard-host--hug-surface",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       style={{
-        transform: `translate3d(${artboard.x}px, ${artboard.y}px, 0)`,
-        width: typeof artboard.width === "number" ? `${artboard.width}px` : "fit-content",
-        height: typeof artboard.height === "number" ? `${artboard.height}px` : "auto",
+        transform: `translate3d(${Math.round(artboard.x)}px, ${Math.round(artboard.y)}px, 0)`,
+        width:
+          typeof artboard.width === "number"
+            ? `${artboard.width}px`
+            : "fit-content",
+        height:
+          typeof artboard.height === "number"
+            ? `${artboard.height}px`
+            : "auto",
+        background: hasExplicitBackground
+          ? artboard.backgroundColor
+          : "transparent",
       }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect(artboard.id);
-      }}
+      onMouseDown={startDrag}
     >
+      {/* Excalidraw Frame-style Header */}
       <div
         className="artboard-header"
-        onMouseDown={handleHeaderMouseDown}
-        style={{ cursor: isMovable ? "grab" : "default" }}
+        style={{
+          cursor:
+            activeTool === "hand"
+              ? "grab"
+              : isMovable
+              ? "grab"
+              : "default",
+        }}
       >
         <div className="artboard-title-group">
-          <span className="artboard-icon">🖼️</span>
-          <span className="artboard-name">{artboard.name}</span>
-          {typeof artboard.width === "number" && typeof artboard.height === "number" && (
+          <span className="artboard-icon">{frameToolIcon}</span>
+          {isEditingName ? (
+            <input
+              type="text"
+              className="artboard-name-input"
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitName();
+                if (e.key === "Escape") {
+                  setNameDraft(artboard.name);
+                  setIsEditingName(false);
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              autoFocus
+            />
+          ) : (
+            <span
+              className="artboard-name"
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setIsEditingName(true);
+              }}
+              title="Adı düzenlemek için çift tıklayın"
+            >
+              {artboard.name}
+            </span>
+          )}
+          {displayW > 0 && displayH > 0 && (
             <span className="artboard-dimensions">
-              {artboard.width} × {artboard.height}
+              {displayW} × {displayH}
+              {isHug ? " · Hug" : ""}
             </span>
           )}
         </div>
 
-        <div className="artboard-actions">
-          {/* Lock / Unlock Toggle */}
+        {/* Excalidraw UnlockPopup-compatible Dual-Mode Lock & Action Island */}
+        <div
+          className="artboard-unlock-popup"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Left Button: Tam Kilit (LockedIconFilled) */}
           <button
             type="button"
-            className={`action-btn ${artboard.locked ? "action-btn--active" : ""}`}
-            title={artboard.locked ? "Kilitli: Değiştirilemez" : "Kilitle"}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleLock(artboard.id);
-            }}
+            className={`artboard-popup-btn ${
+              isFullLocked ? "artboard-popup-btn--active" : ""
+            }`}
+            title="Container Tam Kilitli (Hem tuvale hem kendi içine kilitli)"
+            onClick={() => onSetLockMode(artboard.id, "full-lock")}
           >
-            {artboard.locked ? "🔒" : "🔓"}
+            {LockedIconFilled}
           </button>
 
-          {/* Move Lock Toggle */}
+          {/* Right Button: Taşıma Serbest (MoveUnlockedIcon) */}
           <button
             type="button"
-            className={`action-btn ${artboard.allowMove ? "action-btn--active" : ""}`}
-            title={
-              artboard.allowMove
-                ? "Taşıma Serbest (Boyutlandırma Kilitli)"
-                : "Taşıma Kilitli"
-            }
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleMove(artboard.id);
-            }}
+            className={`artboard-popup-btn ${
+              !isFullLocked ? "artboard-popup-btn--active" : ""
+            }`}
+            title="Container Taşıma Serbest (Tuvalde taşınabilir, içerik ve boyut korunur)"
+            onClick={() => onSetLockMode(artboard.id, "moveable")}
           >
-            {artboard.allowMove ? "✥🔓" : "✥🔒"}
+            {MoveUnlockedIcon}
           </button>
 
-          {/* Delete Artboard */}
+          <span className="artboard-popup-divider" />
+
           <button
             type="button"
-            className="action-btn action-btn--danger"
-            title="Artboard'ı Sil"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(artboard.id);
-            }}
+            className="artboard-popup-btn"
+            title="Tasarımı Çoğalt"
+            onClick={() => onDuplicate(artboard.id)}
           >
-            ✕
+            {DuplicateIcon}
+          </button>
+
+          <button
+            type="button"
+            className="artboard-popup-btn"
+            title="HTML / CSS Kodunu Dışa Aktar"
+            onClick={() => onExportCode(artboard.id)}
+          >
+            {codeIcon}
+          </button>
+
+          <button
+            type="button"
+            className="artboard-popup-btn artboard-popup-btn--danger"
+            title="Tasarımı Sil"
+            onClick={() => onDelete(artboard.id)}
+          >
+            {TrashIcon}
           </button>
         </div>
       </div>
 
-      <div className="artboard-body">
+      {/* Rendered Shadow DOM Host */}
+      <div
+        className="artboard-body"
+        onMouseMove={handleBodyMouseMove}
+        onMouseLeave={() => setHoveredNodeBox(null)}
+        style={{
+          cursor:
+            activeTool === "inspect"
+              ? "crosshair"
+              : activeTool === "hand"
+              ? "grab"
+              : isMovable
+              ? "grab"
+              : "default",
+        }}
+      >
         <div ref={shadowHostRef} className="artboard-shadow-host" />
+
+        {/* Hover Overlay for Inner DOM Node Inspection */}
+        {hoveredNodeBox &&
+          hoveredNodeBox.nodeId !== selectedNodeBox?.nodeId && (
+            <div
+              className="artboard-node-overlay artboard-node-overlay--hover"
+              style={{
+                left: `${hoveredNodeBox.x}px`,
+                top: `${hoveredNodeBox.y}px`,
+                width: `${hoveredNodeBox.width}px`,
+                height: `${hoveredNodeBox.height}px`,
+              }}
+            >
+              <span className="artboard-node-overlay__tag">
+                {hoveredNodeBox.label}
+              </span>
+            </div>
+          )}
+
+        {/* Selected Overlay for Inner DOM Node */}
+        {selectedNodeBox && (
+          <div
+            className="artboard-node-overlay artboard-node-overlay--selected"
+            style={{
+              left: `${selectedNodeBox.x}px`,
+              top: `${selectedNodeBox.y}px`,
+              width: `${selectedNodeBox.width}px`,
+              height: `${selectedNodeBox.height}px`,
+            }}
+          >
+            <span className="artboard-node-overlay__tag">
+              {selectedNodeBox.label}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

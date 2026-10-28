@@ -106,7 +106,7 @@ iki modlu kilit (tam kilit / sadece taşıma) — mevcut ikonlarla.
 
 ## Faz 3: MCP Araçları — Çekirdek (2-3 gün)
 
-#### [MODIFY] [server.ts](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-mcp/src/server.ts) + `main.ts`
+#### [MODIFY] [server.ts](file:///c:/Users/mburakmustu/source/repos/synapdraw/synapdraw-mcp/src/server.ts) + `main.ts`
 
 | Araç | Açıklama |
 |---|---|

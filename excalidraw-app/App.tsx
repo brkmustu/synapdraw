@@ -393,6 +393,9 @@ const ExcalidrawWrapper = () => {
   const [activeWs, setActiveWs] = useState<WorkspaceDocument>(() =>
     getActiveWorkspace(),
   );
+  const currentSketchWsIdRef = useRef<string | null>(
+    activeWs.canvasType === "sketch" ? activeWs.id : null,
+  );
 
   useEffect(() => {
     const update = () => {
@@ -402,9 +405,46 @@ const ExcalidrawWrapper = () => {
   }, []);
 
   useEffect(() => {
-    if (excalidrawAPI && activeWs.canvasType === "sketch") {
-      registerActiveEngine(new ExcalidrawEngine(activeWs.id, excalidrawAPI));
+    if (!excalidrawAPI || activeWs.canvasType !== "sketch") {
+      return;
     }
+
+    registerActiveEngine(new ExcalidrawEngine(activeWs.id, excalidrawAPI));
+
+    // When switching from one sketch workspace to another, save the previous one and load the new one
+    if (
+      currentSketchWsIdRef.current &&
+      currentSketchWsIdRef.current !== activeWs.id
+    ) {
+      try {
+        const prevId = currentSketchWsIdRef.current;
+        const prevElements = excalidrawAPI
+          .getSceneElements()
+          .filter((el) => !el.isDeleted);
+        localStorage.setItem(
+          `synapdraw_ws_${prevId}_elements`,
+          JSON.stringify(prevElements),
+        );
+      } catch {}
+
+      try {
+        const rawNext = localStorage.getItem(
+          `synapdraw_ws_${activeWs.id}_elements`,
+        );
+        const nextElements = rawNext
+          ? restoreElements(JSON.parse(rawNext), null, {
+              repairBindings: true,
+              deleteInvisibleElements: true,
+            })
+          : [];
+        excalidrawAPI.updateScene({
+          elements: nextElements,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+      } catch {}
+    }
+
+    currentSketchWsIdRef.current = activeWs.id;
   }, [excalidrawAPI, activeWs]);
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -978,16 +1018,24 @@ const ExcalidrawWrapper = () => {
   return (
     <div
       style={{ height: "100%", display: "flex", flexDirection: "column" }}
-      className={clsx("excalidraw-app", {
+      className={clsx("excalidraw-app", "excalidraw", {
         "is-collaborating": isCollaborating,
+        "theme--dark": editorTheme === "dark",
       })}
     >
-      <WorkspaceTabs />
+      <WorkspaceTabs
+        editorTheme={editorTheme}
+        onToggleTheme={() =>
+          setAppTheme(editorTheme === "dark" ? "light" : "dark")
+        }
+        onOpenAIIntegrations={() => setIsAIIntegrationsOpen(true)}
+      />
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
         {activeWs.canvasType === "design" && (
           <DesignCanvas
             documentId={activeWs.id}
             documentName={activeWs.name}
+            onOpenAIIntegrations={() => setIsAIIntegrationsOpen(true)}
           />
         )}
         <div

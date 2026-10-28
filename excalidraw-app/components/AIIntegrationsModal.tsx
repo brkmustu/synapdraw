@@ -701,6 +701,33 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
       /^\s*<(!DOCTYPE|html|div|section|form|header|main|table|button|card)/i.test(rawCode.trim());
 
     if (isHtml) {
+      const { getActiveEngine } = await import("../engine/engineRegistry");
+      const activeEngine = getActiveEngine();
+
+      if (activeEngine && activeEngine.canvasType === "design") {
+        setEditableMermaidCode(rawCode.trim());
+        setGenerationStatus("parsing");
+        setParseErrorDetails(null);
+
+        const res = await activeEngine.applyEvent({
+          type: "design",
+          html: rawCode.trim(),
+          title: submittedPrompt ? submittedPrompt.slice(0, 36) : "AI Tasarım",
+          mode: renderMode,
+        });
+
+        if (!res.success) {
+          throw new Error(res.message || "Tasarım tuvaline aktarım başarısız oldu.");
+        }
+
+        setGenerationStatus("success");
+        setStatusMessage({
+          type: "success",
+          text: res.message || "Tasarım başarıyla Tasarım Tuvaline aktarıldı.",
+        });
+        return;
+      }
+
       const { sanitizeHtml, parseHtmlToExcalidraw } = await import(
         "../utils/htmlToExcalidraw"
       );

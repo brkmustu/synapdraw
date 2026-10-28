@@ -20,7 +20,7 @@ bırakmak gerekmiyor; kabuk, MCP köprüsü ve container fikri yeniden kullanıl
 |---|---|---|
 | Render | Canvas 2D + Rough.js, kendi metin ölçümü | CSS (flex, grid, shadow, gradient, web font) birebir çizilemez |
 | HTML aktarımı | [htmlToExcalidraw.ts](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/utils/htmlToExcalidraw.ts) gizli sandbox'ta render edip `getBoundingClientRect` ile şekle çeviriyor | Ölçüm doğru, ama sonuç dikdörtgen + metne indirgeniyor → stil kaybı ve metin kayması (daha önce gördüğümüz sorun) |
-| MCP sunucusu | [server.ts](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-mcp/src/server.ts): `read_me`, `render_mermaid`, `render_html`, `get_canvas_context`, `clear_canvas`, `create_view`, checkpoint araçları | Broadcast (SSE) + context sync altyapısı aynen yeniden kullanılabilir |
+| MCP sunucusu | [server.ts](file:///c:/Users/mburakmustu/source/repos/synapdraw/synapdraw-mcp/src/server.ts): `read_me`, `render_mermaid`, `render_html`, `get_canvas_context`, `clear_canvas`, `create_view`, checkpoint araçları | Broadcast (SSE) + context sync altyapısı aynen yeniden kullanılabilir |
 | Köprü | [LiveMcpBridge.tsx](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/components/LiveMcpBridge.tsx) SSE ile olayları alıp `excalidrawAPI`'ye uyguluyor | Olay tipine göre aktif motora yönlendiren bir dispatcher'a dönüşmeli |
 | Container / kilit | Frame + card + header, iki modlu kilit | Tasarım tuvalinde karşılığı **Artboard** (Figma frame) |
 | Gömülü içerik | Excalidraw'da `iframe` / `embeddable` eleman tipleri var | Hibrit yaklaşım için kaldıraç (bkz. Seçenek B) |
