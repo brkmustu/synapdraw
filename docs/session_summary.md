@@ -148,3 +148,17 @@ Harici AI Agent'ların ve IDE'lerin projedeki tüm SDLC verileriyle canlı etkil
 9. **SDLC AI & MCP Orkestrasyon Stüdyosu (`AIIntegrationsModal.tsx` & `AIIntegrationsModal.scss`):**
    - Eski "AI Diagram Studio" ekranı, Excalidraw tasarım sistemiyle (`--island-bg-color`, `--color-surface-low`, `--color-surface-mid`, `--color-primary`, SVG ikonlar) tam uyumlu **SDLC AI & MCP Stüdyosu**'na dönüştürüldü; sağ üstteki çift kapatma (`X`) çakışması ve global `textarea`/`input` özgüllük sorunları giderildi.
    - Hem yerleşik AI sohbetinden tüm proje kaynaklarını (*Analiz/Mimari Şema*, *UI Tasarım*, *Görev & Kriter Üretimi*, *TDD Test Üretimi*) orkestre etme yeteneği eklendi hem de **Claude Desktop** ve **Gemini Antigravity** üzerinden `synapdraw-mcp` (11 SDLC + Tuval MCP aracı) ile harici orkestrasyon için özel **MCP** sekmesi ve canlı kaynak şeridi sunuldu.
+
+---
+
+## 5. Sonraki Oturum İçin Yol Haritası (Gelecek Çalışmalar)
+
+Ön yüz (UI/UX), 5 temel SDLC yüzeyi, derin pinleme, AI Agent orkestrasyonu ve MCP entegrasyonu tamamlandı. Sonraki aşamada ele alınacak altyapısal başlıklar:
+
+1. **Kalıcı Veritabanı ve Sunucu Katmanı (Persistence & Backend Storage):**
+   - Şu anda `localStorage` + `.synapdraw.json` paket dışa/içe aktarma ile çalışan proje grafiğinin (`SDLCProject`, `WorkspaceDocument`, `ProjectTask`, `TDDScenario`, `TeamMember`, Excalidraw sahneleri ve DesignCanvas artboard'ları) SQLite / PostgreSQL tabanlı bir arka uç API'sine bağlanması.
+2. **Gerçek Zamanlı Çok Kullanıcılı ve Çoklu Agent Eşitlemesi (WebSocket / CRDT):**
+   - Yazılımcı, PM, PO, QA ve harici MCP Agent'larının aynı proje üzerinde eşzamanlı yaptığı değişikliklerin anlık senkronizasyonu.
+3. **Canlı Test Koşucu (Test Runner) Köprüsü:**
+   - TDD Stüdyosunda üretilen `Vitest` / `Playwright` testlerinin yerel geliştirme ortamında (`synapdraw-mcp` üzerinden) koşturulup test sonuçlarının (`Red` / `Green`) otomatik olarak kartlara yansıtılması.
+
