@@ -152,12 +152,22 @@ import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanne
 import { WorkspaceTabs } from "./workspace/WorkspaceTabs";
 import {
   getActiveWorkspace,
+  getSplitWorkspace,
+  setActiveWorkspaceId,
+  setSplitWorkspaceId,
+  getCategoryLabel,
   subscribeWorkspaces,
   type WorkspaceDocument,
 } from "./workspace/workspaceStore";
 import { registerActiveEngine } from "./engine/engineRegistry";
 import { ExcalidrawEngine } from "./engine/ExcalidrawEngine";
 import { DesignCanvas } from "./design/DesignCanvas";
+import { TaskBoardSurface } from "./sdlc/TaskBoardSurface";
+import { TDDStudioSurface } from "./sdlc/TDDStudioSurface";
+import {
+  SDLCContextDrawer,
+  TeamRosterModal,
+} from "./sdlc/ContextAndTeamDrawers";
 import { AppSidebar } from "./components/AppSidebar";
 
 import type { CollabAPI } from "./collab/Collab";
@@ -388,10 +398,15 @@ const ExcalidrawWrapper = () => {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [isAIIntegrationsOpen, setIsAIIntegrationsOpen] = useState(false);
+  const [isContextDrawerOpen, setIsContextDrawerOpen] = useState(false);
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const isCollabDisabled = isRunningInIframe();
 
   const [activeWs, setActiveWs] = useState<WorkspaceDocument>(() =>
     getActiveWorkspace(),
+  );
+  const [splitWs, setSplitWs] = useState<WorkspaceDocument | null>(() =>
+    getSplitWorkspace(),
   );
   const currentSketchWsIdRef = useRef<string | null>(
     activeWs.canvasType === "sketch" ? activeWs.id : null,
@@ -400,18 +415,17 @@ const ExcalidrawWrapper = () => {
   useEffect(() => {
     const update = () => {
       setActiveWs(getActiveWorkspace());
+      setSplitWs(getSplitWorkspace());
     };
     return subscribeWorkspaces(update);
   }, []);
 
   useEffect(() => {
-    if (!excalidrawAPI || activeWs.canvasType !== "sketch") {
+    if (!excalidrawAPI) {
       return;
     }
 
-    registerActiveEngine(new ExcalidrawEngine(activeWs.id, excalidrawAPI));
-
-    // When switching from one sketch workspace to another, save the previous one and load the new one
+    // If switching away from a sketch workspace, always persist its latest scene
     if (
       currentSketchWsIdRef.current &&
       currentSketchWsIdRef.current !== activeWs.id
@@ -426,7 +440,15 @@ const ExcalidrawWrapper = () => {
           JSON.stringify(prevElements),
         );
       } catch {}
+    }
 
+    if (activeWs.canvasType !== "sketch") {
+      return;
+    }
+
+    registerActiveEngine(new ExcalidrawEngine(activeWs.id, excalidrawAPI));
+
+    if (currentSketchWsIdRef.current !== activeWs.id) {
       try {
         const rawNext = localStorage.getItem(
           `synapdraw_ws_${activeWs.id}_elements`,
@@ -1029,22 +1051,53 @@ const ExcalidrawWrapper = () => {
           setAppTheme(editorTheme === "dark" ? "light" : "dark")
         }
         onOpenAIIntegrations={() => setIsAIIntegrationsOpen(true)}
+        isContextDrawerOpen={isContextDrawerOpen}
+        onToggleContextDrawer={() => setIsContextDrawerOpen((prev) => !prev)}
+        onOpenTeamModal={() => setIsTeamModalOpen(true)}
       />
-      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        {activeWs.canvasType === "design" && (
-          <DesignCanvas
-            documentId={activeWs.id}
-            documentName={activeWs.name}
-            onOpenAIIntegrations={() => setIsAIIntegrationsOpen(true)}
-          />
-        )}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
         <div
           style={{
-            display: activeWs.canvasType === "sketch" ? "block" : "none",
-            height: "100%",
+            flex: 1,
+            position: "relative",
+            overflow: "hidden",
+            minWidth: 0,
           }}
         >
-          <Excalidraw
+          {activeWs.canvasType === "design" && (
+            <DesignCanvas
+              documentId={activeWs.id}
+              documentName={activeWs.name}
+              onOpenAIIntegrations={() => setIsAIIntegrationsOpen(true)}
+            />
+          )}
+          {activeWs.canvasType === "tasks" && (
+            <TaskBoardSurface
+              documentId={activeWs.id}
+              documentName={activeWs.name}
+              onOpenAIIntegrations={() => setIsAIIntegrationsOpen(true)}
+            />
+          )}
+          {activeWs.canvasType === "tdd" && (
+            <TDDStudioSurface
+              documentId={activeWs.id}
+              documentName={activeWs.name}
+            />
+          )}
+          <div
+            style={{
+              display: activeWs.canvasType === "sketch" ? "block" : "none",
+              height: "100%",
+            }}
+          >
+            <Excalidraw
         viewportStatusFrame={viewportStatusFrame}
         userToFollow={userToFollow}
         onChange={onChange}
@@ -1407,8 +1460,96 @@ const ExcalidrawWrapper = () => {
           />
         )}
           </Excalidraw>
+          </div>
+          <SDLCContextDrawer
+            isOpen={isContextDrawerOpen}
+            onClose={() => setIsContextDrawerOpen(false)}
+          />
         </div>
+
+        {splitWs && splitWs.id !== activeWs.id && (
+          <div className="sdlc-split-pane">
+            <div className="sdlc-split-pane__header">
+              <div className="sdlc-split-pane__title">
+                <span>Yan Yana: {splitWs.name}</span>
+                <span className="sdlc-split-pane__badge">
+                  {getCategoryLabel(splitWs.category)}
+                </span>
+              </div>
+              <div className="sdlc-split-pane__actions">
+                <button
+                  type="button"
+                  className="sdlc-split-pane__btn"
+                  title="Bu görünümü ana sekme yap"
+                  onClick={() => {
+                    const prevActiveId = activeWs.id;
+                    setActiveWorkspaceId(splitWs.id);
+                    setSplitWorkspaceId(prevActiveId);
+                  }}
+                >
+                  ⇄ Yer Değiştir
+                </button>
+                <button
+                  type="button"
+                  className="sdlc-split-pane__btn"
+                  title="Yan Yana görünümü kapat"
+                  onClick={() => setSplitWorkspaceId(null)}
+                >
+                  ✕ Kapat
+                </button>
+              </div>
+            </div>
+            <div className="sdlc-split-pane__body">
+              {splitWs.canvasType === "design" && (
+                <DesignCanvas
+                  documentId={splitWs.id}
+                  documentName={splitWs.name}
+                  onOpenAIIntegrations={() => setIsAIIntegrationsOpen(true)}
+                />
+              )}
+              {splitWs.canvasType === "tasks" && (
+                <TaskBoardSurface
+                  documentId={splitWs.id}
+                  documentName={splitWs.name}
+                  onOpenAIIntegrations={() => setIsAIIntegrationsOpen(true)}
+                />
+              )}
+              {splitWs.canvasType === "tdd" && (
+                <TDDStudioSurface
+                  documentId={splitWs.id}
+                  documentName={splitWs.name}
+                />
+              )}
+              {splitWs.canvasType === "sketch" && (
+                <div className="sdlc-split-pane__sketch-placeholder">
+                  <strong>{splitWs.name} (Çizim / Mimari Tuvali)</strong>
+                  <span>
+                    İki adet Excalidraw çizim tuvali seçildiğinde aktif çizim
+                    motoru sol ekranda çalışır. Bu çizim tuvalini düzenlemek için
+                    sol ekrana geçirebilirsiniz.
+                  </span>
+                  <button
+                    type="button"
+                    className="sdlc-btn sdlc-btn--primary"
+                    onClick={() => {
+                      const prevActiveId = activeWs.id;
+                      setActiveWorkspaceId(splitWs.id);
+                      setSplitWorkspaceId(prevActiveId);
+                    }}
+                  >
+                    ⇄ Bu Çizim Tuvalini Aktif Ekrana Al
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+      <TeamRosterModal
+        isOpen={isTeamModalOpen}
+        onClose={() => setIsTeamModalOpen(false)}
+        onOpenAIStudio={() => setIsAIIntegrationsOpen(true)}
+      />
     </div>
   );
 };

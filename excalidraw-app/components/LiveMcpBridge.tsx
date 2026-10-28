@@ -1,7 +1,21 @@
 import React, { useEffect, useState, useRef } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { getActiveEngine, subscribeActiveEngine } from "../engine/engineRegistry";
-import { getActiveWorkspace, subscribeWorkspaces } from "../workspace/workspaceStore";
+import {
+  getActiveWorkspace,
+  getActiveProject,
+  getSplitWorkspaceId,
+  getProjectWorkspaces,
+  getProjectTasks,
+  getProjectTDDScenarios,
+  getProjectTeam,
+  createProjectTask,
+  updateProjectTask,
+  createTDDScenario,
+  updateTDDScenario,
+  generateTDDFromTask,
+  subscribeWorkspaces,
+} from "../workspace/workspaceStore";
 import "./LiveMcpBridge.scss";
 
 interface LiveMcpBridgeProps {
@@ -23,7 +37,10 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
   const eventSourceRef = useRef<EventSource | null>(null);
   const containerRef = useRef<HTMLButtonElement | null>(null);
 
-  const isCurrentActive = activeWs.canvasType === forCanvasType;
+  const isCurrentActive =
+    forCanvasType === "design"
+      ? activeWs.canvasType === "design"
+      : activeWs.canvasType !== "design";
 
   useEffect(() => {
     return subscribeWorkspaces(() => {
@@ -55,6 +72,49 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
         es.onmessage = async (e) => {
           try {
             const data = JSON.parse(e.data);
+
+            if (data.type === "sdlc_upsert_task" && data.task) {
+              const t = data.task;
+              const tasks = getProjectTasks();
+              const existing =
+                t.id && tasks.find((item) => item.id === t.id || item.key === t.id);
+              if (existing) {
+                updateProjectTask(existing.id, t);
+                setLastAction(`Görev güncellendi: ${t.title || existing.title}`);
+              } else {
+                createProjectTask(t);
+                setLastAction(`Görev oluşturuldu: ${t.title || "Yeni Görev"}`);
+              }
+              setTimeout(() => setLastAction(null), 4000);
+              return;
+            }
+
+            if (data.type === "sdlc_upsert_tdd" && data.scenario) {
+              const sc = data.scenario;
+              const scenarios = getProjectTDDScenarios();
+              const existing =
+                sc.id &&
+                scenarios.find((item) => item.id === sc.id || item.key === sc.id);
+              if (existing) {
+                updateTDDScenario(existing.id, sc);
+                setLastAction(`TDD güncellendi: ${sc.title || existing.title}`);
+              } else {
+                createTDDScenario(sc);
+                setLastAction(`TDD senaryosu eklendi: ${sc.title || "Yeni Test"}`);
+              }
+              setTimeout(() => setLastAction(null), 4000);
+              return;
+            }
+
+            if (data.type === "sdlc_generate_tdd" && data.taskId) {
+              const created = generateTDDFromTask(data.taskId);
+              if (created.length > 0) {
+                setLastAction(`Görevden ${created.length} TDD üretildi`);
+                setTimeout(() => setLastAction(null), 4000);
+              }
+              return;
+            }
+
             const engine = getActiveEngine();
             if (engine) {
               if (!engine.supports(data.type)) {
@@ -300,14 +360,24 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
           ctx = extractCanvasSemanticContext(excalidrawAPI);
         }
 
-        if (!ctx) return;
-
         const currentWs = getActiveWorkspace();
+        const activeProj = getActiveProject();
         const payload = {
-          ...ctx,
+          ...(ctx || {}),
           canvasType: currentWs.canvasType,
+          category: currentWs.category,
           workspaceId: currentWs.id,
           workspaceName: currentWs.name,
+          sdlcOverview: {
+            projectId: activeProj.id,
+            projectName: activeProj.name,
+            activeWorkspaceId: currentWs.id,
+            splitWorkspaceId: getSplitWorkspaceId(),
+            workspaces: getProjectWorkspaces(activeProj.id),
+            tasks: getProjectTasks(activeProj.id),
+            tddScenarios: getProjectTDDScenarios(activeProj.id),
+            team: getProjectTeam(activeProj.id),
+          },
         };
 
         await fetch("http://localhost:3001/api/canvas-context", {
