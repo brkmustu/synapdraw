@@ -1337,3 +1337,544 @@ export function generateTDDFromTask(taskId: string): TDDScenario[] {
 
   return created;
 }
+
+// ============================================================================
+// ARTBOARD DEEP-LINKING & AUTO-FOCUS
+// ============================================================================
+
+const pendingArtboardFocusMap: Record<string, string> = {};
+
+export function requestArtboardFocus(
+  docId: string,
+  artboardId: string,
+  openInSplit = false,
+): void {
+  pendingArtboardFocusMap[docId] = artboardId;
+  if (openInSplit) {
+    setSplitWorkspaceId(docId);
+  } else {
+    setActiveWorkspaceId(docId);
+  }
+  notify();
+}
+
+export function consumePendingArtboardFocus(docId: string): string | null {
+  const target = pendingArtboardFocusMap[docId] || null;
+  if (target) {
+    delete pendingArtboardFocusMap[docId];
+  }
+  return target;
+}
+
+export function toggleTaskArtboardLink(
+  taskId: string,
+  link: LinkedArtboardRef,
+): ProjectTask | null {
+  const tasks = getProjectTasks();
+  const task = tasks.find((t) => t.id === taskId);
+  if (!task) return null;
+
+  const currentLinks = Array.isArray(task.linkedArtboards)
+    ? task.linkedArtboards
+    : [];
+  const exists = currentLinks.some(
+    (item) => item.docId === link.docId && item.artboardId === link.artboardId,
+  );
+
+  const nextArtboards = exists
+    ? currentLinks.filter(
+        (item) =>
+          !(item.docId === link.docId && item.artboardId === link.artboardId),
+      )
+    : [...currentLinks, link];
+
+  const nextDocIds = exists
+    ? task.linkedDocIds
+    : Array.from(new Set([...task.linkedDocIds, link.docId]));
+
+  return updateProjectTask(task.id, {
+    linkedArtboards: nextArtboards,
+    linkedDocIds: nextDocIds,
+  });
+}
+
+// ============================================================================
+// AI AGENT TASK ORCHESTRATION ("AI AGENT İLE ÇALIŞTIR")
+// ============================================================================
+
+export function executeAgentOnTask(
+  taskId: string,
+  mode: "auto" | "design" | "tdd" | "analysis" = "auto",
+  ownerWindow: Window = window,
+): {
+  summary: string;
+  targetDocId?: string;
+  targetArtboardId?: string;
+} {
+  const tasks = getProjectTasks();
+  const task = tasks.find((t) => t.id === taskId);
+  if (!task) {
+    return { summary: "Görev bulunamadı." };
+  }
+
+  const team = getProjectTeam(task.projectId);
+  const assignedMember = team.find((m) => m.id === task.assigneeId);
+
+  let resolvedMode: "design" | "tdd" | "analysis" = "design";
+  if (mode !== "auto") {
+    resolvedMode = mode;
+  } else if (assignedMember?.role === "qa" || task.status === "testing") {
+    resolvedMode = "tdd";
+  } else if (
+    assignedMember?.role === "po" ||
+    assignedMember?.role === "architect" ||
+    task.status === "backlog"
+  ) {
+    resolvedMode = "analysis";
+  } else {
+    resolvedMode = "design";
+  }
+
+  const docs = getProjectWorkspaces(task.projectId);
+
+  if (resolvedMode === "tdd") {
+    const qaAgent =
+      team.find((m) => m.kind === "ai_agent" && m.role === "qa") ||
+      assignedMember;
+    const generated = generateTDDFromTask(task.id);
+
+    // Also ensure a boundary/edge-case test exists for this task
+    const allScenarios = getProjectTDDScenarios(task.projectId);
+    const hasEdgeCase = allScenarios.some(
+      (s) => s.linkedTaskId === task.id && s.category === "unit",
+    );
+    if (!hasEdgeCase) {
+      const edgeSc = createTDDScenario(
+        {
+          title: `${task.key}: Uç Durum ve Geçersiz Veri Doğrulaması (Edge-Case)`,
+          category: "unit",
+          status: "red",
+          given: `"${task.title}" akışında eksik veya sınır dışı parametre gönderilir`,
+          when: "Doğrulama katmanı isteği işler",
+          then: "Sistem güvenli hata kodu döner ve veri bütünlüğü korunur",
+          assertions: [
+            "Boş veya geçersiz girişte 400/422 doğrulama mesajı döner",
+            "State bozulmadan kullanıcıya anlaşılır geri bildirim gösterilir",
+          ],
+          linkedTaskId: task.id,
+          linkedDocIds: task.linkedDocIds,
+          assigneeId: qaAgent?.id || null,
+        },
+        task.projectId,
+      );
+      generated.push(edgeSc);
+    }
+
+    if (task.status === "backlog" || task.status === "design") {
+      updateProjectTask(task.id, { status: "testing" });
+    }
+
+    addTaskComment(
+      task.id,
+      qaAgent?.id || "system",
+      `🧪 TDD & QA Agent çalıştırıldı: Kabul kriterleri ve uç durumlar için toplam ${
+        generated.length > 0 ? `${generated.length} yeni` : "mevcut"
+      } BDD (Given/When/Then) test senaryosu senkronize edildi.`,
+    );
+
+    const tddDoc = docs.find((d) => d.canvasType === "tdd");
+    return {
+      summary: `${
+        generated.length > 0 ? `${generated.length} yeni` : "Mevcut"
+      } TDD test senaryosu hazırlandı`,
+      targetDocId: tddDoc?.id,
+    };
+  }
+
+  if (resolvedMode === "analysis") {
+    const poOrArchAgent =
+      assignedMember ||
+      team.find(
+        (m) =>
+          m.kind === "ai_agent" &&
+          (m.role === "po" || m.role === "architect"),
+      );
+
+    const existingCriteria = [...task.acceptanceCriteria];
+    const now = Date.now();
+    if (existingCriteria.length === 0) {
+      existingCriteria.push(
+        {
+          id: `ac_${now}_1`,
+          text: `${task.title} için temel mutlu yol (happy-path) akışı tamamlanmalı`,
+          completed: false,
+        },
+        {
+          id: `ac_${now}_2`,
+          text: "Hata ve sınır durumlarında kullanıcıya net geri bildirim verilmeli",
+          completed: false,
+        },
+        {
+          id: `ac_${now}_3`,
+          text: "İlgili TDD kabul testleri Green statüsüne ulaşmalı",
+          completed: false,
+        },
+      );
+    } else if (existingCriteria.length < 3) {
+      existingCriteria.push({
+        id: `ac_${now}_extra`,
+        text: "Performans, erişilebilirlik ve hata yönetimi kriterleri doğrulanmalı",
+        completed: false,
+      });
+    }
+
+    const analysisDocs = docs.filter((d) => d.canvasType === "sketch");
+    const nextLinkedDocs = Array.from(
+      new Set([
+        ...task.linkedDocIds,
+        ...(analysisDocs[0] ? [analysisDocs[0].id] : []),
+      ]),
+    );
+
+    updateProjectTask(task.id, {
+      acceptanceCriteria: existingCriteria,
+      linkedDocIds: nextLinkedDocs,
+      status: task.status === "backlog" ? "design" : task.status,
+    });
+
+    addTaskComment(
+      task.id,
+      poOrArchAgent?.id || "system",
+      `📋 Analiz & Mimari Agent çalıştırıldı: Görev kabul kriterleri (${existingCriteria.length} madde) yapılandırıldı ve analiz tuvali bağlantısı güncellendi.`,
+    );
+
+    return {
+      summary: `Görev analizi ve ${existingCriteria.length} kabul kriteri güncellendi`,
+      targetDocId: analysisDocs[0]?.id,
+    };
+  }
+
+  // Default / "design": UI/UX Tasarımcı Agent generates a pixel-perfect Artboard for the task
+  const uiAgent =
+    team.find((m) => m.kind === "ai_agent" && m.role === "designer") ||
+    assignedMember;
+
+  let designDoc =
+    docs.find(
+      (d) => d.canvasType === "design" && task.linkedDocIds.includes(d.id),
+    ) || docs.find((d) => d.canvasType === "design");
+
+  if (!designDoc) {
+    designDoc = createWorkspace(
+      `${task.key} UI Tasarımı`,
+      "design",
+      "ui_design",
+      `${task.title} için ekran tasarımları`,
+    );
+  }
+
+  const storageKey = `synapdraw_design_doc_${designDoc.id}`;
+  let parsedDesign: any = {
+    id: designDoc.id,
+    name: designDoc.name,
+    artboards: [],
+    selectedArtboardId: null,
+    selectedNodeId: null,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+  };
+
+  try {
+    const raw =
+      ownerWindow.localStorage.getItem(storageKey) ||
+      ownerWindow.localStorage.getItem(`excalidraw_design_doc_${designDoc.id}`);
+    if (raw) {
+      parsedDesign = JSON.parse(raw);
+      if (!Array.isArray(parsedDesign.artboards)) {
+        parsedDesign.artboards = [];
+      }
+    }
+  } catch {}
+
+  let nextX = 120;
+  let nextY = 100;
+  if (parsedDesign.artboards.length > 0) {
+    const last = parsedDesign.artboards[parsedDesign.artboards.length - 1];
+    const lastW =
+      typeof last.width === "number" ? last.width : last.measuredWidth || 440;
+    nextX = Math.round((last.x || 100) + lastW + 72);
+    nextY = Math.round(last.y || 100);
+  }
+
+  const criteriaItemsHtml = (
+    task.acceptanceCriteria.length > 0
+      ? task.acceptanceCriteria
+      : [
+          {
+            id: "1",
+            text: "Kullanıcı odaklı, erişilebilir ve hızlı etkileşim",
+            completed: true,
+          },
+          {
+            id: "2",
+            text: "Anlık doğrulama ve durum geri bildirimi",
+            completed: false,
+          },
+        ]
+  )
+    .map(
+      (c) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0;">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:${
+          c.completed ? "#dcfce7" : "#ede9fe"
+        };color:${
+        c.completed ? "#15803d" : "#6d28d9"
+      };font-size:12px;font-weight:700;">${c.completed ? "✓" : "•"}</span>
+        <span style="font-size:13px;color:#1e293b;font-weight:500;">${
+          c.text
+        }</span>
+      </div>`,
+    )
+    .join("");
+
+  const artboardId = `ab_${Date.now()}_${Math.random()
+    .toString(36)
+    .substring(2, 6)}`;
+  const artboardName = `${task.key} · ${task.title.slice(0, 38)} (Hug Contents)`;
+
+  const cardHtml = `<div style="width:440px;padding:28px;border-radius:18px;background:#ffffff;border:1px solid #e2e8f0;box-shadow:0 20px 40px -15px rgba(15,23,42,0.08);font-family:Assistant,system-ui,-apple-system,sans-serif;color:#0f172a;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#ede9fe;color:#5b21b6;font-size:11px;font-weight:700;letter-spacing:0.03em;">${
+      task.key
+    } · UI BİLEŞENİ</span>
+    <span style="font-size:12px;color:#64748b;font-weight:600;">SDLC Bağlı Ekran</span>
+  </div>
+  <h3 style="margin:0 0 8px;font-size:20px;font-weight:800;color:#0f172a;line-height:1.3;">${
+    task.title
+  }</h3>
+  <p style="margin:0 0 18px;font-size:13.5px;color:#475569;line-height:1.55;">${
+    task.description ||
+    "Bu bileşen görev kabul kriterlerine göre AI UI/UX Tasarımcı Agent tarafından oluşturulmuştur."
+  }</p>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">Kabul Kriterleri & Kontroller</div>
+    ${criteriaItemsHtml}
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:14px;border-top:1px solid #f1f5f9;">
+    <button style="flex:1;padding:11px 16px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;color:#334155;font-size:13px;font-weight:700;cursor:pointer;">İptal / Geri</button>
+    <button style="flex:1.4;padding:11px 16px;border-radius:10px;border:none;background:#6965db;color:#ffffff;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(105,101,219,0.28);">Onayla ve Devam Et</button>
+  </div>
+</div>`;
+
+  const newArtboard = {
+    id: artboardId,
+    name: artboardName,
+    x: nextX,
+    y: nextY,
+    width: "auto",
+    height: "auto",
+    html: cardHtml,
+    css: "",
+    backgroundColor: "transparent",
+    locked: false,
+    allowMove: true,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  parsedDesign.artboards.push(newArtboard);
+  parsedDesign.selectedArtboardId = artboardId;
+  try {
+    ownerWindow.localStorage.setItem(storageKey, JSON.stringify(parsedDesign));
+  } catch {}
+
+  const currentLinkedArtboards = Array.isArray(task.linkedArtboards)
+    ? task.linkedArtboards
+    : [];
+  const nextLinkedDocs = Array.from(
+    new Set([...task.linkedDocIds, designDoc.id]),
+  );
+
+  updateProjectTask(task.id, {
+    linkedDocIds: nextLinkedDocs,
+    linkedArtboards: [
+      ...currentLinkedArtboards,
+      {
+        docId: designDoc.id,
+        artboardId,
+        label: artboardName,
+      },
+    ],
+    status:
+      task.status === "backlog" || task.status === "design"
+        ? "in_progress"
+        : task.status,
+  });
+
+  addTaskComment(
+    task.id,
+    uiAgent?.id || "system",
+    `🎨 UI/UX Tasarımcı Agent çalıştırıldı: "${artboardName}" bileşeni "${designDoc.name}" tuvalinde üretildi ve bu göreve bağlandı.`,
+  );
+
+  requestArtboardFocus(designDoc.id, artboardId, true);
+
+  return {
+    summary: `"${artboardName}" tasarımı üretildi ve yan yana açıldı`,
+    targetDocId: designDoc.id,
+    targetArtboardId: artboardId,
+  };
+}
+
+// ============================================================================
+// PORTABLE PROJECT BUNDLE EXPORT / IMPORT (.synapdraw.json)
+// ============================================================================
+
+export interface SynapDrawProjectBundle {
+  version: "1.0.0";
+  exportedAt: number;
+  project: SDLCProject;
+  workspaces: WorkspaceDocument[];
+  tasks: ProjectTask[];
+  tddScenarios: TDDScenario[];
+  team: TeamMember[];
+  sketchScenes: Record<string, any>;
+  designDocuments: Record<string, any>;
+}
+
+export function exportProjectBundle(
+  projectId?: string,
+  ownerWindow: Window = window,
+): SynapDrawProjectBundle {
+  const pid = projectId || getActiveProjectId();
+  const project =
+    getProjects().find((p) => p.id === pid) || getActiveProject();
+  const workspaces = getProjectWorkspaces(pid);
+  const tasks = getProjectTasks(pid);
+  const tddScenarios = getProjectTDDScenarios(pid);
+  const team = getProjectTeam(pid);
+
+  const sketchScenes: Record<string, any> = {};
+  const designDocuments: Record<string, any> = {};
+
+  for (const ws of workspaces) {
+    try {
+      if (ws.canvasType === "sketch") {
+        const rawScene = ownerWindow.localStorage.getItem(
+          `excalidraw_ws_scene_${ws.id}`,
+        );
+        if (rawScene) {
+          sketchScenes[ws.id] = JSON.parse(rawScene);
+        }
+      } else if (ws.canvasType === "design") {
+        const rawDesign =
+          ownerWindow.localStorage.getItem(`synapdraw_design_doc_${ws.id}`) ||
+          ownerWindow.localStorage.getItem(`excalidraw_design_doc_${ws.id}`);
+        if (rawDesign) {
+          designDocuments[ws.id] = JSON.parse(rawDesign);
+        }
+      }
+    } catch {}
+  }
+
+  return {
+    version: "1.0.0",
+    exportedAt: Date.now(),
+    project,
+    workspaces,
+    tasks,
+    tddScenarios,
+    team,
+    sketchScenes,
+    designDocuments,
+  };
+}
+
+export function importProjectBundle(
+  bundleJson: string,
+  ownerWindow: Window = window,
+): SDLCProject {
+  const parsed = JSON.parse(bundleJson) as SynapDrawProjectBundle;
+  if (!parsed || !parsed.project || !Array.isArray(parsed.workspaces)) {
+    throw new Error("Geçersiz SynapDraw proje paketi (.synapdraw.json).");
+  }
+
+  const incomingProject = parsed.project;
+  const allProjects = getProjects().filter((p) => p.id !== incomingProject.id);
+  allProjects.push({
+    ...incomingProject,
+    updatedAt: Date.now(),
+  });
+  ownerWindow.localStorage.setItem(
+    STORAGE_KEY_PROJECTS,
+    JSON.stringify(allProjects),
+  );
+
+  const allDocs = getAllWorkspacesRaw().filter(
+    (d) => d.projectId !== incomingProject.id,
+  );
+  ownerWindow.localStorage.setItem(
+    STORAGE_KEY_WORKSPACES,
+    JSON.stringify([...allDocs, ...parsed.workspaces]),
+  );
+
+  if (Array.isArray(parsed.tasks)) {
+    const otherTasks = getAllTasksRaw().filter(
+      (t) => t.projectId !== incomingProject.id,
+    );
+    ownerWindow.localStorage.setItem(
+      STORAGE_KEY_TASKS,
+      JSON.stringify([...otherTasks, ...parsed.tasks]),
+    );
+  }
+
+  if (Array.isArray(parsed.tddScenarios)) {
+    const otherTdd = getAllTDDRaw().filter(
+      (s) => s.projectId !== incomingProject.id,
+    );
+    ownerWindow.localStorage.setItem(
+      STORAGE_KEY_TDD,
+      JSON.stringify([...otherTdd, ...parsed.tddScenarios]),
+    );
+  }
+
+  if (Array.isArray(parsed.team)) {
+    const otherTeam = getAllTeamRaw().filter(
+      (m) => m.projectId !== incomingProject.id,
+    );
+    ownerWindow.localStorage.setItem(
+      STORAGE_KEY_TEAM,
+      JSON.stringify([...otherTeam, ...parsed.team]),
+    );
+  }
+
+  if (parsed.sketchScenes && typeof parsed.sketchScenes === "object") {
+    for (const [docId, sceneData] of Object.entries(parsed.sketchScenes)) {
+      try {
+        ownerWindow.localStorage.setItem(
+          `excalidraw_ws_scene_${docId}`,
+          JSON.stringify(sceneData),
+        );
+      } catch {}
+    }
+  }
+
+  if (parsed.designDocuments && typeof parsed.designDocuments === "object") {
+    for (const [docId, designData] of Object.entries(parsed.designDocuments)) {
+      try {
+        ownerWindow.localStorage.setItem(
+          `synapdraw_design_doc_${docId}`,
+          JSON.stringify(designData),
+        );
+      } catch {}
+    }
+  }
+
+  setOpenTabIds(
+    incomingProject.id,
+    parsed.workspaces.map((w) => w.id),
+  );
+  setActiveProjectId(incomingProject.id);
+  return incomingProject;
+}

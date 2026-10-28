@@ -17,6 +17,15 @@ import {
 } from "@excalidraw/excalidraw/components/icons";
 import { registerActiveEngine } from "../engine/engineRegistry";
 import { LiveMcpBridge } from "../components/LiveMcpBridge";
+import {
+  subscribeWorkspaces,
+  consumePendingArtboardFocus,
+  getProjectTasks,
+  getProjectWorkspaces,
+  setActiveWorkspaceId,
+  toggleTaskArtboardLink,
+  type ProjectTask,
+} from "../workspace/workspaceStore";
 import { ArtboardHost } from "./ArtboardHost";
 import { DesignEngine } from "./DesignEngine";
 import { DesignHistory } from "./history";
@@ -66,6 +75,10 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
   const [domTree, setDomTree] = useState<DesignNodeSummary[]>([]);
   const [, setHistoryTick] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [projectTasks, setProjectTasks] = useState<ProjectTask[]>(() =>
+    getProjectTasks(),
+  );
+  const [showTaskLinkMenu, setShowTaskLinkMenu] = useState(false);
 
   const panStartRef = useRef({ x: 0, y: 0 });
 
@@ -100,13 +113,63 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
     [],
   );
 
-  // Reload document when documentId changes
+  // Reload document when documentId changes or when SDLC store notifies
   useEffect(() => {
     const ownerWin = getOwnerWin();
-    const loaded = loadDesignDocument(documentId, documentName, ownerWin);
+    const syncFromStore = () => {
+      const loaded = loadDesignDocument(documentId, documentName, ownerWin);
+      setProjectTasks(getProjectTasks());
+      const pendingFocusId = consumePendingArtboardFocus(documentId);
+
+      setDoc((prev) => {
+        const shouldReload =
+          prev.id !== loaded.id ||
+          loaded.artboards.length !== prev.artboards.length ||
+          Boolean(pendingFocusId);
+        if (!shouldReload) return prev;
+
+        const targetFocusId = pendingFocusId || loaded.selectedArtboardId;
+        if (targetFocusId) {
+          const ab = loaded.artboards.find((a) => a.id === targetFocusId);
+          const vp = viewportRef.current;
+          if (ab && vp) {
+            const vpW = vp.clientWidth || 1000;
+            const vpH = vp.clientHeight || 720;
+            const abW =
+              typeof ab.width === "number" ? ab.width : ab.measuredWidth || 440;
+            const abH =
+              typeof ab.height === "number"
+                ? ab.height
+                : ab.measuredHeight || 400;
+            const fitZoom = Math.min(
+              1,
+              Math.max(0.25, Math.min((vpW - 220) / abW, (vpH - 180) / abH)),
+            );
+            const nextPanX = Math.round(
+              (vpW - abW * fitZoom) / 2 - ab.x * fitZoom,
+            );
+            const nextPanY = Math.round(
+              (vpH - abH * fitZoom) / 2 - ab.y * fitZoom,
+            );
+            const focusedDoc: DesignDocument = {
+              ...loaded,
+              selectedArtboardId: targetFocusId,
+              zoom: Number(fitZoom.toFixed(2)),
+              panX: nextPanX,
+              panY: nextPanY,
+            };
+            saveDesignDocument(focusedDoc, ownerWin);
+            return focusedDoc;
+          }
+        }
+        return loaded;
+      });
+      setHistoryTick((t) => t + 1);
+    };
+
     historyRef.current.clear();
-    setDoc(loaded);
-    setHistoryTick((t) => t + 1);
+    syncFromStore();
+    return subscribeWorkspaces(syncFromStore);
   }, [documentId, documentName, getOwnerWin]);
 
   // Register DesignEngine for Live MCP & AI Studio
@@ -876,6 +939,183 @@ ${ab.html}
           {adjustmentsIcon}
           <span>Denetçi</span>
         </button>
+
+        {selectedArtboard && (
+          <div style={{ position: "relative", display: "inline-flex" }}>
+            <div className="design-island-divider" />
+            <button
+              type="button"
+              className={`design-tool-btn design-tool-btn--with-label ${
+                showTaskLinkMenu ? "design-tool-btn--active" : ""
+              }`}
+              onClick={() => setShowTaskLinkMenu((prev) => !prev)}
+              title="Seçili Artboard'u proje görevleriyle (Task) eşleştir"
+            >
+              <span>🔗</span>
+              <span>
+                Görev Bağlantısı (
+                {
+                  projectTasks.filter((t) =>
+                    (t.linkedArtboards || []).some(
+                      (la) =>
+                        la.docId === documentId &&
+                        la.artboardId === selectedArtboard.id,
+                    ),
+                  ).length
+                }
+                )
+              </span>
+            </button>
+
+            {showTaskLinkMenu && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 8px)",
+                  right: 0,
+                  width: 310,
+                  background: "var(--island-bg-color, #ffffff)",
+                  border: "1px solid var(--default-border-color, #e5e5e5)",
+                  borderRadius: "var(--border-radius-lg, 8px)",
+                  boxShadow: "var(--shadow-island)",
+                  padding: 10,
+                  zIndex: 120,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "var(--text-primary-color)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    paddingBottom: 4,
+                    borderBottom: "1px solid var(--default-border-color)",
+                  }}
+                >
+                  <span>Artboard ↔ Görev Eşleştirme</span>
+                  <button
+                    type="button"
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      color: "var(--icon-fill-color)",
+                    }}
+                    onClick={() => setShowTaskLinkMenu(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    opacity: 0.72,
+                    color: "var(--text-primary-color)",
+                  }}
+                >
+                  Seçili: <strong>{selectedArtboard.name}</strong>
+                </div>
+                <div
+                  style={{
+                    maxHeight: 200,
+                    overflowY: "auto",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  {projectTasks.map((t) => {
+                    const isLinked = (t.linkedArtboards || []).some(
+                      (la) =>
+                        la.docId === documentId &&
+                        la.artboardId === selectedArtboard.id,
+                    );
+                    return (
+                      <div
+                        key={t.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 6,
+                          padding: "6px 8px",
+                          borderRadius: 6,
+                          background: isLinked
+                            ? "var(--color-surface-primary-container)"
+                            : "var(--color-surface-low)",
+                          color: isLinked
+                            ? "var(--color-on-primary-container)"
+                            : "var(--text-primary-color)",
+                          fontSize: 11.5,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toggleTaskArtboardLink(t.id, {
+                              docId: documentId,
+                              artboardId: selectedArtboard.id,
+                              label: selectedArtboard.name,
+                            });
+                            showToast(
+                              isLinked
+                                ? `${t.key} bağlantısı kaldırıldı`
+                                : `${selectedArtboard.name} → ${t.key} görevine bağlandı`,
+                            );
+                          }}
+                          style={{
+                            flex: 1,
+                            textAlign: "left",
+                            border: "none",
+                            background: "transparent",
+                            color: "inherit",
+                            cursor: "pointer",
+                            fontFamily: "var(--ui-font)",
+                            fontSize: 11.5,
+                            fontWeight: isLinked ? 700 : 500,
+                            padding: 0,
+                          }}
+                        >
+                          {isLinked ? "✓ " : "+ "}
+                          <strong>{t.key}:</strong> {t.title}
+                        </button>
+                        <button
+                          type="button"
+                          title="Görev Panosuna Git"
+                          onClick={() => {
+                            const taskDoc = getProjectWorkspaces().find(
+                              (w) => w.canvasType === "tasks",
+                            );
+                            if (taskDoc) {
+                              setActiveWorkspaceId(taskDoc.id);
+                            }
+                            setShowTaskLinkMenu(false);
+                          }}
+                          style={{
+                            border: "none",
+                            background: "transparent",
+                            color: "var(--color-primary)",
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Git →
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {onOpenAIIntegrations && (
           <>

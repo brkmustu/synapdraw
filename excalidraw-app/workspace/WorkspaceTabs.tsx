@@ -30,6 +30,8 @@ import {
   getProjectTasks,
   getProjectTDDScenarios,
   getProjectTeam,
+  exportProjectBundle,
+  importProjectBundle,
   getCategoryLabel,
   subscribeWorkspaces,
   type SDLCProject,
@@ -224,6 +226,49 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
 
   const [linkedCounts, setLinkedCounts] = useState({ tasks: 0, tdd: 0 });
   const [teamCount, setTeamCount] = useState(0);
+  const barRef = React.useRef<HTMLElement | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleExportProject = () => {
+    const ownerDoc = barRef.current?.ownerDocument;
+    const ownerWin = ownerDoc?.defaultView;
+    if (!ownerDoc || !ownerWin) return;
+    const bundle = exportProjectBundle(activeProject?.id, ownerWin);
+    const json = JSON.stringify(bundle, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = ownerWin.URL.createObjectURL(blob);
+    const a = ownerDoc.createElement("a");
+    a.href = url;
+    const safeName = (bundle.project.name || "proje")
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]+/gi, "-")
+      .replace(/^-|-$/g, "");
+    a.download = `${safeName || "proje"}.synapdraw.json`;
+    ownerDoc.body.appendChild(a);
+    a.click();
+    a.remove();
+    ownerWin.URL.revokeObjectURL(url);
+  };
+
+  const handleImportProjectFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ownerWin = barRef.current?.ownerDocument?.defaultView;
+    if (!ownerWin) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        if (typeof reader.result === "string") {
+          importProjectBundle(reader.result, ownerWin);
+          setIsExplorerOpen(false);
+        }
+      } catch (err) {
+        console.error("[SynapDraw] Proje içe aktarma hatası:", err);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   useEffect(() => {
     const update = () => {
@@ -316,7 +361,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
 
   return (
     <>
-      <header className="workspace-tabs-bar">
+      <header ref={barRef} className="workspace-tabs-bar">
         <div className="tabs-left-cluster">
           {/* Project Explorer Trigger */}
           <button
@@ -837,6 +882,65 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Portable Project Bundle Export / Import Footer */}
+            <div
+              style={{
+                padding: "10px 14px",
+                borderTop: "1px solid var(--default-border-color, #e5e5e5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                background: "var(--color-surface-low)",
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleExportProject}
+                style={{
+                  flex: 1,
+                  height: 30,
+                  borderRadius: 6,
+                  border: "1px solid var(--default-border-color)",
+                  background: "var(--island-bg-color)",
+                  color: "var(--text-primary-color)",
+                  fontFamily: "var(--ui-font)",
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+                title="Tüm projeyi (çizimler, tasarımlar, görevler, TDD testleri ve ekip kadrosu) taşınabilir .synapdraw.json dosyası olarak indir"
+              >
+                📦 Projeyi İndir (.json)
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  flex: 1,
+                  height: 30,
+                  borderRadius: 6,
+                  border: "1px solid var(--default-border-color)",
+                  background: "var(--island-bg-color)",
+                  color: "var(--text-primary-color)",
+                  fontFamily: "var(--ui-font)",
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+                title="Başka bir bilgisayardan dışa aktarılan .synapdraw.json proje paketini yükle"
+              >
+                📂 Proje Yükle
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,.synapdraw.json"
+                style={{ display: "none" }}
+                onChange={handleImportProjectFile}
+              />
             </div>
           </aside>
         </div>

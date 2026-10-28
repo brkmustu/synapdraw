@@ -19,6 +19,8 @@ import {
   removeTeamMember,
   setActiveWorkspaceId,
   setSplitWorkspaceId,
+  requestArtboardFocus,
+  executeAgentOnTask,
   subscribeWorkspaces,
   type WorkspaceDocument,
   type ProjectTask,
@@ -220,6 +222,64 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                       ))}
                     </div>
                   )}
+
+                  {(task.linkedArtboards || []).length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 4,
+                        marginTop: 4,
+                      }}
+                    >
+                      {(task.linkedArtboards || []).map((la) => (
+                        <button
+                          key={`${la.docId}_${la.artboardId}`}
+                          type="button"
+                          className="artifact-chip"
+                          onClick={() =>
+                            requestArtboardFocus(
+                              la.docId,
+                              la.artboardId,
+                              activeDoc.id !== la.docId,
+                            )
+                          }
+                          title={`"${la.label}" Artboard'una odaklan`}
+                        >
+                          <span>🎨 {la.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      marginTop: 4,
+                      paddingTop: 4,
+                      borderTop: "1px dashed var(--default-border-color)",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="context-link-btn"
+                      onClick={() => executeAgentOnTask(task.id, "design")}
+                      title="UI/UX Tasarımcı Agent ile bu görev için bileşen tasarla"
+                    >
+                      🎨 UI Üret
+                    </button>
+                    <span style={{ opacity: 0.35 }}>·</span>
+                    <button
+                      type="button"
+                      className="context-link-btn"
+                      onClick={() => executeAgentOnTask(task.id, "tdd")}
+                      title="TDD & QA Agent ile bu görev için BDD test senaryoları üret"
+                    >
+                      🧪 TDD Üret
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

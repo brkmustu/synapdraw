@@ -118,12 +118,16 @@ Harici AI Agent'ların ve IDE'lerin projedeki tüm SDLC verileriyle canlı etkil
 
 ---
 
-## 4. Sıradaki Potansiyel Geliştirme Adımları (Next Steps)
+## 4. Son İterasyonda Tamamlanan İleri Seviye SDLC Özellikleri
 
-Başka bilgisayarda oturuma devam ederken odaklanılabilecek bir sonraki adımlar:
-1. **Eleman / Artboard Bazlı Derin Pinleme (Deep-Linking):**
-   - Şu anda görevler ve TDD testleri doküman (`WorkspaceDocument`) düzeyinde bağlanabiliyor; bir sonraki adımda çizim tuvalindeki belirli bir `Frame` ID'sine veya tasarım tuvalindeki belirli bir `Artboard` ID'sine tıklandığında kameranın doğrudan o koordinata zoom yapması (`scrollToContent` / `focusArtboard`).
-2. **AI Agent Görev Orkestrasyonu ("Agent ile Çalıştır" Aksiyonu):**
-   - Görev kartı üzerinde atanan kişi bir `ai_agent` olduğunda, kart üzerindeki **"🤖 Agent'ı Çalıştır"** butonuyla ilgili AI Agent'ın sistem promptu + görev bağlamını kullanarak doğrudan bağlı tuvale çizim/tasarım veya TDD senaryosu üretmesi.
-3. **Proje Dışa/İçe Aktarma (JSON Bundle Export/Import):**
-   - Tüm projenin (Analiz çizimleri + Mimari diyagramlar + Tasarım Artboard'ları + Görevler + TDD Senaryoları + Ekip Kadrosu) tek bir `.synapdraw.json` paketi olarak dışa ve içe aktarılabilmesi.
+1. **Eleman / Artboard Bazlı Derin Pinleme ve Otomatik Odaklama (`requestArtboardFocus` & `toggleTaskArtboardLink`):**
+   - [`DesignCanvas.tsx`](../excalidraw-app/design/DesignCanvas.tsx) üst araç çubuğuna, bir Artboard seçildiğinde aktifleşen **"🔗 Görev Bağlantısı"** menüsü eklendi. Seçili Artboard tek tıkla projedeki herhangi bir göreve (`ProjectTask.linkedArtboards`) bağlanabilir veya bağlantısı kaldırılabilir.
+   - [`TaskBoardSurface.tsx`](../excalidraw-app/sdlc/TaskBoardSurface.tsx) ve [`SDLCContextDrawer`](../excalidraw-app/sdlc/ContextAndTeamDrawers.tsx) içerisindeki görev kartlarında bağlı Artboard'lar (`🎨 Artboard Adı`) rozeti olarak listelenir; tıklandığında ilgili Tasarım Tuvali (tam ekran veya `Split-Peek` yan yana) açılır ve kamera otomatik olarak o Artboard'un koordinatlarına odaklanır (`fitZoom` + `panX/panY`).
+2. **AI Agent Görev Orkestrasyonu (`executeAgentOnTask` — "🤖 Agent ile Çalıştır"):**
+   - Görev kartları, Görev Detay Çekmecesi ve Sağ Bağlam Çekmecesi içerisine **AI Agent Görev Orkestrasyonu** aksiyonları eklendi:
+     - **🎨 UI Tasarla (`design`):** Görevin başlığı, açıklaması ve kabul kriterlerini temel alarak bağlı Tasarım Tuvalinde doğal boyutlu (`Hug Contents`) pixel-perfect bir HTML/CSS Artboard üretir, Artboard'u göreve bağlar, göreve AI Agent koordinasyon yorumu yazar ve ekranı otomatik olarak `Split-Peek` (Yan Yana) modunda açıp yeni Artboard'a odaklanır.
+     - **🧪 TDD Üret (`tdd`):** Görevin kabul kriterlerinden BDD (`Given / When / Then`) kabul testleri ve uç durum (`edge-case` / `unit`) test senaryoları üretir, görevi `TDD & Doğrulama` sütununa taşır ve QA Agent raporu yazar.
+     - **📋 Kriter Analizi (`analysis`):** Eksik kabul kriterlerini yapılandırır, analiz/mimari tuvali bağlantısını kurar ve Analist Agent notu düşer.
+3. **Taşınabilir Proje Paketi Dışa / İçe Aktarma (`.synapdraw.json` Bundle Export / Import):**
+   - Farklı bilgisayarlar arasında kesintisiz geçiş için **Proje Gezgini (Project Explorer Drawer)** alt barına **"📦 Projeyi İndir (.json)"** ve **"📂 Proje Yükle"** butonları eklendi ([`exportProjectBundle`](../excalidraw-app/workspace/workspaceStore.ts), [`importProjectBundle`](../excalidraw-app/workspace/workspaceStore.ts)).
+   - Tek bir `.synapdraw.json` dosyası; proje üst verisini, tüm açık/kapalı çalışma yüzeylerini, Excalidraw çizim sahnelerini, DesignCanvas artboard'larını, Kanban görevlerini, TDD test senaryolarını ve İnsan + AI Agent ekip kadrosunu eksiksiz taşır.

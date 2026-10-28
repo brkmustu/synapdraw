@@ -19,6 +19,8 @@ import {
   getWorkspaces,
   setActiveWorkspaceId,
   setSplitWorkspaceId,
+  requestArtboardFocus,
+  executeAgentOnTask,
   getCategoryLabel,
   subscribeWorkspaces,
   type ProjectTask,
@@ -349,6 +351,8 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
 
                           {/* Linked Artifacts Chips */}
                           {(linkedDocs.length > 0 ||
+                            (task.linkedArtboards &&
+                              task.linkedArtboards.length > 0) ||
                             taskScenarios.length > 0) && (
                             <div
                               className="task-links-row"
@@ -368,6 +372,27 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                                     {getDocumentIcon(doc)}
                                   </span>
                                   <span className="chip-text">{doc.name}</span>
+                                </button>
+                              ))}
+
+                              {(task.linkedArtboards || []).map((la) => (
+                                <button
+                                  key={`${la.docId}_${la.artboardId}`}
+                                  type="button"
+                                  className="artifact-chip"
+                                  onClick={() =>
+                                    requestArtboardFocus(
+                                      la.docId,
+                                      la.artboardId,
+                                      true,
+                                    )
+                                  }
+                                  title={`"${la.label}" Artboard'unu yan yana (Split-Peek) aç ve odaklan`}
+                                >
+                                  <span className="chip-icon">🎨</span>
+                                  <span className="chip-text">
+                                    {la.label}
+                                  </span>
                                 </button>
                               ))}
 
@@ -419,11 +444,44 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                               </span>
                             )}
 
-                            {task.acceptanceCriteria.length > 0 && (
-                              <span className="criteria-progress">
-                                ✓ {doneCriteria}/{task.acceptanceCriteria.length}
-                              </span>
-                            )}
+                            <div
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {assignee?.kind === "ai_agent" && (
+                                <button
+                                  type="button"
+                                  className="artifact-chip"
+                                  style={{
+                                    background:
+                                      "var(--color-surface-primary-container)",
+                                    color:
+                                      "var(--color-on-primary-container)",
+                                    fontWeight: 700,
+                                  }}
+                                  onClick={() => {
+                                    const res = executeAgentOnTask(
+                                      task.id,
+                                      "auto",
+                                    );
+                                    showToast(`🤖 ${res.summary}`);
+                                  }}
+                                  title={`${assignee.name} ile bu görevi çalıştır`}
+                                >
+                                  <span>🤖 Çalıştır</span>
+                                </button>
+                              )}
+                              {task.acceptanceCriteria.length > 0 && (
+                                <span className="criteria-progress">
+                                  ✓ {doneCriteria}/
+                                  {task.acceptanceCriteria.length}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -755,19 +813,140 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                 </div>
               </div>
 
-              {/* AI Agent Execution Shortcut */}
-              {onOpenAIIntegrations && (
+              {/* Linked Design Artboards */}
+              {(selectedTask.linkedArtboards || []).length > 0 && (
                 <div className="detail-section">
-                  <button
-                    type="button"
-                    className="ai-orchestrate-btn"
-                    onClick={onOpenAIIntegrations}
-                  >
-                    {brainIcon}
-                    <span>AI Studio / Agent ile Bu Görevi Çalıştır</span>
-                  </button>
+                  <label className="detail-label">
+                    BAĞLI TASARIM ARTBOARD BİLEŞENLERİ (
+                    {(selectedTask.linkedArtboards || []).length})
+                  </label>
+                  <div className="linked-docs-list">
+                    {(selectedTask.linkedArtboards || []).map((la) => (
+                      <div
+                        key={`${la.docId}_${la.artboardId}`}
+                        className="linked-doc-row linked-doc-row--active"
+                      >
+                        <div className="doc-check-label">
+                          <span className="doc-icon">🎨</span>
+                          <span className="doc-name">{la.label}</span>
+                        </div>
+                        <div className="doc-jump-actions">
+                          <button
+                            type="button"
+                            className="jump-btn"
+                            onClick={() =>
+                              requestArtboardFocus(
+                                la.docId,
+                                la.artboardId,
+                                false,
+                              )
+                            }
+                            title="Tasarım Tuvaline git ve bu Artboard'a odaklan"
+                          >
+                            Odaklan
+                          </button>
+                          <button
+                            type="button"
+                            className="jump-btn"
+                            onClick={() =>
+                              requestArtboardFocus(
+                                la.docId,
+                                la.artboardId,
+                                true,
+                              )
+                            }
+                            title="Yan Yana (Split-Peek) aç ve bu Artboard'a odaklan"
+                          >
+                            {SplitViewIcon}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
+
+              {/* AI Agent Orchestration Suite */}
+              <div className="detail-section">
+                <label className="detail-label">
+                  🤖 AI AGENT GÖREV ORKESTRASYONU
+                </label>
+                <button
+                  type="button"
+                  className="ai-orchestrate-btn"
+                  onClick={() => {
+                    const res = executeAgentOnTask(selectedTask.id, "auto");
+                    showToast(`🤖 ${res.summary}`);
+                  }}
+                >
+                  {brainIcon}
+                  <span>
+                    Atanan AI Agent ile Görevi Çalıştır (Otomatik Evre)
+                  </span>
+                </button>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: 6,
+                    marginTop: 6,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="detail-mini-btn"
+                    style={{ justifyContent: "center", padding: "6px 8px" }}
+                    onClick={() => {
+                      const res = executeAgentOnTask(selectedTask.id, "design");
+                      showToast(`🎨 ${res.summary}`);
+                    }}
+                    title="UI/UX Tasarımcı Agent ile bu görev için pixel-perfect bileşen tasarla ve yan yana aç"
+                  >
+                    <span>🎨 UI Tasarla</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="detail-mini-btn"
+                    style={{ justifyContent: "center", padding: "6px 8px" }}
+                    onClick={() => {
+                      const res = executeAgentOnTask(selectedTask.id, "tdd");
+                      showToast(`🧪 ${res.summary}`);
+                    }}
+                    title="TDD & QA Agent ile kabul ve uç durum (edge-case) test senaryoları üret"
+                  >
+                    <span>🧪 TDD Üret</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="detail-mini-btn"
+                    style={{ justifyContent: "center", padding: "6px 8px" }}
+                    onClick={() => {
+                      const res = executeAgentOnTask(
+                        selectedTask.id,
+                        "analysis",
+                      );
+                      showToast(`📋 ${res.summary}`);
+                    }}
+                    title="Analist & Mimari Agent ile kabul kriterlerini yapılandır"
+                  >
+                    <span>📋 Kriter Analizi</span>
+                  </button>
+                </div>
+                {onOpenAIIntegrations && (
+                  <button
+                    type="button"
+                    className="detail-mini-btn"
+                    style={{
+                      width: "100%",
+                      justifyContent: "center",
+                      marginTop: 4,
+                    }}
+                    onClick={onOpenAIIntegrations}
+                  >
+                    <span>⚙️ Harici LLM / Canlı MCP Köprüsü Ayarları</span>
+                  </button>
+                )}
+              </div>
 
               {/* Team & Agent Coordination Comments */}
               <div className="detail-section">
