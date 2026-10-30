@@ -169,7 +169,20 @@ export function buildSeededTasks(
         ...sketchDocs.slice(0, 1).map((d) => d.id),
         ...designDocs.map((d) => d.id),
       ],
-      linkedArtboards: [],
+      linkedArtboards: designDocs[0]
+        ? [
+            {
+              docId: designDocs[0].id,
+              artboardId: "ab_default_order_summary",
+              label: "Sipariş Özeti & Plan Seçimi",
+            },
+            {
+              docId: designDocs[0].id,
+              artboardId: "ab_default_mobile_checkout",
+              label: "Mobil Sepet & Ödeme Görünümü",
+            },
+          ]
+        : [],
       comments: [
         {
           id: "cmt_2",
@@ -209,7 +222,15 @@ export function buildSeededTasks(
         },
       ],
       linkedDocIds: designDocs.map((d) => d.id),
-      linkedArtboards: [],
+      linkedArtboards: designDocs[0]
+        ? [
+            {
+              docId: designDocs[0].id,
+              artboardId: "ab_default_coupon_card",
+              label: "Kupon & İndirim Doğrulama Kartı",
+            },
+          ]
+        : [],
       comments: [],
       createdAt: now - 3600_000,
       updatedAt: now - 900_000,

@@ -7,7 +7,12 @@ import {
   searchIcon,
   checkIcon,
   frameToolIcon,
+  FreedrawIcon,
+  PinIcon,
+  settingsIcon,
+  usersIcon,
 } from "@excalidraw/excalidraw/components/icons";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import {
   getProjectTasks,
   createProjectTask,
@@ -22,6 +27,7 @@ import {
   setSplitWorkspaceId,
   requestArtboardFocus,
   requestSketchFocus,
+  toggleTaskArtboardLink,
   executeAgentOnTask,
   runLiveAgentPipeline,
   getCategoryLabel,
@@ -32,7 +38,13 @@ import {
   type TDDScenario,
   type TeamMember,
   type WorkspaceDocument,
+  type LinkedArtboardRef,
 } from "../workspace/workspaceStore";
+import {
+  loadDesignDocument,
+  createArtboardInDesignDoc,
+  type Artboard,
+} from "../design/model";
 import {
   getDocumentIcon,
   SplitViewIcon,
@@ -48,25 +60,24 @@ interface TaskBoardSurfaceProps {
   compact?: boolean;
 }
 
-const COLUMNS: { status: TaskStatus; label: string }[] = [
-  { status: "backlog", label: "Backlog & Analiz" },
-  { status: "design", label: "Tasarım & Mimari" },
-  { status: "in_progress", label: "Geliştirmede" },
-  { status: "testing", label: "TDD & Doğrulama" },
-  { status: "done", label: "Tamamlandı" },
-];
-
-const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  low: "Düşük",
-  medium: "Orta",
-  high: "Yüksek",
-  critical: "Kritik",
-};
-
 export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
   onOpenAIIntegrations,
   compact = false,
 }) => {
+  const { t } = useI18n();
+  const COLUMNS: { status: TaskStatus; label: string }[] = [
+    { status: "backlog", label: t("sdlc.tasks.colBacklog") },
+    { status: "design", label: t("sdlc.tasks.colTodo") },
+    { status: "in_progress", label: t("sdlc.tasks.colInProgress") },
+    { status: "testing", label: t("sdlc.tasks.colReview") },
+    { status: "done", label: t("sdlc.tasks.colDone") },
+  ];
+  const PRIORITY_LABELS: Record<TaskPriority, string> = {
+    low: t("sdlc.tasks.priorityLow"),
+    medium: t("sdlc.tasks.priorityMedium"),
+    high: t("sdlc.tasks.priorityHigh"),
+    critical: t("sdlc.tasks.priorityCritical"),
+  };
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [scenarios, setScenarios] = useState<TDDScenario[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -87,16 +98,27 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
   const [newAssigneeId, setNewAssigneeId] = useState<string>("");
   const [newCriteriaText, setNewCriteriaText] = useState("");
   const [newLinkedDocs, setNewLinkedDocs] = useState<string[]>([]);
+  const [newLinkedArtboards, setNewLinkedArtboards] = useState<
+    LinkedArtboardRef[]
+  >([]);
 
   // Detail panel state
+  const [inspectorTab, setInspectorTab] = useState<
+    "overview" | "traceability" | "agent" | "activity"
+  >("overview");
+  const [designArtboardsByDoc, setDesignArtboardsByDoc] = useState<
+    Record<string, Artboard[]>
+  >({});
   const [newCriterionInput, setNewCriterionInput] = useState("");
   const [commentInput, setCommentInput] = useState("");
   const [commentAuthorId, setCommentAuthorId] = useState("");
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    const ownerWin = rootRef.current?.ownerDocument?.defaultView || undefined;
     const sync = () => {
       const tList = getProjectTasks();
       const sList = getProjectTDDScenarios();
@@ -106,12 +128,35 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
       setScenarios(sList);
       setTeam(mList);
       setDocs(dList);
+
+      const abMap: Record<string, Artboard[]> = {};
+      for (const docItem of dList) {
+        if (docItem.canvasType === "design") {
+          const loaded = loadDesignDocument(
+            docItem.id,
+            docItem.name,
+            ownerWin,
+          );
+          abMap[docItem.id] = loaded.artboards;
+        }
+      }
+      setDesignArtboardsByDoc(abMap);
+
       if (!commentAuthorId && mList.length > 0) {
         setCommentAuthorId(mList[0].id);
       }
     };
     sync();
-    return subscribeWorkspaces(sync);
+    const unsub = subscribeWorkspaces(sync);
+    if (ownerWin) {
+      ownerWin.addEventListener("synapdraw:design-doc-updated", sync);
+    }
+    return () => {
+      unsub();
+      if (ownerWin) {
+        ownerWin.removeEventListener("synapdraw:design-doc-updated", sync);
+      }
+    };
   }, [commentAuthorId]);
 
   const showToast = (msg: string) => {
@@ -151,6 +196,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
     setNewAssigneeId(team[0]?.id || "");
     setNewCriteriaText("");
     setNewLinkedDocs([]);
+    setNewLinkedArtboards([]);
     setIsCreateOpen(true);
   };
 
@@ -170,6 +216,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
       assigneeId: newAssigneeId || null,
       acceptanceCriteria: criteria,
       linkedDocIds: newLinkedDocs,
+      linkedArtboards: newLinkedArtboards,
     });
     setIsCreateOpen(false);
     setSelectedTaskId(created.id);
@@ -227,8 +274,8 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
   };
 
   return (
-    <div className="sdlc-surface-root">
-      {/* Top Excalidraw Island Toolbar */}
+    <div ref={rootRef} className="sdlc-surface-root">
+      {/* Top Island Toolbar */}
       <div className="sdlc-top-island Island" role="toolbar">
         <div className="sdlc-segmented">
           <button
@@ -236,14 +283,14 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
             className={`seg-btn ${viewMode === "kanban" ? "seg-btn--active" : ""}`}
             onClick={() => setViewMode("kanban")}
           >
-            Kanban Panosu
+            {t("sdlc.tasks.kanban")}
           </button>
           <button
             type="button"
             className={`seg-btn ${viewMode === "list" ? "seg-btn--active" : ""}`}
             onClick={() => setViewMode("list")}
           >
-            Liste Görünümü
+            {t("sdlc.tasks.list")}
           </button>
         </div>
 
@@ -253,14 +300,16 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
           className="sdlc-toolbar-select"
           value={assigneeFilter}
           onChange={(e) => setAssigneeFilter(e.target.value)}
-          title="Sorumlu / Agent Filtresi"
+          title={t("sdlc.tasks.allAssignees")}
         >
-          <option value="all">Tüm Ekip ({tasks.length})</option>
-          <option value="humans">👤 İnsan Ekip Üyeleri</option>
-          <option value="agents">🤖 AI Agent Kadrosu</option>
+          <option value="all">
+            {t("sdlc.tasks.allAssignees")} ({tasks.length})
+          </option>
+          <option value="humans">{t("sdlc.teamModal.humanMemberBadge")}</option>
+          <option value="agents">{t("sdlc.teamModal.aiSubagentBadge")}</option>
           {team.map((m) => (
             <option key={m.id} value={m.id}>
-              {m.kind === "ai_agent" ? "🤖 " : "👤 "}
+              {m.kind === "ai_agent" ? "[AI] " : ""}
               {m.name}
             </option>
           ))}
@@ -271,7 +320,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
             <span className="search-icon">{searchIcon}</span>
             <input
               type="text"
-              placeholder="Görevlerde ara..."
+              placeholder={t("sdlc.tasks.searchPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -286,7 +335,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
           onClick={() => handleOpenCreate("backlog")}
         >
           {PlusIcon}
-          <span>Yeni Görev</span>
+          <span>{t("sdlc.tasks.newTaskBtn")}</span>
         </button>
       </div>
 
@@ -332,9 +381,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                     const targetTask = tasks.find((t) => t.id === taskId);
                     if (targetTask && targetTask.status !== col.status) {
                       updateProjectTask(taskId, { status: col.status });
-                      showToast(
-                        `${targetTask.key} → "${col.label}" sütununa taşındı.`,
-                      );
+                      showToast(`${targetTask.key} → "${col.label}"`);
                     }
                   }}
                 >
@@ -345,7 +392,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                       type="button"
                       className="col-add-btn"
                       onClick={() => handleOpenCreate(col.status)}
-                      title={`${col.label} sütununa görev ekle`}
+                      title={t("sdlc.tasks.addTaskInCol")}
                     >
                       {PlusIcon}
                     </button>
@@ -414,36 +461,48 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                               className="task-links-row"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {linkedDocs.map((doc) => (
-                                <button
-                                  key={doc.id}
-                                  type="button"
-                                  className="artifact-chip"
-                                  onClick={() => setActiveWorkspaceId(doc.id)}
-                                  title={`${doc.name} (${getCategoryLabel(
-                                    doc.category,
-                                  )}) yüzeyine git`}
-                                >
-                                  <span className="chip-icon">
-                                    {getDocumentIcon(doc)}
-                                  </span>
-                                  <span className="chip-text">{doc.name}</span>
-                                </button>
-                              ))}
+                              {linkedDocs
+                                .filter(
+                                  (doc) =>
+                                    doc.canvasType !== "design" ||
+                                    !(task.linkedArtboards || []).some(
+                                      (la) => la.docId === doc.id,
+                                    ),
+                                )
+                                .map((doc) => (
+                                  <button
+                                    key={doc.id}
+                                    type="button"
+                                    className="artifact-chip"
+                                    onClick={(e) =>
+                                      e.shiftKey
+                                        ? setSplitWorkspaceId(doc.id)
+                                        : setActiveWorkspaceId(doc.id)
+                                    }
+                                    title={t("sdlc.tasks.openLinkedSurfaceTitle", {
+                                      title: doc.name,
+                                    })}
+                                  >
+                                    <span className="chip-icon">
+                                      {getDocumentIcon(doc)}
+                                    </span>
+                                    <span className="chip-text">{doc.name}</span>
+                                  </button>
+                                ))}
 
                               {(task.linkedSketchRefs || []).map((sr, idx) => (
                                 <button
                                   key={`${sr.docId}_${idx}`}
                                   type="button"
                                   className="artifact-chip"
-                                  onClick={() =>
+                                  onClick={(e) =>
                                     requestSketchFocus(
                                       sr.docId,
                                       sr.elementIds,
-                                      true,
+                                      e.shiftKey,
                                     )
                                   }
-                                  title={`"${sr.label}" çizim akışını yan yana (Split-Peek) aç ve odaklan`}
+                                  title={t("sdlc.tasks.focusElementOnCanvas")}
                                 >
                                   <span className="chip-icon">
                                     {ArchitectureIcon}
@@ -456,15 +515,17 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                                 <button
                                   key={`${la.docId}_${la.artboardId}`}
                                   type="button"
-                                  className="artifact-chip"
-                                  onClick={() =>
+                                  className="artifact-chip artifact-chip--artboard"
+                                  onClick={(e) =>
                                     requestArtboardFocus(
                                       la.docId,
                                       la.artboardId,
-                                      true,
+                                      e.shiftKey,
                                     )
                                   }
-                                  title={`"${la.label}" Artboard'unu yan yana (Split-Peek) aç ve odaklan`}
+                                  title={t("sdlc.tdd.openLinkedArtboardTitle", {
+                                    name: la.label,
+                                  })}
                                 >
                                   <span className="chip-icon">
                                     {frameToolIcon}
@@ -489,7 +550,9 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                                     );
                                     if (tddDoc) setActiveWorkspaceId(tddDoc.id);
                                   }}
-                                  title="Bağlı TDD Test Senaryolarını görüntüle"
+                                  title={t("sdlc.tasks.tddScenariosLabel", {
+                                    count: taskScenarios.length,
+                                  })}
                                 >
                                   <span className="chip-icon">{TDDTestIcon}</span>
                                   <span>
@@ -511,7 +574,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                                     backgroundColor: assignee.avatarColor,
                                   }}
                                 >
-                                  {assignee.kind === "ai_agent" ? "AI" : "Ü"}
+                                  {assignee.kind === "ai_agent" ? "AI" : "U"}
                                 </span>
                                 <span className="assignee-name">
                                   {assignee.name}
@@ -519,7 +582,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                               </span>
                             ) : (
                               <span className="assignee-unassigned">
-                                Atanmadı
+                                {t("sdlc.common.unassigned")}
                               </span>
                             )}
 
@@ -547,18 +610,36 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                                       task.id,
                                       "auto",
                                     );
-                                    showToast(`🤖 ${res.summary}`);
+                                    showToast(res.summary);
                                   }}
-                                  title={`${assignee.name} ile bu görevi çalıştır`}
+                                  title={assignee.name}
                                 >
                                   <span className="chip-icon">{brainIcon}</span>
-                                  <span>Çalıştır</span>
+                                  <span>{t("sdlc.common.run")}</span>
                                 </button>
                               )}
                               {task.acceptanceCriteria.length > 0 && (
-                                <span className="criteria-progress">
-                                  ✓ {doneCriteria}/
-                                  {task.acceptanceCriteria.length}
+                                <span
+                                  className="criteria-progress"
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 3,
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      width: 11,
+                                      height: 11,
+                                    }}
+                                  >
+                                    {checkIcon}
+                                  </span>
+                                  <span>
+                                    {doneCriteria}/
+                                    {task.acceptanceCriteria.length}
+                                  </span>
                                 </span>
                               )}
                             </div>
@@ -576,13 +657,13 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
             <table className="sdlc-table">
               <thead>
                 <tr>
-                  <th>Kod</th>
-                  <th>Görev Başlığı</th>
-                  <th>Durum</th>
-                  <th>Öncelik</th>
-                  <th>Sorumlu (İnsan / Agent)</th>
-                  <th>Bağlı Yüzeyler</th>
-                  <th>TDD Durumu</th>
+                  <th>{t("sdlc.tasks.thKey")}</th>
+                  <th>{t("sdlc.tasks.thTitle")}</th>
+                  <th>{t("sdlc.tasks.thStatus")}</th>
+                  <th>{t("sdlc.tasks.thPriority")}</th>
+                  <th>{t("sdlc.tasks.thAssignee")}</th>
+                  <th>{t("sdlc.tasks.thLinks")}</th>
+                  <th>TDD</th>
                 </tr>
               </thead>
               <tbody>
@@ -634,25 +715,72 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                         </span>
                       </td>
                       <td>
-                        {assignee
-                          ? `${assignee.kind === "ai_agent" ? "🤖" : "👤"} ${
-                              assignee.name
-                            }`
-                          : "—"}
+                        {assignee ? (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                width: 13,
+                                height: 13,
+                              }}
+                            >
+                              {assignee.kind === "ai_agent"
+                                ? brainIcon
+                                : usersIcon}
+                            </span>
+                            <span>{assignee.name}</span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td>
                         <div
                           className="table-chips"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {linkedDocs.map((doc) => (
+                          {linkedDocs
+                            .filter(
+                              (doc) =>
+                                doc.canvasType !== "design" ||
+                                !(task.linkedArtboards || []).some(
+                                  (la) => la.docId === doc.id,
+                                ),
+                            )
+                            .map((doc) => (
+                              <button
+                                key={doc.id}
+                                type="button"
+                                className="artifact-chip"
+                                onClick={() => setActiveWorkspaceId(doc.id)}
+                              >
+                                <span className="chip-icon">
+                                  {getDocumentIcon(doc)}
+                                </span>
+                                <span className="chip-text">{doc.name}</span>
+                              </button>
+                            ))}
+                          {(task.linkedArtboards || []).map((la) => (
                             <button
-                              key={doc.id}
+                              key={`${la.docId}_${la.artboardId}`}
                               type="button"
-                              className="artifact-chip"
-                              onClick={() => setActiveWorkspaceId(doc.id)}
+                              className="artifact-chip artifact-chip--artboard"
+                              onClick={() =>
+                                requestArtboardFocus(
+                                  la.docId,
+                                  la.artboardId,
+                                  false,
+                                )
+                              }
                             >
-                              {doc.name}
+                              <span className="chip-icon">{frameToolIcon}</span>
+                              <span className="chip-text">{la.label}</span>
                             </button>
                           ))}
                         </div>
@@ -671,501 +799,865 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
         )}
 
         {/* Right Task Detail & Cross-Artifact Coordination Drawer */}
-        {selectedTask && (
-          <aside className="sdlc-detail-drawer Island">
-            <div className="detail-drawer-header">
-              <div className="header-left">
-                <span className="task-key">{selectedTask.key}</span>
-                <select
-                  className="detail-status-select"
-                  value={selectedTask.status}
-                  onChange={(e) =>
-                    updateProjectTask(selectedTask.id, {
-                      status: e.target.value as TaskStatus,
-                    })
-                  }
-                >
-                  {COLUMNS.map((c) => (
-                    <option key={c.status} value={c.status}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="header-actions">
-                <button
-                  type="button"
-                  className="detail-icon-btn detail-icon-btn--danger"
-                  title="Görevi Sil"
-                  onClick={() => {
-                    deleteProjectTask(selectedTask.id);
-                    setSelectedTaskId(null);
-                  }}
-                >
-                  {TrashIcon}
-                </button>
-                <button
-                  type="button"
-                  className="detail-icon-btn"
-                  title="Kapat"
-                  onClick={() => setSelectedTaskId(null)}
-                >
-                  {CloseIcon}
-                </button>
-              </div>
-            </div>
+        {selectedTask && (() => {
+          const selectedTaskScenarios = scenarios.filter(
+            (s) => s.linkedTaskId === selectedTask.id,
+          );
+          const sketchDocs = docs.filter((d) => d.canvasType === "sketch");
+          const designDocs = docs.filter((d) => d.canvasType === "design");
+          const tddDoc = docs.find((d) => d.canvasType === "tdd");
+          const linkedSketchCount = sketchDocs.filter((d) =>
+            selectedTask.linkedDocIds.includes(d.id),
+          ).length + (selectedTask.linkedSketchRefs || []).length;
+          const linkedArtboardCount = (selectedTask.linkedArtboards || []).length;
+          const totalTraceabilityCount =
+            linkedSketchCount + linkedArtboardCount + selectedTaskScenarios.length;
+          const doneCritCount = selectedTask.acceptanceCriteria.filter(
+            (c) => c.completed,
+          ).length;
 
-            <div className="detail-drawer-body">
-              <div className="detail-section">
-                <label className="detail-label">GÖREV BAŞLIĞI & AÇIKLAMA</label>
-                <input
-                  type="text"
-                  className="detail-input"
-                  value={selectedTask.title}
-                  onChange={(e) =>
-                    updateProjectTask(selectedTask.id, { title: e.target.value })
-                  }
-                />
-                <textarea
-                  className="detail-textarea"
-                  rows={3}
-                  placeholder="Görev kapsamı ve teknik notlar..."
-                  value={selectedTask.description}
-                  onChange={(e) =>
-                    updateProjectTask(selectedTask.id, {
-                      description: e.target.value,
-                    })
-                  }
-                />
-              </div>
-
-              <div className="detail-grid-2">
-                <div className="detail-section">
-                  <label className="detail-label">SORUMLU (İNSAN / AI AGENT)</label>
+          return (
+            <aside className="sdlc-detail-drawer Island">
+              <div className="detail-drawer-header">
+                <div className="header-left">
+                  <span className="task-key">{selectedTask.key}</span>
                   <select
-                    className="detail-select"
-                    value={selectedTask.assigneeId || ""}
+                    className="detail-status-select"
+                    value={selectedTask.status}
                     onChange={(e) =>
                       updateProjectTask(selectedTask.id, {
-                        assigneeId: e.target.value || null,
+                        status: e.target.value as TaskStatus,
                       })
                     }
                   >
-                    <option value="">Atanmadı</option>
-                    {team.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.kind === "ai_agent" ? "🤖 " : "👤 "}
-                        {m.name} ({m.roleLabel})
+                    {COLUMNS.map((c) => (
+                      <option key={c.status} value={c.status}>
+                        {c.label}
                       </option>
                     ))}
                   </select>
                 </div>
-
-                <div className="detail-section">
-                  <label className="detail-label">ÖNCELİK</label>
-                  <select
-                    className="detail-select"
-                    value={selectedTask.priority}
-                    onChange={(e) =>
-                      updateProjectTask(selectedTask.id, {
-                        priority: e.target.value as TaskPriority,
-                      })
-                    }
-                  >
-                    <option value="low">Düşük</option>
-                    <option value="medium">Orta</option>
-                    <option value="high">Yüksek</option>
-                    <option value="critical">Kritik</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Acceptance Criteria */}
-              <div className="detail-section">
-                <div className="detail-section-header">
-                  <label className="detail-label">
-                    KABUL KRİTERLERİ ({selectedTask.acceptanceCriteria.filter((c) => c.completed).length}/
-                    {selectedTask.acceptanceCriteria.length})
-                  </label>
+                <div className="header-actions">
                   <button
                     type="button"
-                    className="detail-mini-btn"
-                    onClick={() => handleGenerateTDD(selectedTask)}
-                    title="Kabul kriterlerinden otomatik TDD test senaryoları oluştur"
+                    className="detail-icon-btn detail-icon-btn--danger"
+                    title={t("sdlc.tasks.deleteTaskBtn")}
+                    onClick={() => {
+                      deleteProjectTask(selectedTask.id);
+                      setSelectedTaskId(null);
+                    }}
                   >
-                    {TDDTestIcon}
-                    <span>TDD Senaryoları Üret</span>
+                    {TrashIcon}
                   </button>
-                </div>
-
-                <div className="criteria-list">
-                  {selectedTask.acceptanceCriteria.map((crit) => (
-                    <label key={crit.id} className="criterion-item">
-                      <input
-                        type="checkbox"
-                        checked={crit.completed}
-                        onChange={() =>
-                          handleToggleCriterion(selectedTask, crit.id)
-                        }
-                      />
-                      <span
-                        className={crit.completed ? "crit-done" : ""}
-                      >
-                        {crit.text}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-
-                <form
-                  className="detail-inline-form"
-                  onSubmit={handleAddCriterion}
-                >
-                  <input
-                    type="text"
-                    className="detail-input"
-                    placeholder="Yeni kabul kriteri ekle..."
-                    value={newCriterionInput}
-                    onChange={(e) => setNewCriterionInput(e.target.value)}
-                  />
-                  <button type="submit" className="detail-add-btn">
-                    Ekle
+                  <button
+                    type="button"
+                    className="detail-icon-btn"
+                    title={t("sdlc.common.close")}
+                    onClick={() => setSelectedTaskId(null)}
+                  >
+                    {CloseIcon}
                   </button>
-                </form>
-              </div>
-
-              {/* Cross-Linked Canvases (Analysis, Architecture, UI Design) */}
-              <div className="detail-section">
-                <label className="detail-label">
-                  BAĞLI ANALİZ, MİMARİ VE TASARIM YÜZEYLERİ
-                </label>
-                <div className="linked-docs-list">
-                  {docs
-                    .filter((d) => d.canvasType === "sketch" || d.canvasType === "design")
-                    .map((doc) => {
-                      const isLinked = selectedTask.linkedDocIds.includes(doc.id);
-                      return (
-                        <div
-                          key={doc.id}
-                          className={`linked-doc-row ${
-                            isLinked ? "linked-doc-row--active" : ""
-                          }`}
-                        >
-                          <label className="doc-check-label">
-                            <input
-                              type="checkbox"
-                              checked={isLinked}
-                              onChange={() =>
-                                handleToggleDocLink(selectedTask, doc.id)
-                              }
-                            />
-                            <span className="doc-icon">
-                              {getDocumentIcon(doc)}
-                            </span>
-                            <span className="doc-name">{doc.name}</span>
-                            <span className="doc-cat">
-                              {getCategoryLabel(doc.category)}
-                            </span>
-                          </label>
-                          {isLinked && (
-                            <div className="doc-jump-actions">
-                              <button
-                                type="button"
-                                className="jump-btn"
-                                onClick={() => setActiveWorkspaceId(doc.id)}
-                                title="Bu yüzeye git"
-                              >
-                                Aç
-                              </button>
-                              <button
-                                type="button"
-                                className="jump-btn"
-                                onClick={() => setSplitWorkspaceId(doc.id)}
-                                title="Ekranı bölerek yan yana aç"
-                              >
-                                {SplitViewIcon}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
                 </div>
               </div>
 
-              {/* Linked Sketch Diagrams */}
-              {(selectedTask.linkedSketchRefs || []).length > 0 && (
-                <div className="detail-section">
-                  <label className="detail-label">
-                    PİNLENMİŞ ÇİZİM & MİMARİ AKIŞLAR (
-                    {(selectedTask.linkedSketchRefs || []).length})
-                  </label>
-                  <div className="linked-docs-list">
-                    {(selectedTask.linkedSketchRefs || []).map((sr, idx) => (
-                      <div
-                        key={`${sr.docId}_${idx}`}
-                        className="linked-doc-row linked-doc-row--active"
-                      >
-                        <div className="doc-check-label">
-                          <span className="doc-icon">📐</span>
-                          <span className="doc-name">{sr.label}</span>
-                        </div>
-                        <div className="doc-jump-actions">
-                          <button
-                            type="button"
-                            className="jump-btn"
-                            onClick={() =>
-                              requestSketchFocus(
-                                sr.docId,
-                                sr.elementIds,
-                                false,
-                              )
-                            }
-                            title="Çizim Tuvaline git ve bu akışa zoom yap"
-                          >
-                            Odaklan
-                          </button>
-                          <button
-                            type="button"
-                            className="jump-btn"
-                            onClick={() =>
-                              requestSketchFocus(
-                                sr.docId,
-                                sr.elementIds,
-                                true,
-                              )
-                            }
-                            title="Yan Yana (Split-Peek) aç ve bu akışa zoom yap"
-                          >
-                            {SplitViewIcon}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Linked Design Artboards */}
-              {(selectedTask.linkedArtboards || []).length > 0 && (
-                <div className="detail-section">
-                  <label className="detail-label">
-                    BAĞLI TASARIM ARTBOARD BİLEŞENLERİ (
-                    {(selectedTask.linkedArtboards || []).length})
-                  </label>
-                  <div className="linked-docs-list">
-                    {(selectedTask.linkedArtboards || []).map((la) => (
-                      <div
-                        key={`${la.docId}_${la.artboardId}`}
-                        className="linked-doc-row linked-doc-row--active"
-                      >
-                        <div className="doc-check-label">
-                          <span className="doc-icon">🎨</span>
-                          <span className="doc-name">{la.label}</span>
-                        </div>
-                        <div className="doc-jump-actions">
-                          <button
-                            type="button"
-                            className="jump-btn"
-                            onClick={() =>
-                              requestArtboardFocus(
-                                la.docId,
-                                la.artboardId,
-                                false,
-                              )
-                            }
-                            title="Tasarım Tuvaline git ve bu Artboard'a odaklan"
-                          >
-                            Odaklan
-                          </button>
-                          <button
-                            type="button"
-                            className="jump-btn"
-                            onClick={() =>
-                              requestArtboardFocus(
-                                la.docId,
-                                la.artboardId,
-                                true,
-                              )
-                            }
-                            title="Yan Yana (Split-Peek) aç ve bu Artboard'a odaklan"
-                          >
-                            {SplitViewIcon}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* AI Agent Orchestration Suite */}
-              <div className="detail-section">
-                <label className="detail-label">
-                  🤖 AI AGENT GÖREV ORKESTRASYONU
-                </label>
+              {/* Clean Segmented Inspector Tabs */}
+              <div className="detail-drawer-tabs" role="tablist">
                 <button
                   type="button"
-                  className="ai-orchestrate-btn"
-                  onClick={async () => {
-                    const res = await runLiveAgentPipeline(
-                      selectedTask.id,
-                      "auto",
-                    );
-                    showToast(`🤖 ${res.summary}`);
-                  }}
+                  role="tab"
+                  aria-selected={inspectorTab === "overview"}
+                  className={`detail-tab-btn ${
+                    inspectorTab === "overview" ? "detail-tab-btn--active" : ""
+                  }`}
+                  onClick={() => setInspectorTab("overview")}
                 >
-                  {brainIcon}
-                  <span>
-                    Atanan AI Agent ile Görevi Çalıştır (Otomatik Evre)
+                  <span>{t("sdlc.tasks.tabOverview")}</span>
+                  <span className="detail-tab-badge">
+                    {doneCritCount}/{selectedTask.acceptanceCriteria.length}
                   </span>
                 </button>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, 1fr)",
-                    gap: 6,
-                    marginTop: 6,
-                  }}
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={inspectorTab === "traceability"}
+                  className={`detail-tab-btn ${
+                    inspectorTab === "traceability"
+                      ? "detail-tab-btn--active"
+                      : ""
+                  }`}
+                  onClick={() => setInspectorTab("traceability")}
                 >
-                  <button
-                    type="button"
-                    className="detail-mini-btn"
-                    style={{ justifyContent: "center", padding: "6px 8px" }}
-                    onClick={async () => {
-                      const res = await runLiveAgentPipeline(
-                        selectedTask.id,
-                        "architecture",
-                      );
-                      showToast(`🏗️ ${res.summary}`);
-                    }}
-                    title="Sistem Mimarı Agent ile bu görev için Excalidraw mimari şeması çiz ve göreve pinle"
-                  >
-                    <span>🏗️ Mimari Şema Çiz</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="detail-mini-btn"
-                    style={{ justifyContent: "center", padding: "6px 8px" }}
-                    onClick={async () => {
-                      const res = await runLiveAgentPipeline(
-                        selectedTask.id,
-                        "design",
-                      );
-                      showToast(`🎨 ${res.summary}`);
-                    }}
-                    title="UI/UX Tasarımcı Agent ile bu görev için pixel-perfect bileşen tasarla ve yan yana aç"
-                  >
-                    <span>🎨 UI Tasarla</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="detail-mini-btn"
-                    style={{ justifyContent: "center", padding: "6px 8px" }}
-                    onClick={async () => {
-                      const res = await runLiveAgentPipeline(
-                        selectedTask.id,
-                        "tdd",
-                      );
-                      showToast(`🧪 ${res.summary}`);
-                    }}
-                    title="TDD & QA Agent ile kabul ve uç durum (edge-case) test senaryoları üret"
-                  >
-                    <span>🧪 TDD Üret</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="detail-mini-btn"
-                    style={{ justifyContent: "center", padding: "6px 8px" }}
-                    onClick={async () => {
-                      const res = await runLiveAgentPipeline(
-                        selectedTask.id,
-                        "analysis",
-                      );
-                      showToast(`📋 ${res.summary}`);
-                    }}
-                    title="Analist Agent (Canlı LLM / Yerel) ile kabul kriterlerini yapılandır"
-                  >
-                    <span>📋 Kriter Analizi</span>
-                  </button>
-                </div>
-                {onOpenAIIntegrations && (
-                  <button
-                    type="button"
-                    className="detail-mini-btn"
+                  <span>{t("sdlc.tasks.tabTraceability")}</span>
+                  <span className="detail-tab-badge">
+                    {totalTraceabilityCount}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={inspectorTab === "agent"}
+                  className={`detail-tab-btn ${
+                    inspectorTab === "agent" ? "detail-tab-btn--active" : ""
+                  }`}
+                  onClick={() => setInspectorTab("agent")}
+                >
+                  <span
                     style={{
-                      width: "100%",
-                      justifyContent: "center",
-                      marginTop: 4,
+                      display: "inline-flex",
+                      width: 13,
+                      height: 13,
                     }}
-                    onClick={onOpenAIIntegrations}
                   >
-                    <span>⚙️ Harici LLM / Canlı MCP Köprüsü Ayarları</span>
-                  </button>
+                    {brainIcon}
+                  </span>
+                  <span>{t("sdlc.tasks.tabAgent")}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={inspectorTab === "activity"}
+                  className={`detail-tab-btn ${
+                    inspectorTab === "activity" ? "detail-tab-btn--active" : ""
+                  }`}
+                  onClick={() => setInspectorTab("activity")}
+                >
+                  <span>{t("sdlc.tasks.tabActivity")}</span>
+                  {selectedTask.comments.length > 0 && (
+                    <span className="detail-tab-badge">
+                      {selectedTask.comments.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              <div className="detail-drawer-body">
+                {/* TAB 1: OVERVIEW & ACCEPTANCE CRITERIA */}
+                {inspectorTab === "overview" && (
+                  <>
+                    <div className="detail-section">
+                      <label className="detail-label">
+                        {t("sdlc.tasks.descriptionLabel")}
+                      </label>
+                      <input
+                        type="text"
+                        className="detail-input"
+                        value={selectedTask.title}
+                        onChange={(e) =>
+                          updateProjectTask(selectedTask.id, {
+                            title: e.target.value,
+                          })
+                        }
+                      />
+                      <textarea
+                        className="detail-textarea"
+                        rows={3}
+                        placeholder={t(
+                          "sdlc.tasks.descriptionModalPlaceholder",
+                        )}
+                        value={selectedTask.description}
+                        onChange={(e) =>
+                          updateProjectTask(selectedTask.id, {
+                            description: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="detail-grid-2">
+                      <div className="detail-section">
+                        <label className="detail-label">
+                          {t("sdlc.tasks.assigneeLabel")}
+                        </label>
+                        <select
+                          className="detail-select"
+                          value={selectedTask.assigneeId || ""}
+                          onChange={(e) =>
+                            updateProjectTask(selectedTask.id, {
+                              assigneeId: e.target.value || null,
+                            })
+                          }
+                        >
+                          <option value="">{t("sdlc.common.unassigned")}</option>
+                          {team.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.kind === "ai_agent" ? "[AI] " : ""}
+                              {m.name} ({m.roleLabel})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="detail-section">
+                        <label className="detail-label">
+                          {t("sdlc.tasks.priorityLabel")}
+                        </label>
+                        <select
+                          className="detail-select"
+                          value={selectedTask.priority}
+                          onChange={(e) =>
+                            updateProjectTask(selectedTask.id, {
+                              priority: e.target.value as TaskPriority,
+                            })
+                          }
+                        >
+                          <option value="low">
+                            {t("sdlc.tasks.priorityLow")}
+                          </option>
+                          <option value="medium">
+                            {t("sdlc.tasks.priorityMedium")}
+                          </option>
+                          <option value="high">
+                            {t("sdlc.tasks.priorityHigh")}
+                          </option>
+                          <option value="critical">
+                            {t("sdlc.tasks.priorityCritical")}
+                          </option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="detail-section">
+                      <div className="detail-section-header">
+                        <label className="detail-label">
+                          {t("sdlc.tasks.acceptanceCriteriaTitle", {
+                            done: doneCritCount,
+                            total: selectedTask.acceptanceCriteria.length,
+                          })}
+                        </label>
+                        <button
+                          type="button"
+                          className="detail-mini-btn"
+                          onClick={() => handleGenerateTDD(selectedTask)}
+                          title={t("sdlc.tasks.generateTddWithAgent")}
+                        >
+                          {TDDTestIcon}
+                          <span>{t("sdlc.tasks.generateTddWithAgent")}</span>
+                        </button>
+                      </div>
+
+                      <div className="criteria-list">
+                        {selectedTask.acceptanceCriteria.map((crit) => (
+                          <label key={crit.id} className="criterion-item">
+                            <input
+                              type="checkbox"
+                              checked={crit.completed}
+                              onChange={() =>
+                                handleToggleCriterion(selectedTask, crit.id)
+                              }
+                            />
+                            <span className={crit.completed ? "crit-done" : ""}>
+                              {crit.text}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <form
+                        className="detail-inline-form"
+                        onSubmit={handleAddCriterion}
+                      >
+                        <input
+                          type="text"
+                          className="detail-input"
+                          placeholder={t("sdlc.tasks.addCriterionPlaceholder")}
+                          value={newCriterionInput}
+                          onChange={(e) => setNewCriterionInput(e.target.value)}
+                        />
+                        <button type="submit" className="detail-add-btn">
+                          {t("sdlc.common.add")}
+                        </button>
+                      </form>
+                    </div>
+                  </>
+                )}
+
+                {/* TAB 2: END-TO-END TRACEABILITY (ANALYSIS CANVASES + ARTBOARD-LEVEL DESIGN + TDD) */}
+                {inspectorTab === "traceability" && (
+                  <>
+                    {/* A. Analysis & Architecture Canvases (Canvas-Level) */}
+                    <div className="detail-section">
+                      <label className="detail-label">
+                        {t("sdlc.tasks.analysisCanvasesSection")}
+                      </label>
+                      <div className="linked-docs-list">
+                        {sketchDocs.map((doc) => {
+                          const isLinked = selectedTask.linkedDocIds.includes(
+                            doc.id,
+                          );
+                          return (
+                            <div
+                              key={doc.id}
+                              className={`linked-doc-row ${
+                                isLinked ? "linked-doc-row--active" : ""
+                              }`}
+                            >
+                              <label className="doc-check-label">
+                                <input
+                                  type="checkbox"
+                                  checked={isLinked}
+                                  onChange={() =>
+                                    handleToggleDocLink(selectedTask, doc.id)
+                                  }
+                                />
+                                <span className="doc-icon">
+                                  {getDocumentIcon(doc)}
+                                </span>
+                                <span className="doc-name">{doc.name}</span>
+                                <span className="doc-cat">
+                                  {getCategoryLabel(doc.category)}
+                                </span>
+                              </label>
+                              <div className="doc-jump-actions">
+                                <button
+                                  type="button"
+                                  className="jump-btn"
+                                  onClick={() => setActiveWorkspaceId(doc.id)}
+                                  title={t("sdlc.common.open")}
+                                >
+                                  {t("sdlc.common.open")}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="jump-btn"
+                                  onClick={() => setSplitWorkspaceId(doc.id)}
+                                  title={t("sdlc.common.openInSplitView")}
+                                >
+                                  {SplitViewIcon}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {(selectedTask.linkedSketchRefs || []).length > 0 && (
+                        <div
+                          className="linked-docs-list"
+                          style={{ marginTop: 6 }}
+                        >
+                          {(selectedTask.linkedSketchRefs || []).map(
+                            (sr, idx) => (
+                              <div
+                                key={`${sr.docId}_${idx}`}
+                                className="linked-doc-row linked-doc-row--active"
+                              >
+                                <div className="doc-check-label">
+                                  <span className="doc-icon">{PinIcon}</span>
+                                  <span className="doc-name">{sr.label}</span>
+                                </div>
+                                <div className="doc-jump-actions">
+                                  <button
+                                    type="button"
+                                    className="jump-btn"
+                                    onClick={() =>
+                                      requestSketchFocus(
+                                        sr.docId,
+                                        sr.elementIds,
+                                        false,
+                                      )
+                                    }
+                                    title={t("sdlc.tasks.focusElementOnCanvas")}
+                                  >
+                                    {t("sdlc.common.focus")}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="jump-btn"
+                                    onClick={() =>
+                                      requestSketchFocus(
+                                        sr.docId,
+                                        sr.elementIds,
+                                        true,
+                                      )
+                                    }
+                                    title={t("sdlc.common.openInSplitView")}
+                                  >
+                                    {SplitViewIcon}
+                                  </button>
+                                </div>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* B. UI Design Canvases — Artboard-Level Granular Traceability */}
+                    <div className="detail-section">
+                      <div className="detail-section-header">
+                        <label className="detail-label">
+                          {t("sdlc.tasks.designArtboardsSection")}
+                        </label>
+                      </div>
+                      <p className="detail-traceability-hint">
+                        {t("sdlc.tasks.designArtboardsHint")}
+                      </p>
+
+                      <div className="design-artboard-groups">
+                        {designDocs.map((designDoc) => {
+                          const docArtboards =
+                            designArtboardsByDoc[designDoc.id] || [];
+                          const linkedCountForDoc = (
+                            selectedTask.linkedArtboards || []
+                          ).filter((la) => la.docId === designDoc.id).length;
+
+                          return (
+                            <div
+                              key={designDoc.id}
+                              className="design-artboard-group-card"
+                            >
+                              <div className="design-group-header">
+                                <div className="design-group-title">
+                                  <span className="doc-icon">
+                                    {frameToolIcon}
+                                  </span>
+                                  <span>{designDoc.name}</span>
+                                  {linkedCountForDoc > 0 && (
+                                    <span className="detail-count-badge">
+                                      {linkedCountForDoc} Artboard
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="doc-jump-actions">
+                                  <button
+                                    type="button"
+                                    className="detail-mini-btn"
+                                    onClick={() => {
+                                      const ownerWin =
+                                        rootRef.current?.ownerDocument
+                                          ?.defaultView || undefined;
+                                      const createdAb =
+                                        createArtboardInDesignDoc(
+                                          designDoc.id,
+                                          designDoc.name,
+                                          `${selectedTask.key}: ${selectedTask.title.slice(
+                                            0,
+                                            26,
+                                          )}`,
+                                          "desktop",
+                                          ownerWin,
+                                        );
+                                      toggleTaskArtboardLink(selectedTask.id, {
+                                        docId: designDoc.id,
+                                        artboardId: createdAb.id,
+                                        label: createdAb.name,
+                                      });
+                                      showToast(
+                                        t(
+                                          "sdlc.tasks.artboardCreatedAndLinkedToast",
+                                          { name: createdAb.name },
+                                        ),
+                                      );
+                                    }}
+                                  >
+                                    <span>
+                                      {t("sdlc.tasks.createAndLinkArtboardBtn")}
+                                    </span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {docArtboards.length === 0 ? (
+                                <div className="design-group-empty">
+                                  {t("sdlc.tasks.noArtboardsInCanvas")}
+                                </div>
+                              ) : (
+                                <div className="linked-docs-list">
+                                  {docArtboards.map((ab) => {
+                                    const isAbLinked = (
+                                      selectedTask.linkedArtboards || []
+                                    ).some(
+                                      (la) =>
+                                        la.docId === designDoc.id &&
+                                        la.artboardId === ab.id,
+                                    );
+                                    const dimLabel =
+                                      typeof ab.width === "number" &&
+                                      typeof ab.height === "number"
+                                        ? `${ab.width}×${ab.height}`
+                                        : "Hug";
+
+                                    return (
+                                      <div
+                                        key={ab.id}
+                                        className={`linked-doc-row ${
+                                          isAbLinked
+                                            ? "linked-doc-row--active"
+                                            : ""
+                                        }`}
+                                      >
+                                        <label className="doc-check-label">
+                                          <input
+                                            type="checkbox"
+                                            checked={isAbLinked}
+                                            onChange={() =>
+                                              toggleTaskArtboardLink(
+                                                selectedTask.id,
+                                                {
+                                                  docId: designDoc.id,
+                                                  artboardId: ab.id,
+                                                  label: ab.name,
+                                                },
+                                              )
+                                            }
+                                          />
+                                          <span className="doc-icon">
+                                            {frameToolIcon}
+                                          </span>
+                                          <span
+                                            className="doc-name"
+                                            title={ab.name}
+                                          >
+                                            {ab.name}
+                                          </span>
+                                          <span className="doc-cat">
+                                            {dimLabel}
+                                          </span>
+                                        </label>
+                                        <div className="doc-jump-actions">
+                                          <button
+                                            type="button"
+                                            className="jump-btn"
+                                            onClick={() =>
+                                              requestArtboardFocus(
+                                                designDoc.id,
+                                                ab.id,
+                                                false,
+                                              )
+                                            }
+                                            title={t("sdlc.common.focus")}
+                                          >
+                                            {t("sdlc.common.focus")}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="jump-btn"
+                                            onClick={() =>
+                                              requestArtboardFocus(
+                                                designDoc.id,
+                                                ab.id,
+                                                true,
+                                              )
+                                            }
+                                            title={t(
+                                              "sdlc.common.openInSplitView",
+                                            )}
+                                          >
+                                            {SplitViewIcon}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* C. Linked TDD Test Scenarios */}
+                    <div className="detail-section">
+                      <div className="detail-section-header">
+                        <label className="detail-label">
+                          {t("sdlc.tasks.relatedTddSectionTitle", {
+                            count: selectedTaskScenarios.length,
+                          })}
+                        </label>
+                        <button
+                          type="button"
+                          className="detail-mini-btn"
+                          onClick={() => handleGenerateTDD(selectedTask)}
+                        >
+                          {TDDTestIcon}
+                          <span>{t("sdlc.tasks.generateTddWithAgent")}</span>
+                        </button>
+                      </div>
+
+                      {selectedTaskScenarios.length === 0 ? (
+                        <div className="design-group-empty">
+                          {t("sdlc.tasks.noLinkedTddForTask")}
+                        </div>
+                      ) : (
+                        <div className="linked-docs-list">
+                          {selectedTaskScenarios.map((sc) => {
+                            const passedCount = sc.assertions.filter(
+                              (a) => a.passed,
+                            ).length;
+                            const isGreen =
+                              sc.status === "green" || sc.status === "refactor";
+                            return (
+                              <div
+                                key={sc.id}
+                                className="linked-doc-row linked-doc-row--active"
+                              >
+                                <div className="doc-check-label">
+                                  <span
+                                    className="tdd-key"
+                                    style={{
+                                      background: isGreen
+                                        ? "rgba(12, 166, 120, 0.16)"
+                                        : "rgba(224, 49, 49, 0.15)",
+                                      color: isGreen ? "#099268" : "#c92a2a",
+                                    }}
+                                  >
+                                    {sc.key}
+                                  </span>
+                                  <span className="doc-name" title={sc.title}>
+                                    {sc.title}
+                                  </span>
+                                  <span className="doc-cat">
+                                    {passedCount}/{sc.assertions.length}
+                                  </span>
+                                </div>
+                                {tddDoc && (
+                                  <div className="doc-jump-actions">
+                                    <button
+                                      type="button"
+                                      className="jump-btn"
+                                      onClick={() =>
+                                        setActiveWorkspaceId(tddDoc.id)
+                                      }
+                                    >
+                                      {t("sdlc.common.open")}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="jump-btn"
+                                      onClick={() =>
+                                        setSplitWorkspaceId(tddDoc.id)
+                                      }
+                                      title={t("sdlc.common.openInSplitView")}
+                                    >
+                                      {SplitViewIcon}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* TAB 3: AI AGENT ORCHESTRATION */}
+                {inspectorTab === "agent" && (
+                  <div className="detail-section">
+                    <label className="detail-label">
+                      {t("sdlc.tasks.aiOrchestrationSection", {
+                        name:
+                          team.find((m) => m.id === selectedTask.assigneeId)
+                            ?.name || "AI Agent",
+                      })}
+                    </label>
+                    <button
+                      type="button"
+                      className="ai-orchestrate-btn"
+                      onClick={async () => {
+                        const res = await runLiveAgentPipeline(
+                          selectedTask.id,
+                          "auto",
+                        );
+                        showToast(res.summary);
+                      }}
+                    >
+                      {brainIcon}
+                      <span>
+                        {t("sdlc.tasks.dispatchTaskToAgent", {
+                          name:
+                            team.find((m) => m.id === selectedTask.assigneeId)
+                              ?.name || "AI Agent",
+                          model: "Auto",
+                        })}
+                      </span>
+                    </button>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, 1fr)",
+                        gap: 6,
+                        marginTop: 6,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="detail-mini-btn"
+                        style={{ justifyContent: "center", padding: "7px 8px" }}
+                        onClick={async () => {
+                          const res = await runLiveAgentPipeline(
+                            selectedTask.id,
+                            "architecture",
+                          );
+                          showToast(res.summary);
+                        }}
+                        title={t("sdlc.categories.architecture")}
+                      >
+                        {ArchitectureIcon}
+                        <span>{t("sdlc.categories.architecture")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="detail-mini-btn"
+                        style={{ justifyContent: "center", padding: "7px 8px" }}
+                        onClick={async () => {
+                          const res = await runLiveAgentPipeline(
+                            selectedTask.id,
+                            "design",
+                          );
+                          showToast(res.summary);
+                        }}
+                        title={t("sdlc.categories.ui_design")}
+                      >
+                        {frameToolIcon}
+                        <span>{t("sdlc.categories.ui_design")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="detail-mini-btn"
+                        style={{ justifyContent: "center", padding: "7px 8px" }}
+                        onClick={async () => {
+                          const res = await runLiveAgentPipeline(
+                            selectedTask.id,
+                            "tdd",
+                          );
+                          showToast(res.summary);
+                        }}
+                        title={t("sdlc.categories.tdd_suite")}
+                      >
+                        {TDDTestIcon}
+                        <span>{t("sdlc.categories.tdd_suite")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="detail-mini-btn"
+                        style={{ justifyContent: "center", padding: "7px 8px" }}
+                        onClick={async () => {
+                          const res = await runLiveAgentPipeline(
+                            selectedTask.id,
+                            "analysis",
+                          );
+                          showToast(res.summary);
+                        }}
+                        title={t("sdlc.categories.analysis")}
+                      >
+                        {FreedrawIcon}
+                        <span>{t("sdlc.categories.analysis")}</span>
+                      </button>
+                    </div>
+                    {onOpenAIIntegrations && (
+                      <button
+                        type="button"
+                        className="detail-mini-btn"
+                        style={{
+                          width: "100%",
+                          justifyContent: "center",
+                          marginTop: 6,
+                          padding: "7px 8px",
+                        }}
+                        onClick={onOpenAIIntegrations}
+                      >
+                        {settingsIcon}
+                        <span>{t("sdlc.common.aiStudio")}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* TAB 4: TEAM & AGENT COORDINATION COMMENTS */}
+                {inspectorTab === "activity" && (
+                  <div className="detail-section">
+                    <label className="detail-label">
+                      {t("sdlc.tasks.activityLogSection", {
+                        count: selectedTask.comments.length,
+                      })}
+                    </label>
+                    <div className="comments-list">
+                      {selectedTask.comments.length === 0 ? (
+                        <div className="design-group-empty">
+                          {t("sdlc.tasks.noCommentsYet")}
+                        </div>
+                      ) : (
+                        selectedTask.comments.map((cmt) => {
+                          const author = team.find(
+                            (m) => m.id === cmt.authorId,
+                          );
+                          return (
+                            <div key={cmt.id} className="comment-card">
+                              <div className="comment-meta">
+                                <strong
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  {author && (
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        width: 12,
+                                        height: 12,
+                                      }}
+                                    >
+                                      {author.kind === "ai_agent"
+                                        ? brainIcon
+                                        : usersIcon}
+                                    </span>
+                                  )}
+                                  <span>{author ? author.name : "Team"}</span>
+                                </strong>
+                                <span>
+                                  {new Date(cmt.createdAt).toLocaleTimeString(
+                                    [],
+                                    {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    },
+                                  )}
+                                </span>
+                              </div>
+                              <p>{cmt.text}</p>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <form className="comment-form" onSubmit={handleAddComment}>
+                      <select
+                        className="detail-select"
+                        value={commentAuthorId}
+                        onChange={(e) => setCommentAuthorId(e.target.value)}
+                      >
+                        {team.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.kind === "ai_agent" ? "[AI] " : ""}
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="detail-inline-form">
+                        <input
+                          type="text"
+                          className="detail-input"
+                          placeholder={t("sdlc.tasks.addCommentPlaceholder")}
+                          value={commentInput}
+                          onChange={(e) => setCommentInput(e.target.value)}
+                        />
+                        <button type="submit" className="detail-add-btn">
+                          {t("sdlc.tasks.postBtn")}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 )}
               </div>
-
-              {/* Team & Agent Coordination Comments */}
-              <div className="detail-section">
-                <label className="detail-label">
-                  EKİP & AGENT KOORDİNASYON NOTLARI ({selectedTask.comments.length})
-                </label>
-                <div className="comments-list">
-                  {selectedTask.comments.map((cmt) => {
-                    const author = team.find((m) => m.id === cmt.authorId);
-                    return (
-                      <div key={cmt.id} className="comment-card">
-                        <div className="comment-meta">
-                          <strong>
-                            {author
-                              ? `${author.kind === "ai_agent" ? "🤖" : "👤"} ${
-                                  author.name
-                                }`
-                              : "Ekip Üyesi"}
-                          </strong>
-                          <span>
-                            {new Date(cmt.createdAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-                        <p>{cmt.text}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <form className="comment-form" onSubmit={handleAddComment}>
-                  <select
-                    className="detail-select"
-                    value={commentAuthorId}
-                    onChange={(e) => setCommentAuthorId(e.target.value)}
-                  >
-                    {team.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.kind === "ai_agent" ? "🤖 " : "👤 "}
-                        {m.name} olarak yaz
-                      </option>
-                    ))}
-                  </select>
-                  <div className="detail-inline-form">
-                    <input
-                      type="text"
-                      className="detail-input"
-                      placeholder="Koordinasyon notu veya karar ekle..."
-                      value={commentInput}
-                      onChange={(e) => setCommentInput(e.target.value)}
-                    />
-                    <button type="submit" className="detail-add-btn">
-                      Gönder
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </aside>
-        )}
+            </aside>
+          );
+        })()}
       </div>
 
       {/* Create New Task Modal */}
@@ -1179,7 +1671,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="new-workspace-modal__header">
-              <h3>Yeni Proje Görevi Oluştur</h3>
+              <h3>{t("sdlc.tasks.createModalTitle")}</h3>
               <button
                 type="button"
                 className="modal-close-btn"
@@ -1191,10 +1683,10 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
             <form onSubmit={handleCreateTask}>
               <div className="new-workspace-modal__body">
                 <div className="form-group">
-                  <label>Görev Başlığı</label>
+                  <label>{t("sdlc.tasks.taskTitleLabel")}</label>
                   <input
                     type="text"
-                    placeholder="Örn: İndirim Kuponu Doğrulama Akışı..."
+                    placeholder={t("sdlc.tasks.taskTitlePlaceholder")}
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                     autoFocus
@@ -1202,11 +1694,11 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                 </div>
 
                 <div className="form-group">
-                  <label>Açıklama & Teknik Kapsam</label>
+                  <label>{t("sdlc.tasks.descriptionModalLabel")}</label>
                   <textarea
                     className="sdlc-modal-textarea"
                     rows={2}
-                    placeholder="Analiz, tasarım ve geliştirme beklentileri..."
+                    placeholder={t("sdlc.tasks.descriptionModalPlaceholder")}
                     value={newDesc}
                     onChange={(e) => setNewDesc(e.target.value)}
                   />
@@ -1214,7 +1706,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
 
                 <div className="sdlc-modal-grid-3">
                   <div className="form-group">
-                    <label>Evre / Durum</label>
+                    <label>{t("sdlc.tasks.statusLabel")}</label>
                     <select
                       className="sdlc-modal-select"
                       value={newStatus}
@@ -1231,7 +1723,7 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                   </div>
 
                   <div className="form-group">
-                    <label>Öncelik</label>
+                    <label>{t("sdlc.tasks.priorityLabel")}</label>
                     <select
                       className="sdlc-modal-select"
                       value={newPriority}
@@ -1239,24 +1731,30 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                         setNewPriority(e.target.value as TaskPriority)
                       }
                     >
-                      <option value="low">Düşük</option>
-                      <option value="medium">Orta</option>
-                      <option value="high">Yüksek</option>
-                      <option value="critical">Kritik</option>
+                      <option value="low">{t("sdlc.tasks.priorityLow")}</option>
+                      <option value="medium">
+                        {t("sdlc.tasks.priorityMedium")}
+                      </option>
+                      <option value="high">
+                        {t("sdlc.tasks.priorityHigh")}
+                      </option>
+                      <option value="critical">
+                        {t("sdlc.tasks.priorityCritical")}
+                      </option>
                     </select>
                   </div>
 
                   <div className="form-group">
-                    <label>Atanan (İnsan / Agent)</label>
+                    <label>{t("sdlc.tasks.assigneeLabel")}</label>
                     <select
                       className="sdlc-modal-select"
                       value={newAssigneeId}
                       onChange={(e) => setNewAssigneeId(e.target.value)}
                     >
-                      <option value="">Atanmadı</option>
+                      <option value="">{t("sdlc.common.unassigned")}</option>
                       {team.map((m) => (
                         <option key={m.id} value={m.id}>
-                          {m.kind === "ai_agent" ? "🤖 " : "👤 "}
+                          {m.kind === "ai_agent" ? "[AI] " : ""}
                           {m.name}
                         </option>
                       ))}
@@ -1265,26 +1763,21 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                 </div>
 
                 <div className="form-group">
-                  <label>Kabul Kriterleri (Her satıra bir kriter)</label>
+                  <label>{t("sdlc.tasks.addCriterionPlaceholder")}</label>
                   <textarea
                     className="sdlc-modal-textarea"
                     rows={3}
-                    placeholder={
-                      "Geçersiz kuponda uyarı gösterilmeli\nToplam tutar anlık güncellenmeli"
-                    }
+                    placeholder={t("sdlc.tasks.addCriterionPlaceholder")}
                     value={newCriteriaText}
                     onChange={(e) => setNewCriteriaText(e.target.value)}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>İlgili Analiz, Mimari ve Tasarım Tuvalleri</label>
+                  <label>{t("sdlc.tasks.analysisCanvasesSection")}</label>
                   <div className="sdlc-doc-Checkgrid">
                     {docs
-                      .filter(
-                        (d) =>
-                          d.canvasType === "sketch" || d.canvasType === "design",
-                      )
+                      .filter((d) => d.canvasType === "sketch")
                       .map((doc) => {
                         const checked = newLinkedDocs.includes(doc.id);
                         return (
@@ -1306,6 +1799,57 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                       })}
                   </div>
                 </div>
+
+                <div className="form-group">
+                  <label>{t("sdlc.tasks.designArtboardsSection")}</label>
+                  <div className="sdlc-doc-Checkgrid">
+                    {docs
+                      .filter((d) => d.canvasType === "design")
+                      .flatMap((designDoc) =>
+                        (designArtboardsByDoc[designDoc.id] || []).map((ab) => {
+                          const checked = newLinkedArtboards.some(
+                            (la) =>
+                              la.docId === designDoc.id &&
+                              la.artboardId === ab.id,
+                          );
+                          return (
+                            <label
+                              key={`${designDoc.id}_${ab.id}`}
+                              className="doc-check-pill"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() =>
+                                  setNewLinkedArtboards((prev) =>
+                                    checked
+                                      ? prev.filter(
+                                          (item) =>
+                                            !(
+                                              item.docId === designDoc.id &&
+                                              item.artboardId === ab.id
+                                            ),
+                                        )
+                                      : [
+                                          ...prev,
+                                          {
+                                            docId: designDoc.id,
+                                            artboardId: ab.id,
+                                            label: ab.name,
+                                          },
+                                        ],
+                                  )
+                                }
+                              />
+                              <span>
+                                {ab.name} ({designDoc.name})
+                              </span>
+                            </label>
+                          );
+                        }),
+                      )}
+                  </div>
+                </div>
               </div>
               <div className="new-workspace-modal__footer">
                 <button
@@ -1313,10 +1857,10 @@ export const TaskBoardSurface: React.FC<TaskBoardSurfaceProps> = ({
                   className="btn-secondary"
                   onClick={() => setIsCreateOpen(false)}
                 >
-                  Vazgeç
+                  {t("sdlc.common.cancel")}
                 </button>
                 <button type="submit" className="btn-primary">
-                  Görevi Oluştur
+                  {t("sdlc.tasks.createTaskSubmit")}
                 </button>
               </div>
             </form>

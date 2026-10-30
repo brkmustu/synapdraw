@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
   CloseIcon,
@@ -9,6 +10,7 @@ import {
   usersIcon,
   checkIcon,
   RetryIcon,
+  frameToolIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import {
   getProjects,
@@ -51,6 +53,7 @@ import {
   SplitViewIcon,
   TaskBoardIcon,
   TDDTestIcon,
+  ArchitectureIcon,
 } from "../workspace/WorkspaceTabs";
 import "./sdlc.scss";
 
@@ -65,6 +68,7 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
   onClose,
   excalidrawAPI,
 }) => {
+  const { t } = useI18n();
   const [activeDoc, setActiveDoc] = useState<WorkspaceDocument | null>(null);
   const [allDocs, setAllDocs] = useState<WorkspaceDocument[]>([]);
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
@@ -120,8 +124,8 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
     createTDDScenario({
       title: quickTestTitle,
       status: "red",
-      given: `"${activeDoc.name}" yüzeyi aktif durumdadır`,
-      when: "Kullanıcı ilgili senaryoyu tetikler",
+      given: `"${activeDoc.name}"`,
+      when: quickTestTitle,
       then: quickTestTitle,
       assertions: [quickTestTitle],
       linkedTaskId: linkedTasks[0]?.id || null,
@@ -152,7 +156,7 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
     const label =
       frameEl?.name ||
       texts[0]?.slice(0, 42) ||
-      `${activeDoc.name} (${targetEls.length} çizim öğesi)`;
+      `${activeDoc.name} (${targetEls.length})`;
 
     return {
       ids: targetEls.map((el) => el.id),
@@ -169,10 +173,10 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
     const criteria =
       sketchInfo.texts.length > 1
         ? sketchInfo.texts.slice(1, 5)
-        : [`"${sketchInfo.label}" diyagram akışı gerçeklenmeli`];
+        : [sketchInfo.label];
     const created = createProjectTask({
       title: sketchInfo.label,
-      description: `"${activeDoc.name}" çizim tuvalindeki seçili diyagram akışından (${sketchInfo.ids.length} öğe) oluşturuldu.`,
+      description: `${activeDoc.name} (${sketchInfo.ids.length})`,
       status: "design",
       priority: "high",
       acceptanceCriteria: criteria,
@@ -183,7 +187,11 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
       elementIds: sketchInfo.ids,
       label: sketchInfo.label,
     });
-    setSketchFeedback(`✓ "${created.key}" oluşturuldu ve çizime pinlendi`);
+    setSketchFeedback(
+      t("sdlc.contextDrawer.taskCreatedAndPinnedFeedback", {
+        key: created.key,
+      }),
+    );
     setTimeout(() => setSketchFeedback(null), 3200);
   };
 
@@ -191,14 +199,16 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
     <aside className="sdlc-context-drawer Island">
       <div className="context-drawer-header">
         <div className="context-title-block">
-          <span className="context-eyebrow">PROJE BAĞLAMI & DOĞRULAMA</span>
+          <span className="context-eyebrow">
+            {t("sdlc.contextDrawer.eyebrow")}
+          </span>
           <h4>{activeDoc.name}</h4>
         </div>
         <button
           type="button"
           className="detail-icon-btn"
           onClick={onClose}
-          title="Bağlam çekmecesini kapat"
+          title={t("sdlc.contextDrawer.closeTitle")}
         >
           {CloseIcon}
         </button>
@@ -214,7 +224,7 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
               onClick={() => setSplitWorkspaceId(taskBoardDoc.id)}
             >
               {TaskBoardIcon}
-              <span>Görevleri Yan Yana Aç</span>
+              <span>{t("sdlc.contextDrawer.openTasksSideBySide")}</span>
               {SplitViewIcon}
             </button>
           )}
@@ -225,7 +235,7 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
               onClick={() => setSplitWorkspaceId(tddSuiteDoc.id)}
             >
               {TDDTestIcon}
-              <span>TDD Testlerini Yan Yana Aç</span>
+              <span>{t("sdlc.contextDrawer.openTddSideBySide")}</span>
               {SplitViewIcon}
             </button>
           )}
@@ -235,31 +245,46 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
         {activeDoc.canvasType === "sketch" && (
           <div className="context-section">
             <div className="context-section-header">
-              <span>📐 ÇİZİMDEN GÖREVE DERİN PİNLEME</span>
+              <span>{t("sdlc.contextDrawer.sketchPinningSection")}</span>
               <button
                 type="button"
                 className="context-link-btn"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
                 onClick={() => setSelectionTick((t) => t + 1)}
-                title="Tuvaldeki aktif seçimi yenile"
+                title={t("sdlc.contextDrawer.refreshSelectionTitle")}
               >
-                🔄 Seçimi Yenile
+                <span
+                  style={{ display: "inline-flex", width: 12, height: 12 }}
+                >
+                  {RetryIcon}
+                </span>
+                <span>{t("sdlc.contextDrawer.refreshSelectionBtn")}</span>
               </button>
             </div>
             {sketchInfo.ids.length === 0 ? (
               <div className="context-empty">
-                Tuvalde henüz çizim öğesi yok. Bir akış çizip seçerek doğrudan
-                göreve dönüştürebilirsiniz.
+                {t("sdlc.contextDrawer.emptySketchCanvas")}
               </div>
             ) : (
               <div className="context-mini-card">
                 <div style={{ fontSize: 11.5, fontWeight: 700 }}>
                   {sketchInfo.isExplicitSelection
-                    ? `Seçili Akış: ${sketchInfo.label}`
-                    : `Tuval Akışı: ${sketchInfo.label}`}
+                    ? t("sdlc.contextDrawer.selectedFlowLabel", {
+                        label: sketchInfo.label,
+                      })
+                    : t("sdlc.contextDrawer.canvasFlowLabel", {
+                        label: sketchInfo.label,
+                      })}
                 </div>
                 <div style={{ fontSize: 11, opacity: 0.72 }}>
-                  {sketchInfo.ids.length} çizim elemanı ·{" "}
-                  {sketchInfo.texts.length} metin düğümü algılandı
+                  {t("sdlc.contextDrawer.sketchStats", {
+                    elements: sketchInfo.ids.length,
+                    texts: sketchInfo.texts.length,
+                  })}
                 </div>
                 <button
                   type="button"
@@ -267,7 +292,8 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                   style={{ marginTop: 4 }}
                   onClick={handleCreateTaskFromSketch}
                 >
-                  <span>➕ Bu Akıştan Görev (Task) Oluştur & Pinle</span>
+                  {PlusIcon}
+                  <span>{t("sdlc.contextDrawer.createTaskFromFlowBtn")}</span>
                 </button>
                 {tasks.length > 0 && (
                   <select
@@ -281,16 +307,18 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                         elementIds: sketchInfo.ids,
                         label: sketchInfo.label,
                       });
-                      setSketchFeedback("✓ Çizim akışı göreve pinlendi");
+                      setSketchFeedback(
+                        t("sdlc.contextDrawer.flowPinnedFeedback"),
+                      );
                       setTimeout(() => setSketchFeedback(null), 2800);
                     }}
                   >
                     <option value="">
-                      🔗 Bu Çizim Akışını Mevcut Göreve Pinle...
+                      {t("sdlc.contextDrawer.pinFlowToTaskSelect")}
                     </option>
-                    {tasks.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.key}: {t.title}
+                    {tasks.map((taskItem) => (
+                      <option key={taskItem.id} value={taskItem.id}>
+                        {taskItem.key}: {taskItem.title}
                       </option>
                     ))}
                   </select>
@@ -314,21 +342,25 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
         {/* Linked Tasks Section */}
         <div className="context-section">
           <div className="context-section-header">
-            <span>BU YÜZEYE BAĞLI GÖREVLER ({linkedTasks.length})</span>
+            <span>
+              {t("sdlc.contextDrawer.linkedTasksSection", {
+                count: linkedTasks.length,
+              })}
+            </span>
             {taskBoardDoc && (
               <button
                 type="button"
                 className="context-link-btn"
                 onClick={() => setActiveWorkspaceId(taskBoardDoc.id)}
               >
-                Tüm Pano →
+                {t("sdlc.contextDrawer.allBoardBtn")}
               </button>
             )}
           </div>
 
           {linkedTasks.length === 0 ? (
             <div className="context-empty">
-              Bu dokümana henüz bağlı bir görev yok.
+              {t("sdlc.contextDrawer.noLinkedTasks")}
             </div>
           ) : (
             <div className="context-card-list">
@@ -345,11 +377,19 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                         })
                       }
                     >
-                      <option value="backlog">Backlog</option>
-                      <option value="design">Tasarım</option>
-                      <option value="in_progress">Geliştirmede</option>
-                      <option value="testing">TDD / Test</option>
-                      <option value="done">Tamamlandı</option>
+                      <option value="backlog">
+                        {t("sdlc.tasks.colBacklog")}
+                      </option>
+                      <option value="design">
+                        {t("sdlc.categories.ui_design")}
+                      </option>
+                      <option value="in_progress">
+                        {t("sdlc.tasks.colInProgress")}
+                      </option>
+                      <option value="testing">
+                        {t("sdlc.tasks.colReview")}
+                      </option>
+                      <option value="done">{t("sdlc.tasks.colDone")}</option>
                     </select>
                   </div>
                   <div className="mini-card-title">{task.title}</div>
@@ -403,9 +443,10 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                               false,
                             )
                           }
-                          title={`"${sr.label}" çizim diyagramına zoom yap`}
+                          title={sr.label}
                         >
-                          <span>📐 {sr.label}</span>
+                          <span className="chip-icon">{ArchitectureIcon}</span>
+                          <span>{sr.label}</span>
                         </button>
                       ))}
                       {(task.linkedArtboards || []).map((la) => (
@@ -420,9 +461,10 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                               activeDoc.id !== la.docId,
                             )
                           }
-                          title={`"${la.label}" Artboard'una odaklan`}
+                          title={la.label}
                         >
-                          <span>🎨 {la.label}</span>
+                          <span className="chip-icon">{frameToolIcon}</span>
+                          <span>{la.label}</span>
                         </button>
                       ))}
                     </div>
@@ -441,34 +483,76 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                     <button
                       type="button"
                       className="context-link-btn"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 3,
+                      }}
                       onClick={() => {
                         void runLiveAgentPipeline(task.id, "architecture");
                       }}
-                      title="Sistem Mimarı Agent ile bu görev için mimari şema çiz"
+                      title={t("sdlc.contextDrawer.archBtnTitle")}
                     >
-                      🏗️ Mimari
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          width: 12,
+                          height: 12,
+                        }}
+                      >
+                        {ArchitectureIcon}
+                      </span>
+                      <span>{t("sdlc.contextDrawer.archBtn")}</span>
                     </button>
                     <span style={{ opacity: 0.35 }}>·</span>
                     <button
                       type="button"
                       className="context-link-btn"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 3,
+                      }}
                       onClick={() => {
                         void runLiveAgentPipeline(task.id, "design");
                       }}
-                      title="UI/UX Tasarımcı Agent ile bu görev için bileşen tasarla"
+                      title={t("sdlc.contextDrawer.uiGenBtnTitle")}
                     >
-                      🎨 UI Üret
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          width: 12,
+                          height: 12,
+                        }}
+                      >
+                        {frameToolIcon}
+                      </span>
+                      <span>{t("sdlc.contextDrawer.uiGenBtn")}</span>
                     </button>
                     <span style={{ opacity: 0.35 }}>·</span>
                     <button
                       type="button"
                       className="context-link-btn"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 3,
+                      }}
                       onClick={() => {
                         void runLiveAgentPipeline(task.id, "tdd");
                       }}
-                      title="TDD & QA Agent ile bu görev için BDD test senaryoları üret"
+                      title={t("sdlc.contextDrawer.tddGenBtnTitle")}
                     >
-                      🧪 TDD Üret
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          width: 12,
+                          height: 12,
+                        }}
+                      >
+                        {TDDTestIcon}
+                      </span>
+                      <span>{t("sdlc.contextDrawer.tddGenBtn")}</span>
                     </button>
                   </div>
                 </div>
@@ -489,10 +573,12 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                 }
               }}
             >
-              <option value="">+ Mevcut Bir Görevi Bu Yüzeye Bağla...</option>
-              {unlinkedTasks.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.key}: {t.title}
+              <option value="">
+                {t("sdlc.contextDrawer.attachExistingTaskSelect")}
+              </option>
+              {unlinkedTasks.map((taskItem) => (
+                <option key={taskItem.id} value={taskItem.id}>
+                  {taskItem.key}: {taskItem.title}
                 </option>
               ))}
             </select>
@@ -501,7 +587,7 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
           <form className="context-inline-form" onSubmit={handleQuickAddTask}>
             <input
               type="text"
-              placeholder="Bu yüzey için yeni görev ekle..."
+              placeholder={t("sdlc.contextDrawer.addNewTaskPlaceholder")}
               value={quickTaskTitle}
               onChange={(e) => setQuickTaskTitle(e.target.value)}
             />
@@ -512,21 +598,25 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
         {/* Linked TDD Scenarios Section */}
         <div className="context-section">
           <div className="context-section-header">
-            <span>TDD TEST SENARYOLARI ({linkedScenarios.length})</span>
+            <span>
+              {t("sdlc.contextDrawer.relatedTddSection", {
+                count: linkedScenarios.length,
+              })}
+            </span>
             {tddSuiteDoc && (
               <button
                 type="button"
                 className="context-link-btn"
                 onClick={() => setActiveWorkspaceId(tddSuiteDoc.id)}
               >
-                TDD Stüdyosu →
+                {t("sdlc.contextDrawer.tddStudioBtn")}
               </button>
             )}
           </div>
 
           {linkedScenarios.length === 0 ? (
             <div className="context-empty">
-              Bu dokümana bağlı TDD test senaryosu bulunmuyor.
+              {t("sdlc.contextDrawer.noLinkedTdd")}
             </div>
           ) : (
             <div className="context-card-list">
@@ -556,13 +646,13 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
                   <div className="mini-card-title">{sc.title}</div>
                   <div className="mini-bdd">
                     <div>
-                      <strong>GIVEN:</strong> {sc.given}
+                      <strong>{t("sdlc.tdd.givenLabel")}:</strong> {sc.given}
                     </div>
                     <div>
-                      <strong>WHEN:</strong> {sc.when}
+                      <strong>{t("sdlc.tdd.whenLabel")}:</strong> {sc.when}
                     </div>
                     <div>
-                      <strong>THEN:</strong> {sc.then}
+                      <strong>{t("sdlc.tdd.thenLabel")}:</strong> {sc.then}
                     </div>
                   </div>
                 </div>
@@ -573,7 +663,7 @@ export const SDLCContextDrawer: React.FC<SDLCContextDrawerProps> = ({
           <form className="context-inline-form" onSubmit={handleQuickAddTDD}>
             <input
               type="text"
-              placeholder="Hızlı TDD beklentisi (Then) ekle..."
+              placeholder={t("sdlc.contextDrawer.quickTddPlaceholder")}
               value={quickTestTitle}
               onChange={(e) => setQuickTestTitle(e.target.value)}
             />
@@ -591,28 +681,6 @@ interface TeamRosterModalProps {
   onOpenAIStudio?: () => void;
   initialTab?: "roster" | "transfer" | "gateways";
 }
-
-const ROLE_OPTIONS: { role: ParticipantRole; label: string }[] = [
-  { role: "developer", label: "Full-Stack Yazılımcı" },
-  { role: "po", label: "Product Owner / İş Analisti" },
-  { role: "pm", label: "Proje Yöneticisi (PM)" },
-  { role: "architect", label: "Sistem Mimarı" },
-  { role: "designer", label: "UI/UX Tasarımcı" },
-  { role: "qa", label: "TDD / QA Test Mühendisi" },
-];
-
-const PROVIDER_LABELS: Record<AgentModelProvider, string> = {
-  ollama: "Ollama (Lokal)",
-  openrouter: "OpenRouter Gateway",
-  openai: "OpenAI API",
-  custom: "Özel API",
-};
-
-const TIER_LABELS: Record<AgentComplexityTier, string> = {
-  high: "Karmaşık / Yüksek Model",
-  standard: "Standart / Dengeli",
-  fast: "Tekrarlayan / Hızlı Lokal",
-};
 
 const CURATED_MODELS_BY_PROVIDER: Record<AgentModelProvider, string[]> = {
   openrouter: [
@@ -642,11 +710,34 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
   onOpenAIStudio,
   initialTab = "roster",
 }) => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<"roster" | "transfer" | "gateways">(
     initialTab,
   );
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+
+  const ROLE_OPTIONS: { role: ParticipantRole; label: string }[] = [
+    { role: "developer", label: t("sdlc.teamModal.roleDeveloper") },
+    { role: "po", label: t("sdlc.teamModal.rolePo") },
+    { role: "pm", label: t("sdlc.teamModal.rolePm") },
+    { role: "architect", label: t("sdlc.teamModal.roleArchitect") },
+    { role: "designer", label: t("sdlc.teamModal.roleDesigner") },
+    { role: "qa", label: t("sdlc.teamModal.roleQa") },
+  ];
+
+  const PROVIDER_LABELS: Record<AgentModelProvider, string> = {
+    ollama: t("sdlc.teamModal.providerOllama"),
+    openrouter: t("sdlc.teamModal.providerOpenrouter"),
+    openai: t("sdlc.teamModal.providerOpenai"),
+    custom: t("sdlc.teamModal.providerCustom"),
+  };
+
+  const TIER_LABELS: Record<AgentComplexityTier, string> = {
+    high: t("sdlc.teamModal.tierHighLabel"),
+    standard: t("sdlc.teamModal.tierStandardLabel"),
+    fast: t("sdlc.teamModal.tierFastLabel"),
+  };
 
   // Add / Edit Form State
   const [kind, setKind] = useState<ParticipantKind>("ai_agent");
@@ -768,8 +859,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
         complexityTier: kind === "ai_agent" ? complexityTier : undefined,
         systemPrompt:
           kind === "ai_agent"
-            ? systemPrompt.trim() ||
-              `${roleMeta.label} rolünde proje analiz, tasarım ve TDD süreçlerini yürütür.`
+            ? systemPrompt.trim() || roleMeta.label
             : undefined,
       });
       setEditingMemberId(null);
@@ -786,8 +876,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
         complexityTier: kind === "ai_agent" ? complexityTier : undefined,
         systemPrompt:
           kind === "ai_agent"
-            ? systemPrompt.trim() ||
-              `${roleMeta.label} rolünde proje analiz, tasarım ve TDD süreçlerini yürütür.`
+            ? systemPrompt.trim() || roleMeta.label
             : undefined,
       });
     }
@@ -805,8 +894,10 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
     );
     setTransferFeedback(
       replaceAll
-        ? "Seçili projenin tüm ekibi bu projeye birebir aktarıldı."
-        : `Seçili ${selectedSourceMemberIds.length} ekip üyesi / AI Agent bu projeye kopyalandı.`,
+        ? t("sdlc.teamModal.transferAllFeedback")
+        : t("sdlc.teamModal.transferSelectedFeedback", {
+            count: selectedSourceMemberIds.length,
+          }),
     );
     setTimeout(() => setTransferFeedback(null), 3500);
   };
@@ -825,7 +916,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
         const models = (data.models || []).map((m: any) => m.name);
         setFetchedOllamaModels(models);
         setGatewayFeedback(
-          `Ollama üzerinden ${models.length} lokal model bulundu.`,
+          t("sdlc.teamModal.ollamaFoundFeedback", { count: models.length }),
         );
       } else {
         const cleanUrl = (
@@ -840,11 +931,13 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
           .filter(Boolean);
         setFetchedOpenRouterModels(models);
         setGatewayFeedback(
-          `OpenRouter kataloğundan ${models.length} model listelendi.`,
+          t("sdlc.teamModal.openrouterFoundFeedback", { count: models.length }),
         );
       }
     } catch (err: any) {
-      setGatewayFeedback(`Bağlantı uyarısı: ${err.message}`);
+      setGatewayFeedback(
+        t("sdlc.teamModal.connectionWarningFeedback", { msg: err.message }),
+      );
     } finally {
       setIsFetchingGateway(false);
     }
@@ -871,11 +964,11 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
       >
         <div className="new-workspace-modal__header">
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <h3>Proje Ekibi, AI Agent & Model Yönlendirme</h3>
+            <h3>{t("sdlc.teamModal.title")}</h3>
             <span style={{ fontSize: "0.72rem", color: "var(--color-gray-60)" }}>
-              Aktif Proje: <strong>{activeProject?.name}</strong> · Karmaşık işler
-              için yüksek modelleri (OpenRouter/API), tekrarlayan işler için lokal
-              modelleri (Ollama) atayın
+              {t("sdlc.teamModal.subtitle", {
+                name: activeProject?.name || "",
+              })}
             </span>
           </div>
           <button
@@ -906,7 +999,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
               }`}
               onClick={() => setActiveTab("roster")}
             >
-              Proje Kadrosu & Agent Tanımla ({team.length})
+              {t("sdlc.teamModal.tabRoster", { count: team.length })}
             </button>
             <button
               type="button"
@@ -915,7 +1008,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
               }`}
               onClick={() => setActiveTab("transfer")}
             >
-              Projeler Arası Ekip Aktar
+              {t("sdlc.teamModal.tabTransfer")}
             </button>
             <button
               type="button"
@@ -924,7 +1017,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
               }`}
               onClick={() => setActiveTab("gateways")}
             >
-              OpenRouter & Lokal Gateway Ayarları
+              {t("sdlc.teamModal.tabGateways")}
             </button>
           </div>
         </div>
@@ -936,7 +1029,11 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                 {/* AI Agent Squad */}
                 <div className="roster-column">
                   <div className="roster-col-header">
-                    <span>PROJE AI AGENT KADROSU ({agents.length})</span>
+                    <span>
+                      {t("sdlc.teamModal.aiSquadHeader", {
+                        count: agents.length,
+                      })}
+                    </span>
                   </div>
                   <div className="roster-list">
                     {agents.map((m) => (
@@ -948,7 +1045,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                             : ""
                         }`}
                         onClick={() => handleStartEdit(m)}
-                        title="Modelini, sağlayıcısını veya rolünü düzenlemek için tıklayın"
+                        title={t("sdlc.teamModal.editAgentCardTitle")}
                         style={{ cursor: "pointer" }}
                       >
                         <span
@@ -969,10 +1066,10 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                             <strong>{m.name}</strong>
                             <span className="agent-tier-pill">
                               {m.complexityTier === "high"
-                                ? "Karmaşık"
+                                ? t("sdlc.teamModal.tierHighShort")
                                 : m.complexityTier === "fast"
-                                ? "Hızlı/Lokal"
-                                : "Standart"}
+                                ? t("sdlc.teamModal.tierFastShort")
+                                : t("sdlc.teamModal.tierStandardShort")}
                             </span>
                           </div>
                           <span>{m.roleLabel}</span>
@@ -995,7 +1092,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                             e.stopPropagation();
                             removeTeamMember(m.id);
                           }}
-                          title="Agent'ı projeden kaldır"
+                          title={t("sdlc.teamModal.removeAgentTitle")}
                         >
                           {TrashIcon}
                         </button>
@@ -1007,7 +1104,11 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                 {/* Human Members */}
                 <div className="roster-column">
                   <div className="roster-col-header">
-                    <span>İNSAN EKİP ÜYELERİ ({humans.length})</span>
+                    <span>
+                      {t("sdlc.teamModal.humanMembersHeader", {
+                        count: humans.length,
+                      })}
+                    </span>
                   </div>
                   <div className="roster-list">
                     {humans.map((m) => (
@@ -1035,7 +1136,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                               e.stopPropagation();
                               removeTeamMember(m.id);
                             }}
-                            title="Ekipten çıkar"
+                            title={t("sdlc.teamModal.removeMemberTitle")}
                           >
                             {TrashIcon}
                           </button>
@@ -1051,8 +1152,8 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                 <div className="form-header-row">
                   <strong>
                     {editingMemberId
-                      ? "Seçili Agent / Üye Yapılandırmasını Güncelle"
-                      : "Bu Projeye Yeni Uzman AI Agent veya Ekip Arkadaşı Tanımla"}
+                      ? t("sdlc.teamModal.editFormHeader")
+                      : t("sdlc.teamModal.addFormHeader")}
                   </strong>
                   <div className="sdlc-segmented">
                     <button
@@ -1062,7 +1163,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                       }`}
                       onClick={() => setKind("ai_agent")}
                     >
-                      AI Agent
+                      {t("sdlc.teamModal.aiAgentToggle")}
                     </button>
                     <button
                       type="button"
@@ -1071,7 +1172,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                       }`}
                       onClick={() => setKind("human")}
                     >
-                      İnsan Üye
+                      {t("sdlc.teamModal.humanToggle")}
                     </button>
                   </div>
                 </div>
@@ -1079,14 +1180,16 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                 <div className="sdlc-modal-grid-2">
                   <div className="form-group">
                     <label>
-                      {kind === "ai_agent" ? "Agent Adı" : "Ekip Üyesi Adı"}
+                      {kind === "ai_agent"
+                        ? t("sdlc.teamModal.agentNameLabel")
+                        : t("sdlc.teamModal.memberNameLabel")}
                     </label>
                     <input
                       type="text"
                       placeholder={
                         kind === "ai_agent"
-                          ? "Örn: Kıdemli Güvenlik Mimarı Agent..."
-                          : "Örn: Mert (Product Owner)..."
+                          ? t("sdlc.teamModal.agentNamePlaceholder")
+                          : t("sdlc.teamModal.memberNamePlaceholder")
                       }
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -1094,7 +1197,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                   </div>
 
                   <div className="form-group">
-                    <label>Uzmanlık / SDLC Rolü</label>
+                    <label>{t("sdlc.teamModal.roleFieldLabel")}</label>
                     <select
                       className="sdlc-modal-select"
                       value={role}
@@ -1113,7 +1216,9 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                   <>
                     <div className="sdlc-modal-grid-3">
                       <div className="form-group">
-                        <label>Görev Karmaşıklık Seviyesi</label>
+                        <label>
+                          {t("sdlc.teamModal.complexityFieldLabel")}
+                        </label>
                         <select
                           className="sdlc-modal-select"
                           value={complexityTier}
@@ -1124,19 +1229,25 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                           }
                         >
                           <option value="high">
-                            {TIER_LABELS.high} (Mimari/Analiz)
+                            {t("sdlc.teamModal.complexityOptHigh", {
+                              label: TIER_LABELS.high,
+                            })}
                           </option>
                           <option value="standard">
-                            {TIER_LABELS.standard} (Genel)
+                            {t("sdlc.teamModal.complexityOptStandard", {
+                              label: TIER_LABELS.standard,
+                            })}
                           </option>
                           <option value="fast">
-                            {TIER_LABELS.fast} (Tekrarlayan İşler)
+                            {t("sdlc.teamModal.complexityOptFast", {
+                              label: TIER_LABELS.fast,
+                            })}
                           </option>
                         </select>
                       </div>
 
                       <div className="form-group">
-                        <label>Model Sağlayıcı / Gateway</label>
+                        <label>{t("sdlc.teamModal.providerFieldLabel")}</label>
                         <select
                           className="sdlc-modal-select"
                           value={modelProvider}
@@ -1147,22 +1258,26 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                           }
                         >
                           <option value="openrouter">
-                            OpenRouter (Çoklu Model Gateway)
+                            {t("sdlc.teamModal.providerOptOpenrouter")}
                           </option>
                           <option value="ollama">
-                            Ollama (Lokal & Ücretsiz LLM)
+                            {t("sdlc.teamModal.providerOptOllama")}
                           </option>
-                          <option value="openai">OpenAI / Kurumsal API</option>
-                          <option value="custom">Özel Endpoint</option>
+                          <option value="openai">
+                            {t("sdlc.teamModal.providerOptOpenai")}
+                          </option>
+                          <option value="custom">
+                            {t("sdlc.teamModal.providerOptCustom")}
+                          </option>
                         </select>
                       </div>
 
                       <div className="form-group">
-                        <label>Tercih Edilen Model (Seçin veya Yazın)</label>
+                        <label>{t("sdlc.teamModal.modelFieldLabel")}</label>
                         <input
                           type="text"
                           list="agent-model-suggestions"
-                          placeholder="Örn: anthropic/claude-3.7-sonnet veya gemma4:26b"
+                          placeholder={t("sdlc.teamModal.modelPlaceholder")}
                           value={modelId}
                           onChange={(e) => setModelId(e.target.value)}
                         />
@@ -1175,10 +1290,10 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                     </div>
 
                     <div className="form-group">
-                      <label>Agent Görev Yönergesi (System Prompt)</label>
+                      <label>{t("sdlc.teamModal.systemPromptLabel")}</label>
                       <input
                         type="text"
-                        placeholder="Örn: Karmaşık dağıtık sistem mimarilerini analiz eder, darboğazları ve kabul kriterlerini çıkarır..."
+                        placeholder={t("sdlc.teamModal.systemPromptPlaceholder")}
                         value={systemPrompt}
                         onChange={(e) => setSystemPrompt(e.target.value)}
                       />
@@ -1193,7 +1308,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                       className="btn-secondary"
                       onClick={handleCancelEdit}
                     >
-                      <span>Düzenlemeyi İptal Et</span>
+                      <span>{t("sdlc.teamModal.cancelEditBtn")}</span>
                     </button>
                   )}
                   {onOpenAIStudio && (
@@ -1206,17 +1321,17 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                       }}
                     >
                       {brainIcon}
-                      <span>SDLC AI & MCP Stüdyosu</span>
+                      <span>{t("sdlc.teamModal.openAiStudioBtn")}</span>
                     </button>
                   )}
                   <button type="submit" className="btn-primary">
                     {editingMemberId ? checkIcon : PlusIcon}
                     <span>
                       {editingMemberId
-                        ? "Değişiklikleri Kaydet"
+                        ? t("sdlc.teamModal.saveChangesBtn")
                         : kind === "ai_agent"
-                        ? "AI Agent'ı Projeye Ekle"
-                        : "Üyeyi Projeye Ekle"}
+                        ? t("sdlc.teamModal.addAgentSubmitBtn")
+                        : t("sdlc.teamModal.addMemberSubmitBtn")}
                     </span>
                   </button>
                 </div>
@@ -1234,11 +1349,9 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                   lineHeight: 1.45,
                 }}
               >
-                Başka bir projede memnun kaldığınız AI Agent yapılandırmalarını
-                (model tercihleri, OpenRouter/Ollama ayarları ve sistem
-                yönergeleriyle birlikte) veya insan ekip üyelerini tek tek seçerek
-                ya da tüm kadro olarak <strong>{activeProject?.name}</strong>{" "}
-                projesine aktarabilirsiniz.
+                {t("sdlc.teamModal.transferIntro", {
+                  name: activeProject?.name || "",
+                })}
               </p>
 
               {otherProjects.length === 0 ? (
@@ -1253,15 +1366,14 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                     color: "var(--color-gray-60)",
                   }}
                 >
-                  Henüz ikinci bir projeniz bulunmuyor. Sol üstteki{" "}
-                  <strong>Proje Gezgini → + Yeni Proje</strong> menüsünden yeni bir
-                  proje oluştururken mevcut ekibinizi doğrudan aktarabilir veya
-                  daha sonra buradan projeler arası kopyalama yapabilirsiniz.
+                  {t("sdlc.teamModal.noOtherProjects")}
                 </div>
               ) : (
                 <>
                   <div className="form-group">
-                    <label>Kaynak Proje Seçin</label>
+                    <label>
+                      {t("sdlc.teamModal.selectSourceProjectLabel")}
+                    </label>
                     <select
                       className="sdlc-modal-select"
                       value={sourceProjectId}
@@ -1269,7 +1381,11 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                     >
                       {otherProjects.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} ({getProjectTeam(p.id).length} üye/agent)
+                          {p.name} (
+                          {t("sdlc.teamModal.membersCountSuffix", {
+                            count: getProjectTeam(p.id).length,
+                          })}
+                          )
                         </option>
                       ))}
                     </select>
@@ -1382,7 +1498,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                       className="btn-secondary"
                       onClick={() => handleTransferMembers(true)}
                     >
-                      <span>Tüm Kadroyu Birebir Aktar (Üzerine Yaz)</span>
+                      <span>{t("sdlc.teamModal.replaceAllSquadBtn")}</span>
                     </button>
                     <button
                       type="button"
@@ -1392,8 +1508,9 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                     >
                       {PlusIcon}
                       <span>
-                        Seçili ({selectedSourceMemberIds.length}) Üye / Agent'ı Bu
-                        Projeye Ekle
+                        {t("sdlc.teamModal.transferSelectedBtn", {
+                          count: selectedSourceMemberIds.length,
+                        })}
                       </span>
                     </button>
                   </div>
@@ -1412,16 +1529,12 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                   lineHeight: 1.45,
                 }}
               >
-                Tekrarlayan / hızlı görevler için <strong>Ollama (Lokal)</strong>{" "}
-                sunucunuzu, karmaşık mimari ve tasarım görevleri için{" "}
-                <strong>OpenRouter</strong> (Claude, Gemini, GPT, DeepSeek, Qwen
-                geçidi) veya kurumsal <strong>OpenAI</strong> bağlantınızı
-                buradan yapılandırabilirsiniz.
+                {t("sdlc.teamModal.gatewaysIntro")}
               </p>
 
               <div className="sdlc-modal-grid-2">
                 <div className="form-group">
-                  <label>Ollama (Lokal LLM) Sunucu Adresi</label>
+                  <label>{t("sdlc.teamModal.ollamaUrlLabel")}</label>
                   <div style={{ display: "flex", gap: 6 }}>
                     <input
                       type="text"
@@ -1450,13 +1563,13 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                       disabled={isFetchingGateway}
                       onClick={() => handleFetchGatewayModels("ollama")}
                     >
-                      Test & Modelleri Çek
+                      {t("sdlc.teamModal.testFetchModelsBtn")}
                     </button>
                   </div>
                 </div>
 
                 <div className="form-group">
-                  <label>OpenRouter Gateway Base URL</label>
+                  <label>{t("sdlc.teamModal.openrouterUrlLabel")}</label>
                   <div style={{ display: "flex", gap: 6 }}>
                     <input
                       type="text"
@@ -1485,7 +1598,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                       disabled={isFetchingGateway}
                       onClick={() => handleFetchGatewayModels("openrouter")}
                     >
-                      Kataloğu Çek
+                      {t("sdlc.teamModal.fetchCatalogBtn")}
                     </button>
                   </div>
                 </div>
@@ -1493,7 +1606,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
 
               <div className="sdlc-modal-grid-2">
                 <div className="form-group">
-                  <label>OpenRouter API Anahtarı (Key)</label>
+                  <label>{t("sdlc.teamModal.openrouterKeyLabel")}</label>
                   <input
                     type="password"
                     value={gatewayConfig.openRouterApiKey}
@@ -1509,7 +1622,7 @@ export const TeamRosterModal: React.FC<TeamRosterModalProps> = ({
                 </div>
 
                 <div className="form-group">
-                  <label>OpenAI / Özel API Anahtarı (Key)</label>
+                  <label>{t("sdlc.teamModal.openaiKeyLabel")}</label>
                   <input
                     type="password"
                     value={gatewayConfig.openAiApiKey}

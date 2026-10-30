@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect } from "react";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import {
   CloseIcon,
   copyIcon,
   checkIcon,
   downloadIcon,
   frameToolIcon,
-  codeIcon,
   chevronDownIcon,
   chevronRight,
 } from "@excalidraw/excalidraw/components/icons";
@@ -93,15 +93,18 @@ export const DesignLayersPanel: React.FC<LayersPanelProps> = ({
   onFocusArtboard,
   onClose,
 }) => {
+  const { t } = useI18n();
   return (
     <aside className="design-side-island design-layers-island">
       <div className="design-side-island__header">
-        <span className="design-side-island__title">Katmanlar</span>
+        <span className="design-side-island__title">
+          {t("sdlc.design.layersBtn")}
+        </span>
         <button
           type="button"
           className="design-icon-btn"
           onClick={onClose}
-          title="Katmanları Kapat"
+          title={t("sdlc.design.closeLayersTitle")}
         >
           {CloseIcon}
         </button>
@@ -110,7 +113,7 @@ export const DesignLayersPanel: React.FC<LayersPanelProps> = ({
       <div className="design-side-island__body">
         {artboards.length === 0 ? (
           <div className="design-side-empty">
-            Henüz tuvalde bir tasarım veya artboard bulunmuyor.
+            {t("sdlc.design.emptyLayers")}
           </div>
         ) : (
           artboards.map((ab) => {
@@ -124,14 +127,12 @@ export const DesignLayersPanel: React.FC<LayersPanelProps> = ({
                   }`}
                   onClick={() => onSelectArtboard(ab.id, null)}
                   onDoubleClick={() => onFocusArtboard(ab.id)}
-                  title="Seçmek için tıklayın, odaklamak için çift tıklayın"
+                  title={t("sdlc.design.layerClickHint")}
                 >
                   <span className="layer-icon">{frameToolIcon}</span>
                   <span className="layer-name">{ab.name}</span>
                   <span className="layer-meta">
-                    {isHug
-                      ? "Hug"
-                      : `${ab.width}×${ab.height}`}
+                    {isHug ? "Hug" : `${ab.width}×${ab.height}`}
                   </span>
                 </div>
 
@@ -200,6 +201,7 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
   onDownloadCode,
   onClose,
 }) => {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
 
   const selectedNode = useMemo(() => {
@@ -241,7 +243,9 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
     <aside className="design-side-island design-inspector-island">
       <div className="design-side-island__header">
         <span className="design-side-island__title">
-          {selectedNode ? `Düğüm: <${selectedNode.tagName}>` : "Denetçi"}
+          {selectedNode
+            ? t("sdlc.design.nodeInspectorTitle", { tag: selectedNode.tagName })
+            : t("sdlc.design.inspectorBtn")}
         </span>
         <div className="design-side-island__header-actions">
           {selectedNode && (
@@ -249,7 +253,7 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
               type="button"
               className="design-pill-btn"
               onClick={onClearNodeSelection}
-              title="Artboard özelliklerine dön"
+              title={t("sdlc.design.backToArtboardTitle")}
             >
               Artboard
             </button>
@@ -258,7 +262,7 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
             type="button"
             className="design-icon-btn"
             onClick={onClose}
-            title="Denetçiyi Kapat"
+            title={t("sdlc.design.closeInspectorTitle")}
           >
             {CloseIcon}
           </button>
@@ -297,7 +301,9 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
 
             {selectedNode.children.length === 0 && (
               <div className="inspector-section">
-                <label className="inspector-label">Metin İçeriği</label>
+                <label className="inspector-label">
+                  {t("sdlc.design.textContentLabel")}
+                </label>
                 <div className="inspector-row">
                   <input
                     type="text"
@@ -327,17 +333,19 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
                       )
                     }
                   >
-                    Uygula
+                    {t("sdlc.design.applyBtn")}
                   </button>
                 </div>
               </div>
             )}
 
             <div className="inspector-section">
-              <label className="inspector-label">CSS Özellikleri (Canlı)</label>
+              <label className="inspector-label">
+                {t("sdlc.design.liveCssPropsLabel")}
+              </label>
               <div className="inspector-field-list">
                 <div className="inspector-field">
-                  <span>Yazı Boyutu</span>
+                  <span>{t("sdlc.design.fontSizeLabel")}</span>
                   <input
                     type="text"
                     className="inspector-input"
@@ -352,7 +360,7 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
                   />
                 </div>
                 <div className="inspector-field">
-                  <span>Yazı Rengi</span>
+                  <span>{t("sdlc.design.textColorLabel")}</span>
                   <input
                     type="text"
                     className="inspector-input"
@@ -367,7 +375,7 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
                   />
                 </div>
                 <div className="inspector-field">
-                  <span>Arka Plan</span>
+                  <span>{t("sdlc.design.backgroundLabel")}</span>
                   <input
                     type="text"
                     className="inspector-input"
@@ -382,7 +390,7 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
                   />
                 </div>
                 <div className="inspector-field">
-                  <span>Padding</span>
+                  <span>{t("sdlc.design.paddingLabel")}</span>
                   <input
                     type="text"
                     className="inspector-input"
@@ -397,7 +405,7 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
                   />
                 </div>
                 <div className="inspector-field">
-                  <span>Köşe Yarıçapı</span>
+                  <span>{t("sdlc.design.borderRadiusLabel")}</span>
                   <input
                     type="text"
                     className="inspector-input"
@@ -417,7 +425,9 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
         ) : (
           <>
             <div className="inspector-section">
-              <label className="inspector-label">Tasarım / Artboard Adı</label>
+              <label className="inspector-label">
+                {t("sdlc.design.artboardNameLabel")}
+              </label>
               <input
                 type="text"
                 className="inspector-input"
@@ -429,7 +439,9 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
             </div>
 
             <div className="inspector-section">
-              <label className="inspector-label">Konum & Boyut Modu</label>
+              <label className="inspector-label">
+                {t("sdlc.design.positionSizeModeLabel")}
+              </label>
               <div className="inspector-grid-2">
                 <div className="inspector-field">
                   <span>X</span>
@@ -473,7 +485,7 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
                     })
                   }
                 >
-                  Hug Contents (Otomatik)
+                  {t("sdlc.design.hugContentsBtn")}
                 </button>
                 <button
                   type="button"
@@ -498,7 +510,7 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
                     })
                   }
                 >
-                  Sabit Çerçeve
+                  {t("sdlc.design.fixedFrameBtn")}
                 </button>
               </div>
 
@@ -543,11 +555,13 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
             </div>
 
             <div className="inspector-section">
-              <label className="inspector-label">Özel CSS (Shadow DOM)</label>
+              <label className="inspector-label">
+                {t("sdlc.design.customCssLabel")}
+              </label>
               <textarea
                 className="inspector-textarea"
                 rows={4}
-                placeholder="/* Özel CSS kuralları */"
+                placeholder={t("sdlc.design.customCssPlaceholder")}
                 value={artboard.css || ""}
                 onChange={(e) =>
                   onUpdateArtboard(artboard.id, { css: e.target.value })
@@ -562,7 +576,11 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
                 onClick={handleCopy}
               >
                 {copied ? checkIcon : copyIcon}
-                <span>{copied ? "Kopyalandı" : "HTML/CSS Kopyala"}</span>
+                <span>
+                  {copied
+                    ? t("sdlc.design.copiedBtn")
+                    : t("sdlc.design.copyHtmlCssBtn")}
+                </span>
               </button>
               <button
                 type="button"
@@ -570,7 +588,7 @@ export const DesignInspectorPanel: React.FC<InspectorPanelProps> = ({
                 onClick={() => onDownloadCode(artboard.id)}
               >
                 {downloadIcon}
-                <span>.html İndir</span>
+                <span>{t("sdlc.design.downloadHtmlBtn")}</span>
               </button>
             </div>
           </>

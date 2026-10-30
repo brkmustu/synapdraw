@@ -483,6 +483,12 @@
     background-color: var(--button-destructive-bg-color, #ffe3e3);
     color: var(--button-destructive-color, #c92a2a);
   }
+
+  &--artboard {
+    background-color: rgba(139, 92, 246, 0.12);
+    border-color: rgba(139, 92, 246, 0.32);
+    color: var(--color-primary, #6965db);
+  }
 }
 
 .artifact-split-btn {
@@ -868,7 +874,7 @@
 // ============================================================================
 
 .sdlc-detail-drawer {
-  width: 348px;
+  width: 372px;
   flex-shrink: 0;
   padding: 0 !important;
   background-color: var(--island-bg-color, #ffffff);
@@ -909,6 +915,119 @@
       display: flex;
       gap: 0.25rem;
     }
+  }
+
+  .detail-drawer-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.2rem;
+    padding: 0.35rem 0.5rem;
+    background-color: var(--color-surface-low, #ececf4);
+    border-bottom: 1px solid var(--default-border-color, #ebebeb);
+    flex-shrink: 0;
+
+    .detail-tab-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      height: 1.85rem;
+      padding: 0 0.35rem;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--color-gray-60, #7a7a7a);
+      font-family: inherit;
+      font-size: 0.68rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: all 0.14s ease;
+
+      &:hover {
+        color: var(--color-on-surface, #1b1b1f);
+        background-color: rgba(105, 101, 219, 0.08);
+      }
+
+      &--active {
+        background-color: var(--island-bg-color, #ffffff);
+        color: var(--color-primary, #6965db);
+        border-color: var(--default-border-color, #ebebeb);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      }
+
+      .detail-tab-badge {
+        font-size: 0.58rem;
+        font-weight: 800;
+        padding: 1px 4px;
+        border-radius: 999px;
+        background-color: var(--color-surface-primary-container, #e0dfff);
+        color: var(--color-primary, #6965db);
+        line-height: 1.2;
+      }
+    }
+  }
+
+  .detail-traceability-hint {
+    margin: 0;
+    font-size: 0.68rem;
+    line-height: 1.38;
+    color: var(--color-gray-60, #7a7a7a);
+  }
+
+  .design-artboard-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .design-artboard-group-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--default-border-color, #ebebeb);
+    background-color: var(--color-surface-mid, #f6f6f9);
+
+    .design-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.35rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px dashed var(--default-border-color, #ebebeb);
+
+      .design-group-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--color-on-surface, #1b1b1f);
+        min-width: 0;
+
+        .doc-icon {
+          display: inline-flex;
+          color: var(--color-primary, #6965db);
+          svg {
+            width: 0.85rem;
+            height: 0.85rem;
+          }
+        }
+      }
+    }
+  }
+
+  .design-group-empty {
+    padding: 0.55rem;
+    border-radius: 6px;
+    background-color: var(--color-surface-low, #ececf4);
+    font-size: 0.7rem;
+    color: var(--color-gray-60, #7a7a7a);
+    text-align: center;
   }
 
   .detail-drawer-body {

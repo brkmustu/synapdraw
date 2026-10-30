@@ -10,8 +10,23 @@ import {
   brainIcon,
   TrashIcon,
   usersIcon,
-   searchIcon,
+  searchIcon,
+  ExcalLogo,
+  ArchitectureIcon,
+  TaskBoardIcon,
+  TDDTestIcon,
+  ProjectFolderIcon,
+  SplitViewIcon,
+  ContextLinkIcon,
+  alertTriangleIcon,
+  boltIcon,
+  checkIcon,
+  ExportIcon,
+  LoadIcon,
+  abacusIcon,
 } from "@excalidraw/excalidraw/components/icons";
+import { languages, useI18n } from "@excalidraw/excalidraw/i18n";
+import { useAppLangCode } from "../app-language/language-state";
 import {
   getProjects,
   getActiveProject,
@@ -44,90 +59,16 @@ import {
 } from "./workspaceStore";
 import "./WorkspaceTabs.scss";
 
-export const ArchitectureIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.75"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="9" y="3" width="6" height="4" rx="1" />
-    <rect x="3" y="17" width="6" height="4" rx="1" />
-    <rect x="15" y="17" width="6" height="4" rx="1" />
-    <path d="M12 7v5m0 0H6v5m6-5h6v5" />
-  </svg>
-);
+export {
+  ArchitectureIcon,
+  TaskBoardIcon,
+  TDDTestIcon,
+  ProjectFolderIcon,
+  SplitViewIcon,
+  ContextLinkIcon,
+};
 
-export const TaskBoardIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.75"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="3" y="4" width="18" height="16" rx="2" />
-    <path d="M9 4v16M15 4v16M6 8h1M12 8h1M18 8h1M6 12h1M12 12h1" />
-  </svg>
-);
-
-export const TDDTestIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.75"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M9 12l2 2 4-4" />
-    <path d="M12 3l8 4v5c0 5.25-3.5 8.75-8 10-4.5-1.25-8-4.75-8-10V7l8-4z" />
-  </svg>
-);
-
-export const ProjectFolderIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.75"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
-  </svg>
-);
-
-export const SplitViewIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.75"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="3" y="4" width="18" height="16" rx="2" />
-    <line x1="12" y1="4" x2="12" y2="20" />
-  </svg>
-);
-
-export const ContextLinkIcon = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.75"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-  </svg>
-);
+export const SynapDrawBrandIcon = ExcalLogo;
 
 export function getDocumentIcon(doc: WorkspaceDocument): React.ReactNode {
   if (doc.category === "architecture") return ArchitectureIcon;
@@ -155,45 +96,36 @@ interface PresetOption {
   icon: React.ReactNode;
 }
 
-const SURFACE_PRESETS: PresetOption[] = [
+interface PresetDef {
+  canvasType: CanvasType;
+  category: DocumentCategory;
+  icon: React.ReactNode;
+}
+
+const SURFACE_PRESET_DEFS: PresetDef[] = [
   {
     canvasType: "sketch",
     category: "analysis",
-    title: "Analiz & Akış Tuvali",
-    desc: "İş analizi, kullanıcı akışları, süreç diyagramları ve beyin fırtınası (Excalidraw).",
-    placeholder: "Örn: Sipariş İptal Akış Analizi...",
     icon: FreedrawIcon,
   },
   {
     canvasType: "sketch",
     category: "architecture",
-    title: "Sistem Mimarisi & Şema",
-    desc: "Mikroservis sınırları, sistem mimarisi taslağı, ER diyagramları ve Mermaid şemaları.",
-    placeholder: "Örn: Ödeme Servisi Mimari Taslağı...",
     icon: ArchitectureIcon,
   },
   {
     canvasType: "design",
     category: "ui_design",
-    title: "UI/UX Tasarım Tuvali",
-    desc: "Pixel-perfect CSS/HTML bileşenler, Hug Contents kartlar ve canlı DOM denetçisi.",
-    placeholder: "Örn: Sipariş Ekranı Tasarımları...",
     icon: frameToolIcon,
   },
   {
     canvasType: "tasks",
     category: "task_board",
-    title: "Proje & Görev Panosu",
-    desc: "Kanban ve liste görünümüyle analiz, tasarım ve TDD testlerine bağlı ekip görevleri.",
-    placeholder: "Örn: Sprint 2 Görev Panosu...",
     icon: TaskBoardIcon,
   },
   {
     canvasType: "tdd",
     category: "tdd_suite",
-    title: "TDD & Test Senaryoları",
-    desc: "Given/When/Then BDD senaryoları ve Red-Green-Refactor TDD doğrulama matrisi.",
-    placeholder: "Örn: Sipariş Doğrulama TDD Paketi...",
     icon: TDDTestIcon,
   },
 ];
@@ -206,6 +138,40 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
   onToggleContextDrawer,
   onOpenTeamModal,
 }) => {
+  const { t } = useI18n();
+  const [langCode, setLangCode] = useAppLangCode();
+  const SURFACE_PRESETS: PresetOption[] = [
+    {
+      ...SURFACE_PRESET_DEFS[0],
+      title: t("sdlc.categories.analysis"),
+      desc: t("sdlc.explorer.catDescAnalysis"),
+      placeholder: t("sdlc.explorer.surfaceTitlePlaceholder"),
+    },
+    {
+      ...SURFACE_PRESET_DEFS[1],
+      title: t("sdlc.categories.architecture"),
+      desc: t("sdlc.explorer.catDescArchitecture"),
+      placeholder: t("sdlc.explorer.surfaceTitlePlaceholder"),
+    },
+    {
+      ...SURFACE_PRESET_DEFS[2],
+      title: t("sdlc.categories.ui_design"),
+      desc: t("sdlc.explorer.catDescUiDesign"),
+      placeholder: t("sdlc.explorer.surfaceTitlePlaceholder"),
+    },
+    {
+      ...SURFACE_PRESET_DEFS[3],
+      title: t("sdlc.categories.task_board"),
+      desc: t("sdlc.explorer.catDescTaskBoard"),
+      placeholder: t("sdlc.explorer.surfaceTitlePlaceholder"),
+    },
+    {
+      ...SURFACE_PRESET_DEFS[4],
+      title: t("sdlc.categories.tdd_suite"),
+      desc: t("sdlc.explorer.catDescTddSuite"),
+      placeholder: t("sdlc.explorer.surfaceTitlePlaceholder"),
+    },
+  ];
   const [projects, setProjects] = useState<SDLCProject[]>([]);
   const [activeProject, setActiveProject] = useState<SDLCProject | null>(null);
   const [allWorkspaces, setAllWorkspaces] = useState<WorkspaceDocument[]>([]);
@@ -375,6 +341,14 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
     <>
       <header ref={barRef} className="workspace-tabs-bar">
         <div className="tabs-left-cluster">
+          {/* SynapDraw Brand Emblem */}
+          <div className="synapdraw-brand-badge" title="SynapDraw">
+            <span className="synapdraw-brand-icon">{SynapDrawBrandIcon}</span>
+            <span className="synapdraw-brand-name">SynapDraw</span>
+          </div>
+
+          <div className="tabs-bar-divider" />
+
           {/* Project Explorer Trigger */}
           <button
             type="button"
@@ -385,11 +359,11 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               setIsExplorerOpen((prev) => !prev);
               setIsSplitMenuOpen(false);
             }}
-            title="Proje Gezgini ve Doküman Ağacı"
+            title={t("sdlc.common.openWorkspaceTitle")}
           >
             <span className="proj-icon">{ProjectFolderIcon}</span>
             <span className="proj-name">
-              {activeProject?.name || "Proje"}
+              {activeProject?.name || t("sdlc.explorer.projectsTitle")}
             </span>
             <span className="proj-count">{allWorkspaces.length}</span>
           </button>
@@ -415,9 +389,9 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                     setEditingTabId(ws.id);
                     setEditingName(ws.name);
                   }}
-                  title={`${ws.name} (${getCategoryLabel(
-                    ws.category,
-                  )}) — Yeniden adlandırmak için çift tıklayın`}
+                  title={`${ws.name} — ${t("sdlc.common.doubleClickRename", {
+                    category: getCategoryLabel(ws.category),
+                  })}`}
                 >
                   <span className="tab-icon">{getDocumentIcon(ws)}</span>
 
@@ -453,7 +427,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                         e.stopPropagation();
                         closeWorkspaceTab(ws.id);
                       }}
-                      title="Sekmeyi kapat (Proje gezgininde kalmaya devam eder)"
+                      title={t("sdlc.common.close")}
                     >
                       {CloseIcon}
                     </button>
@@ -466,7 +440,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               type="button"
               className="new-tab-btn"
               onClick={() => handleOpenCreateModal(2)}
-              title="Projeye Yeni Yüzey / Tuval Ekle"
+              title={t("sdlc.common.newSurfaceTitle")}
             >
               {PlusIcon}
             </button>
@@ -493,18 +467,22 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               }}
               title={
                 splitId
-                  ? "Yan Yana (Split-Peek) Görünümü Kapat"
-                  : "Ekranı İkiye Böl (Analiz, Tasarım, Görev veya TDD'yi Yan Yana Aç)"
+                  ? t("sdlc.common.closeSplit")
+                  : t("sdlc.common.openInSplitView")
               }
             >
               {SplitViewIcon}
-              <span>{splitId ? "Bölünmüş: Aktif" : "Yan Yana"}</span>
+              <span>
+                {splitId
+                  ? t("sdlc.common.splitActive")
+                  : t("sdlc.common.splitView")}
+              </span>
             </button>
 
             {isSplitMenuOpen && (
               <div className="split-picker-popover Island">
                 <div className="split-picker-header">
-                  <span>Yan Yana Açılacak Yüzeyi Seçin</span>
+                  <span>{t("sdlc.common.openInSplitView")}</span>
                   <button
                     type="button"
                     className="split-picker-close"
@@ -544,12 +522,12 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                 isContextDrawerOpen ? "tabs-action-btn--active" : ""
               }`}
               onClick={onToggleContextDrawer}
-              title="Bu yüzeye bağlı Görevleri, Kabul Kriterlerini ve TDD Test Senaryolarını görüntüle"
+              title={t("sdlc.common.contextTitle")}
             >
               {ContextLinkIcon}
-              <span>Bağlam</span>
+              <span>{t("sdlc.common.context")}</span>
               <span className="action-count-pill">
-                {linkedCounts.tasks}G · {linkedCounts.tdd}T
+                {linkedCounts.tasks} · {linkedCounts.tdd}
               </span>
             </button>
           )}
@@ -560,10 +538,10 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               type="button"
               className="tabs-action-btn"
               onClick={onOpenTeamModal}
-              title="Proje Ekibi ve AI Agent Kadrosu"
+              title={t("sdlc.common.teamTitle")}
             >
               {usersIcon}
-              <span>Ekip & Agent</span>
+              <span>{t("sdlc.common.teamAndAgents")}</span>
               <span className="action-count-pill">{teamCount}</span>
             </button>
           )}
@@ -573,12 +551,36 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               type="button"
               className="tabs-action-btn"
               onClick={onOpenAIIntegrations}
-              title="AI Studio & Canlı MCP Ayarları"
+              title={t("sdlc.common.aiStudioTitle")}
             >
               {brainIcon}
-              <span>AI Studio</span>
+              <span>{t("sdlc.common.aiStudio")}</span>
             </button>
           )}
+
+          <select
+            aria-label={t("buttons.selectLanguage")}
+            title={t("buttons.selectLanguage")}
+            value={langCode}
+            onChange={(e) => setLangCode(e.target.value)}
+            style={{
+              height: 28,
+              borderRadius: 6,
+              border: "1px solid var(--default-border-color, #e5e5e5)",
+              background: "var(--color-surface-low)",
+              color: "var(--text-primary-color)",
+              fontSize: 11,
+              fontWeight: 600,
+              padding: "0 6px",
+              cursor: "pointer",
+            }}
+          >
+            {languages.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.label}
+              </option>
+            ))}
+          </select>
 
           {onToggleTheme && (
             <button
@@ -587,8 +589,8 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               onClick={onToggleTheme}
               title={
                 editorTheme === "dark"
-                  ? "Açık Temaya Geç"
-                  : "Koyu Temaya Geç"
+                  ? t("sdlc.common.switchToLight")
+                  : t("sdlc.common.switchToDark")
               }
             >
               {editorTheme === "dark" ? SunIcon : MoonIcon}
@@ -609,14 +611,16 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
           >
             <div className="explorer-header">
               <div className="explorer-project-row">
-                <label className="explorer-label">AKTİF PROJE</label>
+                <label className="explorer-label">
+                  {t("sdlc.explorer.projectsTitle")}
+                </label>
                 <button
                   type="button"
                   className="explorer-new-proj-btn"
                   onClick={() => setIsCreatingProject((prev) => !prev)}
                 >
                   {PlusIcon}
-                  <span>Yeni Proje</span>
+                  <span>{t("sdlc.explorer.newProjectBtn")}</span>
                 </button>
               </div>
 
@@ -628,7 +632,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                   <input
                     type="text"
                     className="explorer-input"
-                    placeholder="Proje adı (Örn: CRM Platformu)..."
+                    placeholder={t("sdlc.explorer.projectNamePlaceholder")}
                     value={newProjectName}
                     onChange={(e) => setNewProjectName(e.target.value)}
                     autoFocus
@@ -637,14 +641,13 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                     className="explorer-project-select"
                     value={copyTeamFromProjId}
                     onChange={(e) => setCopyTeamFromProjId(e.target.value)}
-                    title="Yeni projenin başlangıç ekip ve AI Agent kadrosunu seçin"
                   >
                     <option value="">
-                      Kadro: Varsayılan Hibrit Ekip (OpenRouter + Lokal)
+                      {t("sdlc.common.teamAndAgents")}: Default
                     </option>
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>
-                        Kadroyu Aktar: {p.name}
+                        {t("sdlc.teamModal.cloneAllAgentsBtn")}: {p.name}
                       </option>
                     ))}
                   </select>
@@ -654,10 +657,10 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                       className="btn-cancel"
                       onClick={() => setIsCreatingProject(false)}
                     >
-                      İptal
+                      {t("sdlc.common.cancel")}
                     </button>
                     <button type="submit" className="btn-create">
-                      Oluştur
+                      {t("sdlc.common.create")}
                     </button>
                   </div>
                 </form>
@@ -680,7 +683,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                 <input
                   type="text"
                   className="explorer-search-input"
-                  placeholder="Analiz, tasarım, görev veya test ara..."
+                  placeholder={t("quickSearch.placeholder")}
                   value={explorerSearch}
                   onChange={(e) => setExplorerSearch(e.target.value)}
                 />
@@ -709,9 +712,14 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                     letterSpacing: "0.03em",
                   }}
                 >
-                  <span>📊 SDLC İZLENEBİLİRLİK ÖZETİ</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ display: "inline-flex", width: 13, height: 13 }}>
+                      {abacusIcon}
+                    </span>
+                    <span>{t("sdlc.explorer.traceabilityPulse")}</span>
+                  </span>
                   <span>
-                    Görev %{pulse.taskCompletionPercent} · TDD %
+                    {t("sdlc.categories.task_board")} %{pulse.taskCompletionPercent} · TDD %
                     {pulse.tddPassPercent}
                   </span>
                 </div>
@@ -749,14 +757,29 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                         gap: 6,
                       }}
                     >
-                      <span style={{ color: "#e03131", fontWeight: 600 }}>
-                        ⚠️ {pulse.tasksMissingTDD.length} görevin TDD testi yok
+                      <span
+                        style={{
+                          color: "#e03131",
+                          fontWeight: 600,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <span style={{ display: "inline-flex", width: 13, height: 13 }}>
+                          {alertTriangleIcon}
+                        </span>
+                        <span>
+                          {t("sdlc.explorer.untestedTasksWarning", {
+                            count: pulse.tasksMissingTDD.length,
+                          })}
+                        </span>
                       </span>
                       <button
                         type="button"
                         onClick={() => {
-                          for (const t of pulse.tasksMissingTDD) {
-                            generateTDDFromTask(t.id);
+                          for (const taskItem of pulse.tasksMissingTDD) {
+                            generateTDDFromTask(taskItem.id);
                           }
                         }}
                         style={{
@@ -768,28 +791,59 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                           fontSize: 10.5,
                           fontWeight: 700,
                           cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
                         }}
                       >
-                        ⚡ Üret
+                        <span style={{ display: "inline-flex", width: 12, height: 12 }}>
+                          {boltIcon}
+                        </span>
+                        <span>{t("sdlc.common.create")}</span>
                       </button>
                     </div>
                   )}
                   {pulse.tasksMissingVisualLink.length > 0 && (
-                    <span style={{ color: "#f08c00", fontWeight: 600 }}>
-                      ⚠️ {pulse.tasksMissingVisualLink.length} görevin
-                      çizim/tasarım bağı yok
+                    <span
+                      style={{
+                        color: "#f08c00",
+                        fontWeight: 600,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <span style={{ display: "inline-flex", width: 13, height: 13 }}>
+                        {alertTriangleIcon}
+                      </span>
+                      <span>
+                        {t("sdlc.explorer.unlinkedArtboardsWarning", {
+                          count: pulse.tasksMissingVisualLink.length,
+                        })}
+                      </span>
                     </span>
                   )}
                   {pulse.redScenarios > 0 && (
                     <span style={{ color: "#e03131", fontWeight: 600 }}>
-                      🔴 {pulse.redScenarios} TDD senaryosu Red (bekliyor)
+                      {pulse.redScenarios} {t("sdlc.tdd.statusRed")}
                     </span>
                   )}
                   {pulse.tasksMissingTDD.length === 0 &&
                     pulse.tasksMissingVisualLink.length === 0 &&
                     pulse.redScenarios === 0 && (
-                      <span style={{ color: "#2f9e44", fontWeight: 600 }}>
-                        ✅ Tüm SDLC halkaları eksiksiz doğrulandı!
+                      <span
+                        style={{
+                          color: "#2f9e44",
+                          fontWeight: 600,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <span style={{ display: "inline-flex", width: 13, height: 13 }}>
+                          {checkIcon}
+                        </span>
+                        <span>{t("sdlc.explorer.allCoveredStatus")}</span>
                       </span>
                     )}
                 </div>
@@ -800,23 +854,24 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               {/* 1. Analysis & Architecture */}
               <div className="explorer-group">
                 <div className="explorer-group-header">
-                  <span>ANALİZ & MİMARİ (ÇİZİM)</span>
+                  <span>
+                    {t("sdlc.categories.analysis")} &{" "}
+                    {t("sdlc.categories.architecture")}
+                  </span>
                   <div className="group-actions">
                     <button
                       type="button"
                       className="group-add-btn"
                       onClick={() => handleOpenCreateModal(0)}
-                      title="Yeni Analiz Tuvali Ekle"
                     >
-                      + Analiz
+                      + {t("sdlc.categories.analysis")}
                     </button>
                     <button
                       type="button"
                       className="group-add-btn"
                       onClick={() => handleOpenCreateModal(1)}
-                      title="Yeni Mimari Şema Tuvali Ekle"
                     >
-                      + Mimari
+                      + {t("sdlc.categories.architecture")}
                     </button>
                   </div>
                 </div>
@@ -844,7 +899,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                         <button
                           type="button"
                           className="row-icon-btn"
-                          title="Yan Yana (Split-Peek) Aç"
+                          title={t("sdlc.common.openInSplitView")}
                           onClick={() => {
                             setSplitWorkspaceId(doc.id);
                             setIsExplorerOpen(false);
@@ -857,7 +912,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                         <button
                           type="button"
                           className="row-icon-btn row-icon-btn--danger"
-                          title="Projeden Kalıcı Olarak Sil"
+                          title={t("sdlc.common.deleteSurfaceTitle")}
                           onClick={() => setPendingDeleteId(doc.id)}
                         >
                           {TrashIcon}
@@ -871,13 +926,13 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               {/* 2. UI/UX Design Canvases */}
               <div className="explorer-group">
                 <div className="explorer-group-header">
-                  <span>UI/UX EKRAN TASARIMLARI</span>
+                  <span>{t("sdlc.categories.ui_design")}</span>
                   <button
                     type="button"
                     className="group-add-btn"
                     onClick={() => handleOpenCreateModal(2)}
                   >
-                    + Tasarım
+                    + {t("sdlc.categories.ui_design")}
                   </button>
                 </div>
                 {groupedDocs.design.map((doc) => (
@@ -901,7 +956,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                         <button
                           type="button"
                           className="row-icon-btn"
-                          title="Yan Yana (Split-Peek) Aç"
+                          title={t("sdlc.common.openInSplitView")}
                           onClick={() => {
                             setSplitWorkspaceId(doc.id);
                             setIsExplorerOpen(false);
@@ -914,7 +969,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                         <button
                           type="button"
                           className="row-icon-btn row-icon-btn--danger"
-                          title="Projeden Kalıcı Olarak Sil"
+                          title={t("sdlc.common.deleteSurfaceTitle")}
                           onClick={() => setPendingDeleteId(doc.id)}
                         >
                           {TrashIcon}
@@ -928,13 +983,13 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               {/* 3. Task Boards */}
               <div className="explorer-group">
                 <div className="explorer-group-header">
-                  <span>PROJE & GÖREV YÖNETİMİ</span>
+                  <span>{t("sdlc.categories.task_board")}</span>
                   <button
                     type="button"
                     className="group-add-btn"
                     onClick={() => handleOpenCreateModal(3)}
                   >
-                    + Pano
+                    + {t("sdlc.categories.task_board")}
                   </button>
                 </div>
                 {groupedDocs.tasks.map((doc) => (
@@ -958,7 +1013,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                         <button
                           type="button"
                           className="row-icon-btn"
-                          title="Yan Yana (Split-Peek) Aç"
+                          title={t("sdlc.common.openInSplitView")}
                           onClick={() => {
                             setSplitWorkspaceId(doc.id);
                             setIsExplorerOpen(false);
@@ -975,13 +1030,13 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               {/* 4. TDD & Test Suites */}
               <div className="explorer-group">
                 <div className="explorer-group-header">
-                  <span>TDD & TEST SENARYOLARI</span>
+                  <span>{t("sdlc.categories.tdd_suite")}</span>
                   <button
                     type="button"
                     className="group-add-btn"
                     onClick={() => handleOpenCreateModal(4)}
                   >
-                    + Test Paketi
+                    + {t("sdlc.categories.tdd_suite")}
                   </button>
                 </div>
                 {groupedDocs.tdd.map((doc) => (
@@ -1005,7 +1060,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                         <button
                           type="button"
                           className="row-icon-btn"
-                          title="Yan Yana (Split-Peek) Aç"
+                          title={t("sdlc.common.openInSplitView")}
                           onClick={() => {
                             setSplitWorkspaceId(doc.id);
                             setIsExplorerOpen(false);
@@ -1022,7 +1077,11 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
               {/* 5. Project Team & AI Agent Roster Quick Section */}
               <div className="explorer-group">
                 <div className="explorer-group-header">
-                  <span>PROJE EKİBİ & AI AGENT ({projectTeamList.length})</span>
+                  <span>
+                    {t("sdlc.teamModal.tabRoster", {
+                      count: projectTeamList.length,
+                    })}
+                  </span>
                   {onOpenTeamModal && (
                     <button
                       type="button"
@@ -1031,9 +1090,9 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                         setIsExplorerOpen(false);
                         onOpenTeamModal();
                       }}
-                      title="Proje bazlı AI Agent tanımla, model ata veya başka projeden ekip aktar"
+                      title={t("sdlc.common.teamTitle")}
                     >
-                      + Agent / Yönet
+                      + {t("sdlc.common.teamAndAgents")}
                     </button>
                   )}
                 </div>
@@ -1124,9 +1183,14 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
-                title="Tüm projeyi (çizimler, tasarımlar, görevler, TDD testleri ve ekip kadrosu) taşınabilir .synapdraw.json dosyası olarak indir"
+                title={t("sdlc.explorer.exportSnapshotTitle")}
               >
-                📦 Projeyi İndir (.json)
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ display: "inline-flex", width: 13, height: 13 }}>
+                    {ExportIcon}
+                  </span>
+                  <span>{t("sdlc.explorer.exportSnapshotBtn")}</span>
+                </span>
               </button>
               <button
                 type="button"
@@ -1143,9 +1207,14 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
-                title="Başka bir bilgisayardan dışa aktarılan .synapdraw.json proje paketini yükle"
+                title={t("sdlc.explorer.importBundleTitle")}
               >
-                📂 Proje Yükle
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ display: "inline-flex", width: 13, height: 13 }}>
+                    {LoadIcon}
+                  </span>
+                  <span>{t("sdlc.explorer.importBundleBtn")}</span>
+                </span>
               </button>
               <input
                 ref={fileInputRef}
@@ -1172,7 +1241,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
             aria-modal="true"
           >
             <div className="new-workspace-modal__header">
-              <h3>Projeye Yeni Çalışma Yüzeyi Ekle</h3>
+              <h3>{t("sdlc.explorer.newModalTitle")}</h3>
               <button
                 type="button"
                 className="modal-close-btn"
@@ -1184,7 +1253,9 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
             <form onSubmit={handleCreate}>
               <div className="new-workspace-modal__body">
                 <div className="form-group">
-                  <label htmlFor="ws-name">Yüzey / Doküman Başlığı</label>
+                  <label htmlFor="ws-name">
+                    {t("sdlc.explorer.surfaceTitleLabel")}
+                  </label>
                   <input
                     id="ws-name"
                     type="text"
@@ -1196,7 +1267,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                 </div>
 
                 <div className="form-group">
-                  <label>Yaşam Döngüsü Yüzey Tipi Seçin</label>
+                  <label>{t("sdlc.explorer.categoryLabel")}</label>
                   <div className="canvas-type-selector canvas-type-selector--grid">
                     {SURFACE_PRESETS.map((preset, idx) => (
                       <button
@@ -1219,11 +1290,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
 
                 <div className="type-lock-notice">
                   <span className="notice-icon">{LockedIcon}</span>
-                  <span>
-                    Bu yüzey <strong>{activeProject?.name}</strong> projesi
-                    altında oluşturulur ve projedeki diğer görev, analiz, tasarım
-                    ve TDD senaryolarıyla doğrudan ilişkilendirilebilir.
-                  </span>
+                  <span>{t("sdlc.explorer.newModalSubtitle")}</span>
                 </div>
               </div>
               <div className="new-workspace-modal__footer">
@@ -1232,10 +1299,10 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                   className="btn-secondary"
                   onClick={() => setIsModalOpen(false)}
                 >
-                  Vazgeç
+                  {t("sdlc.common.cancel")}
                 </button>
                 <button type="submit" className="btn-primary">
-                  Yüzeyi Oluştur
+                  {t("sdlc.explorer.createSurfaceBtn")}
                 </button>
               </div>
             </form>
@@ -1256,7 +1323,11 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
             aria-modal="true"
           >
             <div className="new-workspace-modal__header">
-              <h3>Dokümanı Projeden Sil</h3>
+              <h3>
+                {t("sdlc.explorer.deleteModalTitle", {
+                  title: pendingDeleteWs.name,
+                })}
+              </h3>
               <button
                 type="button"
                 className="modal-close-btn"
@@ -1267,9 +1338,9 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
             </div>
             <div className="new-workspace-modal__body">
               <p className="confirm-text">
-                <strong>"{pendingDeleteWs.name}"</strong> dokümanını ve
-                içindeki verileri projeden kalıcı olarak silmek istediğinize
-                emin misiniz?
+                {t("sdlc.explorer.deleteModalDesc", {
+                  category: getCategoryLabel(pendingDeleteWs.category),
+                })}
               </p>
             </div>
             <div className="new-workspace-modal__footer">
@@ -1278,14 +1349,14 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                 className="btn-secondary"
                 onClick={() => setPendingDeleteId(null)}
               >
-                Vazgeç
+                {t("sdlc.common.cancel")}
               </button>
               <button
                 type="button"
                 className="btn-danger"
                 onClick={handleConfirmDelete}
               >
-                Kalıcı Olarak Sil
+                {t("sdlc.explorer.deleteSurfaceBtn")}
               </button>
             </div>
           </div>

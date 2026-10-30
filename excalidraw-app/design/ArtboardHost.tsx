@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import {
   LockedIconFilled,
   MoveUnlockedIcon,
@@ -6,6 +7,7 @@ import {
   DuplicateIcon,
   codeIcon,
   frameToolIcon,
+  PinIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import type { Artboard } from "./model";
 import { sanitizeAndTagDesignHtml } from "./sanitize";
@@ -64,6 +66,7 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
   linkedTasks,
   onOpenLinkedTask,
 }) => {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const shadowHostRef = useRef<HTMLDivElement | null>(null);
   const shadowRootRef = useRef<ShadowRoot | null>(null);
@@ -433,7 +436,7 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
                 e.stopPropagation();
                 setIsEditingName(true);
               }}
-              title="Adı düzenlemek için çift tıklayın"
+              title={t("sdlc.design.doubleClickRenameTitle")}
             >
               {artboard.name}
             </span>
@@ -461,7 +464,11 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
                   key={lt.id}
                   type="button"
                   onClick={() => onOpenLinkedTask?.(lt.id)}
-                  title={`${lt.key}: ${lt.title} (${lt.status}) — Görev Panosunda aç`}
+                  title={t("sdlc.design.openTaskInBoardTitle", {
+                    key: lt.key,
+                    title: lt.title,
+                    status: lt.status,
+                  })}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -477,7 +484,16 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
                     lineHeight: 1.3,
                   }}
                 >
-                  <span>📌 {lt.key}</span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      width: 11,
+                      height: 11,
+                    }}
+                  >
+                    {PinIcon}
+                  </span>
+                  <span>{lt.key}</span>
                 </button>
               ))}
             </div>
@@ -490,25 +506,25 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Left Button: Tam Kilit (LockedIconFilled) */}
+          {/* Left Button: Full Lock (LockedIconFilled) */}
           <button
             type="button"
             className={`artboard-popup-btn ${
               isFullLocked ? "artboard-popup-btn--active" : ""
             }`}
-            title="Container Tam Kilitli (Hem tuvale hem kendi içine kilitli)"
+            title={t("sdlc.design.fullLockTitle")}
             onClick={() => onSetLockMode(artboard.id, "full-lock")}
           >
             {LockedIconFilled}
           </button>
 
-          {/* Right Button: Taşıma Serbest (MoveUnlockedIcon) */}
+          {/* Right Button: Moveable (MoveUnlockedIcon) */}
           <button
             type="button"
             className={`artboard-popup-btn ${
               !isFullLocked ? "artboard-popup-btn--active" : ""
             }`}
-            title="Container Taşıma Serbest (Tuvalde taşınabilir, içerik ve boyut korunur)"
+            title={t("sdlc.design.moveableLockTitle")}
             onClick={() => onSetLockMode(artboard.id, "moveable")}
           >
             {MoveUnlockedIcon}
@@ -519,7 +535,7 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
           <button
             type="button"
             className="artboard-popup-btn"
-            title="Tasarımı Çoğalt"
+            title={t("sdlc.design.duplicateTitle")}
             onClick={() => onDuplicate(artboard.id)}
           >
             {DuplicateIcon}
@@ -528,7 +544,7 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
           <button
             type="button"
             className="artboard-popup-btn"
-            title="HTML / CSS Kodunu Dışa Aktar"
+            title={t("sdlc.design.exportCodeTitle")}
             onClick={() => onExportCode(artboard.id)}
           >
             {codeIcon}
@@ -537,7 +553,7 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
           <button
             type="button"
             className="artboard-popup-btn artboard-popup-btn--danger"
-            title="Tasarımı Sil"
+            title={t("sdlc.design.deleteDesignTitle")}
             onClick={() => onDelete(artboard.id)}
           >
             {TrashIcon}

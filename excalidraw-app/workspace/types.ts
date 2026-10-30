@@ -1,3 +1,5 @@
+import { t } from "@excalidraw/excalidraw/i18n";
+
 export type CanvasType = "sketch" | "design" | "tasks" | "tdd";
 
 export type DocumentCategory =
@@ -200,14 +202,14 @@ export function inferCategory(
 export function getCategoryLabel(category: DocumentCategory): string {
   switch (category) {
     case "analysis":
-      return "Analiz";
+      return t("sdlc.categories.analysis");
     case "architecture":
-      return "Mimari";
+      return t("sdlc.categories.architecture");
     case "ui_design":
-      return "Tasarım";
+      return t("sdlc.categories.ui_design");
     case "task_board":
-      return "Görevler";
+      return t("sdlc.categories.task_board");
     case "tdd_suite":
-      return "TDD Test";
+      return t("sdlc.categories.tdd_suite");
   }
 }

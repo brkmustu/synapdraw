@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import {
   SelectionIcon,
   handIcon,
@@ -14,6 +15,8 @@ import {
   sidebarRightIcon,
   adjustmentsIcon,
   TrashIcon,
+  CloseIcon,
+  ContextLinkIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import {
   registerActiveEngine,
@@ -63,6 +66,7 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
   documentName,
   onOpenAIIntegrations,
 }) => {
+  const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const shadowRootsRef = useRef<Map<string, ShadowRoot>>(new Map());
@@ -611,7 +615,7 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
         const copy: Artboard = {
           ...source,
           id: `ab_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          name: `${source.name} (Kopya)`,
+          name: `${source.name} (${t("sdlc.design.copySuffix")})`,
           x: Math.round(source.x + offsetW + 48),
           y: Math.round(source.y),
           createdAt: Date.now(),
@@ -624,16 +628,16 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
           selectedNodeId: null,
         };
         saveDesignDocument(updated, getOwnerWin());
-        showToast(`"${source.name}" çoğaltıldı`);
+        showToast(t("sdlc.design.duplicatedToast", { name: source.name }));
         return updated;
       });
     },
-    [getOwnerWin, pushHistoryBeforeMutation, showToast],
+    [getOwnerWin, pushHistoryBeforeMutation, showToast, t],
   );
 
   const buildStandaloneHtml = useCallback((ab: Artboard): string => {
     return `<!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -661,12 +665,12 @@ ${ab.html}
       const code = buildStandaloneHtml(ab);
       try {
         await getOwnerWin().navigator.clipboard.writeText(code);
-        showToast(`"${ab.name}" HTML/CSS kodu panoya kopyalandı`);
+        showToast(t("sdlc.design.copiedCodeToast", { name: ab.name }));
       } catch {
-        showToast("Pano erişimi başarısız oldu");
+        showToast(t("sdlc.design.clipboardErrorToast"));
       }
     },
-    [doc.artboards, buildStandaloneHtml, getOwnerWin, showToast],
+    [doc.artboards, buildStandaloneHtml, getOwnerWin, showToast, t],
   );
 
   const handleDownloadArtboardCode = useCallback(
@@ -684,14 +688,14 @@ ${ab.html}
         .toLowerCase()
         .replace(/[^a-z0-9-_]+/gi, "-")
         .replace(/^-|-$/g, "");
-      a.download = `${safeName || "tasarim"}.html`;
+      a.download = `${safeName || "design"}.html`;
       ownerDoc.body.appendChild(a);
       a.click();
       a.remove();
       ownerWin.URL.revokeObjectURL(url);
-      showToast(`"${a.download}" indirildi`);
+      showToast(t("sdlc.design.downloadedToast", { name: a.download }));
     },
-    [doc.artboards, buildStandaloneHtml, getOwnerDoc, getOwnerWin, showToast],
+    [doc.artboards, buildStandaloneHtml, getOwnerDoc, getOwnerWin, showToast, t],
   );
 
   const handleDeleteArtboard = useCallback(
@@ -739,12 +743,12 @@ ${ab.html}
 
       const name =
         mode === "desktop"
-          ? `Masaüstü ${prev.artboards.length + 1}`
-          : `Mobil ${prev.artboards.length + 1}`;
+          ? `${t("sdlc.design.desktopBtn")} ${prev.artboards.length + 1}`
+          : `${t("sdlc.design.mobileBtn")} ${prev.artboards.length + 1}`;
       const rawHtml = `<div style="padding: 48px; color: #1b1b1f;">
   <span style="display:inline-block; padding: 4px 10px; border-radius: 6px; background: #e3e2fe; color: #5b57d1; font-size: 12px; font-weight: 600; margin-bottom: 12px;">${mode === "desktop" ? "1440 × 900" : "390 × 844"}</span>
   <h2 style="margin: 0 0 8px; font-size: 24px; font-weight: 700;">${name}</h2>
-  <p style="margin: 0; color: #5c5c5c; font-size: 14px; line-height: 1.5;">MCP <code>render_design</code> aracı veya AI Studio ile bu çerçeveye pixel-perfect tasarım aktarabilirsiniz.</p>
+  <p style="margin: 0; color: #5c5c5c; font-size: 14px; line-height: 1.5;">${t("sdlc.design.emptyDesc")}</p>
 </div>`;
 
       const newArtboard: Artboard = {
@@ -887,14 +891,18 @@ ${ab.html}
   return (
     <div ref={rootRef} className="design-canvas-root">
       {/* Top-Center Excalidraw Island Toolbar */}
-      <div className="design-top-island" role="toolbar" aria-label="Tasarım Araçları">
+      <div
+        className="design-top-island"
+        role="toolbar"
+        aria-label={t("sdlc.design.toolbarAria")}
+      >
         <button
           type="button"
           className={`design-tool-btn ${
             activeTool === "hand" ? "design-tool-btn--active" : ""
           }`}
           onClick={() => setActiveTool("hand")}
-          title="El Aracı — Tuvali Kaydır (H)"
+          title={t("sdlc.design.handToolTitle")}
         >
           {handIcon}
         </button>
@@ -904,7 +912,7 @@ ${ab.html}
             activeTool === "select" ? "design-tool-btn--active" : ""
           }`}
           onClick={() => setActiveTool("select")}
-          title="Seçim ve Taşıma Aracı (V veya 1)"
+          title={t("sdlc.design.selectToolTitle")}
         >
           {SelectionIcon}
         </button>
@@ -914,7 +922,7 @@ ${ab.html}
             activeTool === "inspect" ? "design-tool-btn--active" : ""
           }`}
           onClick={() => setActiveTool("inspect")}
-          title="İç Düğüm İnceleme & CSS Düzenleme Aracı (I veya Alt+Tık)"
+          title={t("sdlc.design.inspectToolTitle")}
         >
           {searchIcon}
         </button>
@@ -925,19 +933,19 @@ ${ab.html}
           type="button"
           className="design-tool-btn design-tool-btn--with-label"
           onClick={() => handleAddPresetArtboard("desktop")}
-          title="Masaüstü Çerçevesi Ekle (1440×900)"
+          title={t("sdlc.design.addDesktopTitle")}
         >
           {DeviceDesktopIcon}
-          <span>Masaüstü</span>
+          <span>{t("sdlc.design.desktopBtn")}</span>
         </button>
         <button
           type="button"
           className="design-tool-btn design-tool-btn--with-label"
           onClick={() => handleAddPresetArtboard("mobile")}
-          title="Mobil Çerçeve Ekle (390×844)"
+          title={t("sdlc.design.addMobileTitle")}
         >
           {frameToolIcon}
-          <span>Mobil</span>
+          <span>{t("sdlc.design.mobileBtn")}</span>
         </button>
 
         <div className="design-island-divider" />
@@ -948,12 +956,12 @@ ${ab.html}
             showLayers ? "design-tool-btn--active" : ""
           }`}
           onClick={() => setShowLayers((prev) => !prev)}
-          title="Katmanlar Panelini Aç/Kapat"
+          title={t("sdlc.design.toggleLayersTitle")}
         >
           <span style={{ display: "inline-flex", transform: "scaleX(-1)" }}>
             {sidebarRightIcon}
           </span>
-          <span>Katmanlar</span>
+          <span>{t("sdlc.design.layersBtn")}</span>
         </button>
 
         <button
@@ -962,10 +970,10 @@ ${ab.html}
             showInspector ? "design-tool-btn--active" : ""
           }`}
           onClick={() => setShowInspector((prev) => !prev)}
-          title="CSS Denetçisini Aç/Kapat"
+          title={t("sdlc.design.toggleInspectorTitle")}
         >
           {adjustmentsIcon}
-          <span>Denetçi</span>
+          <span>{t("sdlc.design.inspectorBtn")}</span>
         </button>
 
         {selectedArtboard && (
@@ -977,21 +985,19 @@ ${ab.html}
                 showTaskLinkMenu ? "design-tool-btn--active" : ""
               }`}
               onClick={() => setShowTaskLinkMenu((prev) => !prev)}
-              title="Seçili Artboard'u proje görevleriyle (Task) eşleştir"
+              title={t("sdlc.design.linkTaskBtnTitle")}
             >
-              <span>🔗</span>
+              {ContextLinkIcon}
               <span>
-                Görev Bağlantısı (
-                {
-                  projectTasks.filter((t) =>
-                    (t.linkedArtboards || []).some(
+                {t("sdlc.design.taskLinkBtn", {
+                  count: projectTasks.filter((taskItem) =>
+                    (taskItem.linkedArtboards || []).some(
                       (la) =>
                         la.docId === documentId &&
                         la.artboardId === selectedArtboard.id,
                     ),
-                  ).length
-                }
-                )
+                  ).length,
+                })}
               </span>
             </button>
 
@@ -1025,19 +1031,23 @@ ${ab.html}
                     borderBottom: "1px solid var(--default-border-color)",
                   }}
                 >
-                  <span>Artboard ↔ Görev Eşleştirme</span>
+                  <span>{t("sdlc.design.artboardTaskLinkHeader")}</span>
                   <button
                     type="button"
                     style={{
                       background: "transparent",
                       border: "none",
                       cursor: "pointer",
-                      fontSize: 12,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      width: 14,
+                      height: 14,
+                      padding: 0,
                       color: "var(--icon-fill-color)",
                     }}
                     onClick={() => setShowTaskLinkMenu(false)}
                   >
-                    ✕
+                    {CloseIcon}
                   </button>
                 </div>
                 <div
@@ -1047,7 +1057,8 @@ ${ab.html}
                     color: "var(--text-primary-color)",
                   }}
                 >
-                  Seçili: <strong>{selectedArtboard.name}</strong>
+                  {t("sdlc.design.selectedLabel")}{" "}
+                  <strong>{selectedArtboard.name}</strong>
                 </div>
                 <div
                   style={{
@@ -1058,15 +1069,15 @@ ${ab.html}
                     gap: 4,
                   }}
                 >
-                  {projectTasks.map((t) => {
-                    const isLinked = (t.linkedArtboards || []).some(
+                  {projectTasks.map((taskItem) => {
+                    const isLinked = (taskItem.linkedArtboards || []).some(
                       (la) =>
                         la.docId === documentId &&
                         la.artboardId === selectedArtboard.id,
                     );
                     return (
                       <div
-                        key={t.id}
+                        key={taskItem.id}
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -1086,15 +1097,20 @@ ${ab.html}
                         <button
                           type="button"
                           onClick={() => {
-                            toggleTaskArtboardLink(t.id, {
+                            toggleTaskArtboardLink(taskItem.id, {
                               docId: documentId,
                               artboardId: selectedArtboard.id,
                               label: selectedArtboard.name,
                             });
                             showToast(
                               isLinked
-                                ? `${t.key} bağlantısı kaldırıldı`
-                                : `${selectedArtboard.name} → ${t.key} görevine bağlandı`,
+                                ? t("sdlc.design.unlinkedToast", {
+                                    key: taskItem.key,
+                                  })
+                                : t("sdlc.design.linkedToast", {
+                                    name: selectedArtboard.name,
+                                    key: taskItem.key,
+                                  }),
                             );
                           }}
                           style={{
@@ -1111,11 +1127,11 @@ ${ab.html}
                           }}
                         >
                           {isLinked ? "✓ " : "+ "}
-                          <strong>{t.key}:</strong> {t.title}
+                          <strong>{taskItem.key}:</strong> {taskItem.title}
                         </button>
                         <button
                           type="button"
-                          title="Görev Panosuna Git"
+                          title={t("sdlc.design.goToBoardTitle")}
                           onClick={() => {
                             const taskDoc = getProjectWorkspaces().find(
                               (w) => w.canvasType === "tasks",
@@ -1134,7 +1150,7 @@ ${ab.html}
                             cursor: "pointer",
                           }}
                         >
-                          Git →
+                          {t("sdlc.design.goToBoardBtn")}
                         </button>
                       </div>
                     );
@@ -1152,10 +1168,10 @@ ${ab.html}
               type="button"
               className="design-tool-btn design-tool-btn--with-label design-tool-btn--brand"
               onClick={onOpenAIIntegrations}
-              title="AI Studio ve MCP Ayarlarını Aç"
+              title={t("sdlc.design.openAiStudioTitle")}
             >
               {brainIcon}
-              <span>AI Studio</span>
+              <span>{t("sdlc.common.aiStudio")}</span>
             </button>
           </>
         )}
@@ -1221,17 +1237,17 @@ ${ab.html}
         >
           {doc.artboards.map((artboard) => {
             const artboardLinkedTasks = projectTasks
-              .filter((t) =>
-                (t.linkedArtboards || []).some(
+              .filter((taskItem) =>
+                (taskItem.linkedArtboards || []).some(
                   (la) =>
                     la.docId === documentId && la.artboardId === artboard.id,
                 ),
               )
-              .map((t) => ({
-                id: t.id,
-                key: t.key,
-                title: t.title,
-                status: t.status,
+              .map((taskItem) => ({
+                id: taskItem.id,
+                key: taskItem.key,
+                title: taskItem.title,
+                status: taskItem.status,
               }));
 
             return (
@@ -1271,16 +1287,14 @@ ${ab.html}
           })}
         </div>
 
-        {/* Excalidraw-styled Welcome / Empty State */}
+        {/* Welcome / Empty State */}
         {doc.artboards.length === 0 && (
           <div className="design-canvas-empty-state">
             <div className="empty-badge">{frameToolIcon}</div>
             <h2>{documentName}</h2>
             <p>
-              Pixel-perfect, CSS odaklı <strong>Tasarım Tuvali</strong>. AI
-              Studio veya MCP (<code>render_design</code>) üzerinden gönderilen
-              bileşenler doğal boyutlarında (<em>Hug Contents</em>) ve tam
-              Shadow DOM izolasyonuyla bu sonsuz düzleme yerleşir.
+              <strong>{t("sdlc.design.emptyTitle")}</strong>.{" "}
+              {t("sdlc.design.emptyDesc")}
             </p>
             <div className="empty-actions">
               {onOpenAIIntegrations && (
@@ -1290,7 +1304,7 @@ ${ab.html}
                   onClick={onOpenAIIntegrations}
                 >
                   {brainIcon}
-                  <span>AI Studio ile Tasarla</span>
+                  <span>{t("sdlc.design.designWithAiBtn")}</span>
                 </button>
               )}
               <button
@@ -1299,7 +1313,7 @@ ${ab.html}
                 onClick={() => handleAddPresetArtboard("desktop")}
               >
                 {DeviceDesktopIcon}
-                <span>Masaüstü Çerçevesi (1440×900)</span>
+                <span>{t("sdlc.design.desktopFrameBtn")}</span>
               </button>
               <button
                 type="button"
@@ -1307,21 +1321,21 @@ ${ab.html}
                 onClick={() => handleAddPresetArtboard("mobile")}
               >
                 {frameToolIcon}
-                <span>Mobil Çerçeve (390×844)</span>
+                <span>{t("sdlc.design.mobileFrameBtn")}</span>
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Bottom-Left Footer Island (Matching Excalidraw's AppFooter Zoom & Undo/Redo Bar) */}
+      {/* Bottom-Left Footer Island */}
       <div className="design-footer-left">
         <div className="design-zoom-island">
           <button
             type="button"
             className="design-footer-btn"
             onClick={handleZoomOut}
-            title="Uzaklaş (Ctrl + Tekerlek)"
+            title={t("sdlc.design.zoomOutTitle")}
           >
             {ZoomOutIcon}
           </button>
@@ -1329,7 +1343,7 @@ ${ab.html}
             type="button"
             className="design-footer-btn design-footer-btn--zoom-value"
             onClick={handleResetZoom}
-            title="Yakınlaştırmayı Sıfırla (%100)"
+            title={t("sdlc.design.resetZoomTitle")}
           >
             {Math.round(doc.zoom * 100)}%
           </button>
@@ -1337,7 +1351,7 @@ ${ab.html}
             type="button"
             className="design-footer-btn"
             onClick={handleZoomIn}
-            title="Yakınlaş (Ctrl + Tekerlek)"
+            title={t("sdlc.design.zoomInTitle")}
           >
             {ZoomInIcon}
           </button>
@@ -1346,7 +1360,7 @@ ${ab.html}
             type="button"
             className="design-footer-btn"
             onClick={handleFitAll}
-            title="Tüm Tasarımları Ekrana Sığdır"
+            title={t("sdlc.design.fitAllTitle")}
           >
             {fullscreenIcon}
           </button>
@@ -1358,7 +1372,7 @@ ${ab.html}
             className="design-footer-btn"
             onClick={handleUndo}
             disabled={!historyRef.current.canUndo()}
-            title="Geri Al (Ctrl+Z)"
+            title={t("sdlc.design.undoTitle")}
           >
             {UndoIcon}
           </button>
@@ -1368,7 +1382,7 @@ ${ab.html}
             className="design-footer-btn"
             onClick={handleRedo}
             disabled={!historyRef.current.canRedo()}
-            title="Yinele (Ctrl+Y)"
+            title={t("sdlc.design.redoTitle")}
           >
             {RedoIcon}
           </button>

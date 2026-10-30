@@ -857,7 +857,53 @@ function getSeededTasks(projectId: string): ProjectTask[] {
 function getAllTasksRaw(): ProjectTask[] {
   const parsed = readCachedJson<ProjectTask[]>(STORAGE_KEY_TASKS);
   if (Array.isArray(parsed) && parsed.length > 0) {
-    return parsed;
+    let migrated = false;
+    const enriched = parsed.map((t) => {
+      if (
+        t.id === "proj_default_task_2" &&
+        (!t.linkedArtboards || t.linkedArtboards.length === 0) &&
+        t.linkedDocIds.includes("ws_default_design")
+      ) {
+        migrated = true;
+        return {
+          ...t,
+          linkedArtboards: [
+            {
+              docId: "ws_default_design",
+              artboardId: "ab_default_order_summary",
+              label: "Sipariş Özeti & Plan Seçimi",
+            },
+            {
+              docId: "ws_default_design",
+              artboardId: "ab_default_mobile_checkout",
+              label: "Mobil Sepet & Ödeme Görünümü",
+            },
+          ],
+        };
+      }
+      if (
+        t.id === "proj_default_task_3" &&
+        (!t.linkedArtboards || t.linkedArtboards.length === 0) &&
+        t.linkedDocIds.includes("ws_default_design")
+      ) {
+        migrated = true;
+        return {
+          ...t,
+          linkedArtboards: [
+            {
+              docId: "ws_default_design",
+              artboardId: "ab_default_coupon_card",
+              label: "Kupon & İndirim Doğrulama Kartı",
+            },
+          ],
+        };
+      }
+      return t;
+    });
+    if (migrated) {
+      writeCachedJson(STORAGE_KEY_TASKS, enriched);
+    }
+    return enriched;
   }
   const pid = getActiveProjectId();
   const seeded = getSeededTasks(pid);
@@ -889,6 +935,7 @@ export function createProjectTask(
       string | { id?: string; text: string; completed?: boolean }
     >;
     linkedDocIds?: string[];
+    linkedArtboards?: LinkedArtboardRef[];
   },
   projectId?: string,
 ): ProjectTask {
@@ -901,6 +948,12 @@ export function createProjectTask(
   }, 0);
   const nextNum = maxNum + 1;
   const now = Date.now();
+
+  const artboards = input.linkedArtboards || [];
+  const artboardDocIds = artboards.map((a) => a.docId);
+  const mergedDocIds = Array.from(
+    new Set([...(input.linkedDocIds || []), ...artboardDocIds]),
+  );
 
   const newTask: ProjectTask = {
     id: `task_${now}_${Math.random().toString(36).substring(2, 6)}`,
@@ -918,8 +971,8 @@ export function createProjectTask(
         completed: Boolean(item?.completed),
       }),
     ),
-    linkedDocIds: input.linkedDocIds || [],
-    linkedArtboards: [],
+    linkedDocIds: mergedDocIds,
+    linkedArtboards: artboards,
     comments: [],
     createdAt: now,
     updatedAt: now,
@@ -1249,9 +1302,12 @@ export function toggleTaskArtboardLink(
       )
     : [...currentLinks, link];
 
-  const nextDocIds = exists
-    ? task.linkedDocIds
-    : Array.from(new Set([...task.linkedDocIds, link.docId]));
+  const hasRemainingForDoc = nextArtboards.some(
+    (item) => item.docId === link.docId,
+  );
+  const nextDocIds = hasRemainingForDoc
+    ? Array.from(new Set([...task.linkedDocIds, link.docId]))
+    : task.linkedDocIds.filter((id) => id !== link.docId);
 
   return updateProjectTask(task.id, {
     linkedArtboards: nextArtboards,

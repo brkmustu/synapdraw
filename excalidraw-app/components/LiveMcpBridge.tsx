@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { getActiveEngine, subscribeActiveEngine } from "../engine/engineRegistry";
 import {
@@ -31,6 +32,7 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
   syncUrl = "http://localhost:3001/api/live-events",
   forCanvasType = excalidrawAPI ? "sketch" : "design",
 }) => {
+  const { t } = useI18n();
   const [activeWs, setActiveWs] = useState(getActiveWorkspace());
   const [isConnected, setIsConnected] = useState(false);
   const [lastAction, setLastAction] = useState<string | null>(null);
@@ -411,11 +413,11 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
       type="button"
       className="live-mcp-badge"
       onClick={onOpenModal}
-      title="Canlı MCP Köprüsü ayarlarını açmak için tıklayın"
+      title={t("sdlc.mcp.bridgeTooltip")}
     >
       <span className={`status-dot ${isConnected ? "connected" : "disconnected"}`} />
       <span className="status-label">
-        {isConnected ? "Live MCP: Aktif" : "Live MCP: Çevrimdışı"}
+        {isConnected ? t("sdlc.mcp.activeBadge") : t("sdlc.mcp.offlineBadge")}
       </span>
       {lastAction && (
         <span className="action-pill">

@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import React, { useState, useEffect, useRef } from "react";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import {
   brainIcon,
@@ -11,6 +12,13 @@ import {
   FreedrawIcon,
   frameToolIcon,
   PlusIcon,
+  playerStopFilledIcon,
+  upIcon,
+  historyIcon,
+  TrashIcon,
+  McpPlugIcon,
+  usersIcon,
+  codeIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
@@ -36,109 +44,11 @@ import {
 
 import "./AIIntegrationsModal.scss";
 
-const StopSquareIcon = (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-    <rect x="4" y="4" width="16" height="16" rx="3" />
-  </svg>
-);
-
-const UpArrowIcon = (
-  <svg
-    width="15"
-    height="15"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.25"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <line x1="12" y1="19" x2="12" y2="5" />
-    <polyline points="5 12 12 5 19 12" />
-  </svg>
-);
-
-const HistoryIcon = (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="12" cy="12" r="10" />
-    <polyline points="12 6 12 12 16 14" />
-  </svg>
-);
-
-const TrashIcon = (
-  <svg
-    width="13"
-    height="13"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <polyline points="3 6 5 6 21 6" />
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-  </svg>
-);
-
-const McpPlugIcon = (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M12 22v-5" />
-    <path d="M9 8V2" />
-    <path d="M15 8V2" />
-    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
-  </svg>
-);
-
-const UserIcon = (
-  <svg
-    width="15"
-    height="15"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-  </svg>
-);
-
-const CodeEditIcon = (
-  <svg
-    width="13"
-    height="13"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <polyline points="16 18 22 12 16 6" />
-    <polyline points="8 6 2 12 8 18" />
-  </svg>
-);
+const StopSquareIcon = playerStopFilledIcon;
+const UpArrowIcon = upIcon;
+const HistoryIcon = historyIcon;
+const UserIcon = usersIcon;
+const CodeEditIcon = codeIcon;
 
 interface AIIntegrationsModalProps {
   isOpen: boolean;
@@ -442,6 +352,7 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
   onClose,
   excalidrawAPI,
 }) => {
+  const { t } = useI18n();
   const [activeSidebarTab, setActiveSidebarTab] = useState<
     "studio" | "mcp" | "history" | "settings"
   >("studio");
@@ -810,7 +721,7 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
 
   const handleClearAllHistory = () => {
     const ownerWin = modalContainerRef.current?.ownerDocument?.defaultView || window;
-    if (ownerWin.confirm("Tüm sohbet geçmişini silmek istediğinize emin misiniz?")) {
+    if (ownerWin.confirm(t("sdlc.aiModal.confirmClearHistory"))) {
       setChatHistory([]);
       try {
         localStorage.removeItem("excalidraw_ai_chat_history");
@@ -1542,8 +1453,48 @@ CRITICAL MERMAID SYNTAX RULES:
 
   if (!isOpen) return null;
 
+  const localizedPresets = [
+    {
+      id: "Architecture",
+      label: t("sdlc.aiModal.presetArchLabel"),
+      targetBadge: t("sdlc.aiModal.presetArchBadge"),
+      hint: t("sdlc.aiModal.presetArchHint"),
+    },
+    {
+      id: "Flowchart",
+      label: t("sdlc.aiModal.presetFlowLabel"),
+      targetBadge: t("sdlc.aiModal.presetFlowBadge"),
+      hint: t("sdlc.aiModal.presetFlowHint"),
+    },
+    {
+      id: "UI Wireframe (HTML)",
+      label: t("sdlc.aiModal.presetUiLabel"),
+      targetBadge: t("sdlc.aiModal.presetUiBadge"),
+      hint: t("sdlc.aiModal.presetUiHint"),
+    },
+    {
+      id: "SDLC Tasks",
+      label: t("sdlc.aiModal.presetTasksLabel"),
+      targetBadge: t("sdlc.aiModal.presetTasksBadge"),
+      hint: t("sdlc.aiModal.presetTasksHint"),
+    },
+    {
+      id: "TDD Suite",
+      label: t("sdlc.aiModal.presetTddLabel"),
+      targetBadge: t("sdlc.aiModal.presetTddBadge"),
+      hint: t("sdlc.aiModal.presetTddHint"),
+    },
+    {
+      id: "Sequence",
+      label: t("sdlc.aiModal.presetSeqLabel"),
+      targetBadge: t("sdlc.aiModal.presetSeqBadge"),
+      hint: t("sdlc.aiModal.presetSeqHint"),
+    },
+  ];
+
   const activePresetMeta =
-    PRESET_TYPES.find((p) => p.id === selectedPreset) || PRESET_TYPES[0];
+    localizedPresets.find((p) => p.id === selectedPreset) ||
+    localizedPresets[0];
   const currentWs = getActiveWorkspace();
   const activeModelDisplay =
     settings.provider === "ollama"
@@ -1558,19 +1509,17 @@ CRITICAL MERMAID SYNTAX RULES:
           ? currentWs
           : projectDocs.find((d) => d.canvasType === "design");
       return targetDesign
-        ? `Tasarım Tuvali (${targetDesign.name})`
-        : "Tasarım Tuvali";
+        ? `${t("sdlc.aiModal.presetUiBadge")} (${targetDesign.name})`
+        : t("sdlc.aiModal.presetUiBadge");
     }
     if (selectedPreset === "SDLC Tasks") {
-      return "Proje Görev Panosu";
+      return t("sdlc.aiModal.presetTasksBadge");
     }
     if (selectedPreset === "TDD Suite") {
-      return "TDD Test Stüdyosu";
+      return t("sdlc.aiModal.presetTddBadge");
     }
     if (currentWs?.canvasType === "sketch") {
-      const catLabel =
-        currentWs.category === "analysis" ? "Analiz Tuvali" : "Mimari Tuvali";
-      return `${catLabel} (${currentWs.name})`;
+      return `${t("sdlc.aiModal.presetArchBadge")} (${currentWs.name})`;
     }
     return activePresetMeta.targetBadge;
   })();
@@ -1590,8 +1539,8 @@ CRITICAL MERMAID SYNTAX RULES:
           <div className="sidebar-brand">
             <span className="brand-icon">{brainIcon}</span>
             <div className="brand-text">
-              <h3>SDLC AI & MCP Stüdyosu</h3>
-              <span>Proje Orkestrasyonu & Harici IDE</span>
+              <h3>{t("sdlc.aiModal.brandTitle")}</h3>
+              <span>{t("sdlc.aiModal.brandSubtitle")}</span>
             </div>
           </div>
 
@@ -1603,7 +1552,7 @@ CRITICAL MERMAID SYNTAX RULES:
               onClick={() => setActiveSidebarTab("studio")}
             >
               <span className="tab-icon">{brainIcon}</span>
-              <span>Stüdyo</span>
+              <span>{t("sdlc.aiModal.tabStudio")}</span>
             </button>
             <button
               type="button"
@@ -1611,7 +1560,7 @@ CRITICAL MERMAID SYNTAX RULES:
               onClick={() => setActiveSidebarTab("mcp")}
             >
               <span className="tab-icon">{McpPlugIcon}</span>
-              <span>MCP</span>
+              <span>{t("sdlc.aiModal.tabMcp")}</span>
               <span
                 className={clsx("tab-status-dot", {
                   online: mcpStatus === "connected",
@@ -1624,7 +1573,7 @@ CRITICAL MERMAID SYNTAX RULES:
               onClick={() => setActiveSidebarTab("history")}
             >
               <span className="tab-icon">{HistoryIcon}</span>
-              <span>Geçmiş</span>
+              <span>{t("sdlc.aiModal.tabHistory")}</span>
               {chatHistory.length > 0 && (
                 <span className="tab-count-badge">{chatHistory.length}</span>
               )}
@@ -1635,7 +1584,7 @@ CRITICAL MERMAID SYNTAX RULES:
               onClick={() => setActiveSidebarTab("settings")}
             >
               <span className="tab-icon">{settingsIcon}</span>
-              <span>Ayarlar</span>
+              <span>{t("sdlc.aiModal.tabSettings")}</span>
             </button>
           </div>
 
@@ -1643,9 +1592,11 @@ CRITICAL MERMAID SYNTAX RULES:
             <div className="sidebar-content">
               {/* Orchestration Target / Preset */}
               <div className="sidebar-section">
-                <label className="section-label">Orkestrasyon Hedefi</label>
+                <label className="section-label">
+                  {t("sdlc.aiModal.orchestrationTargetLabel")}
+                </label>
                 <div className="preset-pill-grid">
-                  {PRESET_TYPES.map((p) => (
+                  {localizedPresets.map((p) => (
                     <button
                       key={p.id}
                       type="button"
@@ -1663,7 +1614,9 @@ CRITICAL MERMAID SYNTAX RULES:
 
               {/* Provider & Model Selection */}
               <div className="sidebar-section">
-                <label className="section-label">Model Sağlayıcı / Gateway</label>
+                <label className="section-label">
+                  {t("sdlc.aiModal.providerFieldLabel")}
+                </label>
                 <select
                   className="sidebar-select"
                   value={settings.provider}
@@ -1671,27 +1624,39 @@ CRITICAL MERMAID SYNTAX RULES:
                     setSettings({ ...settings, provider: e.target.value as any })
                   }
                 >
-                  <option value="ollama">Ollama (Lokal & Hızlı LLM)</option>
-                  <option value="openrouter">OpenRouter (Çoklu Model Gateway)</option>
-                  <option value="custom">OpenAI / Özel API</option>
+                  <option value="ollama">
+                    {t("sdlc.aiModal.providerOptOllama")}
+                  </option>
+                  <option value="openrouter">
+                    {t("sdlc.aiModal.providerOptOpenrouter")}
+                  </option>
+                  <option value="custom">
+                    {t("sdlc.aiModal.providerOptCustom")}
+                  </option>
                 </select>
               </div>
 
               {settings.provider === "ollama" ? (
                 <div className="sidebar-section">
                   <div className="section-header-row">
-                    <label className="section-label">Ollama Modeli</label>
+                    <label className="section-label">
+                      {t("sdlc.aiModal.ollamaModelLabel")}
+                    </label>
                     <button
                       type="button"
                       className="refresh-link"
                       onClick={() => fetchOllamaModels()}
-                      title="Modelleri Tara"
+                      title={t("sdlc.aiModal.scanModelsTitle")}
                       disabled={isFetchingModels}
                     >
                       <span className={clsx("spin-icon", { spinning: isFetchingModels })}>
                         {RetryIcon}
                       </span>
-                      <span>{isFetchingModels ? "Taranıyor..." : "Yenile"}</span>
+                      <span>
+                        {isFetchingModels
+                          ? t("sdlc.aiModal.scanningBtn")
+                          : t("sdlc.aiModal.refreshBtn")}
+                      </span>
                     </button>
                   </div>
                   {availableModels.length > 0 ? (
@@ -1722,7 +1687,9 @@ CRITICAL MERMAID SYNTAX RULES:
                 </div>
               ) : settings.provider === "openrouter" ? (
                 <div className="sidebar-section">
-                  <label className="section-label">OpenRouter Modeli</label>
+                  <label className="section-label">
+                    {t("sdlc.aiModal.openrouterModelLabel")}
+                  </label>
                   <input
                     type="text"
                     list="openrouter-studio-models"
@@ -1741,7 +1708,9 @@ CRITICAL MERMAID SYNTAX RULES:
                 </div>
               ) : (
                 <div className="sidebar-section">
-                  <label className="section-label">Model Adı</label>
+                  <label className="section-label">
+                    {t("sdlc.aiModal.modelNameLabel")}
+                  </label>
                   <input
                     type="text"
                     className="sidebar-input"
@@ -1756,20 +1725,24 @@ CRITICAL MERMAID SYNTAX RULES:
 
               {/* Canvas Mode */}
               <div className="sidebar-section">
-                <label className="section-label">Tuval Aktarım Modu</label>
+                <label className="section-label">
+                  {t("sdlc.aiModal.canvasModeLabel")}
+                </label>
                 <select
                   className="sidebar-select"
                   value={renderMode}
                   onChange={(e) => setRenderMode(e.target.value as any)}
                 >
-                  <option value="replace">Tuvali Temizle ve Yeni Oluştur</option>
-                  <option value="append">Mevcut İçeriği Koru, Yanına Ekle</option>
+                  <option value="replace">{t("sdlc.aiModal.modeReplace")}</option>
+                  <option value="append">{t("sdlc.aiModal.modeAppend")}</option>
                 </select>
               </div>
 
               {/* Clean Excalidraw-native Context Switches */}
               <div className="sidebar-section">
-                <label className="section-label">Proje & Tuval Bağlamı</label>
+                <label className="section-label">
+                  {t("sdlc.aiModal.contextSectionLabel")}
+                </label>
                 <div className="studio-toggle-list">
                   <label className="studio-toggle-row">
                     <input
@@ -1778,8 +1751,10 @@ CRITICAL MERMAID SYNTAX RULES:
                       onChange={(e) => setIncludeSdlcContext(e.target.checked)}
                     />
                     <span>
-                      Tüm SDLC Proje Kaynaklarını İlet ({projectDocs.length} belge,{" "}
-                      {projectTasks.length} görev)
+                      {t("sdlc.aiModal.includeSdlcContextLabel", {
+                        docs: projectDocs.length,
+                        tasks: projectTasks.length,
+                      })}
                     </span>
                   </label>
                   <label className="studio-toggle-row">
@@ -1789,7 +1764,9 @@ CRITICAL MERMAID SYNTAX RULES:
                       onChange={(e) => setIncludeCanvasContext(e.target.checked)}
                     />
                     <span>
-                      Aktif Çizim Tuvali Bağlamı ({canvasStats?.total ?? 0} eleman)
+                      {t("sdlc.aiModal.includeCanvasContextLabel", {
+                        count: canvasStats?.total ?? 0,
+                      })}
                     </span>
                   </label>
                   {canvasStats && canvasStats.selected > 0 && (
@@ -1800,7 +1777,9 @@ CRITICAL MERMAID SYNTAX RULES:
                         onChange={(e) => setReviseSelectionMode(e.target.checked)}
                       />
                       <span>
-                        Seçili Elemanları Revize Et ({canvasStats.selected} seçili)
+                        {t("sdlc.aiModal.reviseSelectionLabel", {
+                          count: canvasStats.selected,
+                        })}
                       </span>
                     </label>
                   )}
@@ -1812,7 +1791,7 @@ CRITICAL MERMAID SYNTAX RULES:
                         setSettings({ ...settings, autoScroll: e.target.checked })
                       }
                     />
-                    <span>Tamamlanınca hedef yüzeye odaklan</span>
+                    <span>{t("sdlc.aiModal.autoScrollLabel")}</span>
                   </label>
                 </div>
               </div>
@@ -1822,14 +1801,14 @@ CRITICAL MERMAID SYNTAX RULES:
                 type="button"
                 className="sidebar-mcp-badge"
                 onClick={() => setActiveSidebarTab("mcp")}
-                title="Claude Desktop & Gemini Antigravity MCP Orkestrasyon Ayarlarını Aç"
+                title={t("sdlc.aiModal.mcpQuickBadgeTitle")}
               >
                 <span className={clsx("dot", { online: mcpStatus === "connected" })} />
                 <span>
                   Live MCP:{" "}
                   {mcpStatus === "connected"
-                    ? "Port 3001 Aktif (Claude / Antigravity)"
-                    : "Çevrimdışı (Kurulum için tıklayın)"}
+                    ? t("sdlc.aiModal.mcpQuickConnected")
+                    : t("sdlc.aiModal.mcpQuickOffline")}
                 </span>
               </button>
             </div>
@@ -1842,15 +1821,11 @@ CRITICAL MERMAID SYNTAX RULES:
                   <span className={clsx("dot", { online: mcpStatus === "connected" })} />
                   <strong>
                     {mcpStatus === "connected"
-                      ? "Live MCP Köprüsü Aktif (3001)"
-                      : "Live MCP Köprüsü Bekleniyor"}
+                      ? t("sdlc.aiModal.mcpHeaderActive")
+                      : t("sdlc.aiModal.mcpHeaderWaiting")}
                   </strong>
                 </div>
-                <p>
-                  Claude Desktop veya Gemini Antigravity IDE üzerinden projenizin tüm
-                  kaynaklarını (Analiz, Mimari, UI Tasarım, Görev Panosu ve TDD Testleri)
-                  doğrudan orkestre edebilirsiniz.
-                </p>
+                <p>{t("sdlc.aiModal.mcpIntroDesc")}</p>
               </div>
 
               <div className="sidebar-section">
@@ -1863,7 +1838,11 @@ CRITICAL MERMAID SYNTAX RULES:
                     className="refresh-link"
                     onClick={handleCopyConfig}
                   >
-                    <span>{isConfigCopied ? "Kopyalandı ✓" : "JSON Kopyala"}</span>
+                    <span>
+                      {isConfigCopied
+                        ? t("sdlc.aiModal.copiedCheckBtn")
+                        : t("sdlc.aiModal.copyJsonBtn")}
+                    </span>
                   </button>
                 </div>
                 <pre className="sidebar-code-snippet">
@@ -1872,7 +1851,9 @@ CRITICAL MERMAID SYNTAX RULES:
               </div>
 
               <div className="sidebar-section">
-                <label className="section-label">Aktif SDLC MCP Araçları (11 Tool)</label>
+                <label className="section-label">
+                  {t("sdlc.aiModal.activeToolsLabel")}
+                </label>
                 <div className="mcp-tools-list">
                   {MCP_TOOLS_CATALOG.map((grp) => (
                     <div key={grp.group} className="mcp-tool-group">
@@ -1898,7 +1879,7 @@ CRITICAL MERMAID SYNTAX RULES:
                 onClick={handleStartNewChat}
               >
                 <span className="btn-icon">{PlusIcon}</span>
-                <span>Yeni Oturum Başlat</span>
+                <span>{t("sdlc.aiModal.newSessionBtn")}</span>
               </button>
 
               {chatHistory.length > 0 ? (
@@ -1925,7 +1906,7 @@ CRITICAL MERMAID SYNTAX RULES:
                           type="button"
                           className="delete-history-btn"
                           onClick={(e) => handleDeleteHistoryItem(item.id, e)}
-                          title="Oturumu Sil"
+                          title={t("sdlc.aiModal.deleteSessionTitle")}
                         >
                           {TrashIcon}
                         </button>
@@ -1938,16 +1919,15 @@ CRITICAL MERMAID SYNTAX RULES:
                     className="clear-all-history-btn"
                     onClick={handleClearAllHistory}
                   >
-                    Tüm Geçmişi Temizle
+                    {t("sdlc.aiModal.clearAllHistoryBtn")}
                   </button>
                 </>
               ) : (
                 <div className="history-empty-state">
                   <span className="empty-icon">{HistoryIcon}</span>
-                  <p>Henüz kayıtlı oturum yok.</p>
+                  <p>{t("sdlc.aiModal.emptyHistoryTitle")}</p>
                   <span className="empty-sub">
-                    Ürettiğiniz mimari şemalar, UI tasarımlar, görevler ve TDD testleri
-                    burada listelenir.
+                    {t("sdlc.aiModal.emptyHistorySub")}
                   </span>
                 </div>
               )}
@@ -1974,7 +1954,7 @@ CRITICAL MERMAID SYNTAX RULES:
                     onClick={() => fetchOllamaModels(settings.ollamaUrl)}
                     disabled={isFetchingModels}
                   >
-                    Bağlan
+                    {t("sdlc.aiModal.connectBtn")}
                   </button>
                 </div>
               </div>
@@ -1993,7 +1973,9 @@ CRITICAL MERMAID SYNTAX RULES:
               </div>
 
               <div className="sidebar-section">
-                <label className="section-label">OpenRouter API Anahtarı (Key)</label>
+                <label className="section-label">
+                  {t("sdlc.teamModal.openrouterKeyLabel")}
+                </label>
                 <input
                   type="password"
                   className="sidebar-input"
@@ -2006,7 +1988,7 @@ CRITICAL MERMAID SYNTAX RULES:
               </div>
 
               <div className="sidebar-section">
-                <label className="section-label">OpenAI / Özel API Base URL</label>
+                <label className="section-label">OpenAI / Custom API Base URL</label>
                 <input
                   type="text"
                   className="sidebar-input"
@@ -2018,7 +2000,9 @@ CRITICAL MERMAID SYNTAX RULES:
               </div>
 
               <div className="sidebar-section">
-                <label className="section-label">API Anahtarı (Key)</label>
+                <label className="section-label">
+                  {t("sdlc.teamModal.openaiKeyLabel")}
+                </label>
                 <input
                   type="password"
                   className="sidebar-input"
@@ -2045,7 +2029,7 @@ CRITICAL MERMAID SYNTAX RULES:
               {isGenerating && (
                 <span className="generating-chip">
                   <span className="pulse-dot" />
-                  Üretiliyor ({elapsedTime}s)
+                  {t("sdlc.aiModal.generatingChip", { sec: elapsedTime })}
                 </span>
               )}
               {submittedPrompt && !isGenerating && (
@@ -2053,10 +2037,10 @@ CRITICAL MERMAID SYNTAX RULES:
                   type="button"
                   className="new-session-chip-btn"
                   onClick={handleStartNewChat}
-                  title="Yeni bir oturum başlat"
+                  title={t("sdlc.aiModal.newPromptTitle")}
                 >
                   <span className="btn-icon">{PlusIcon}</span>
-                  <span>Yeni İstem</span>
+                  <span>{t("sdlc.aiModal.newPromptBtn")}</span>
                 </button>
               )}
             </div>
@@ -2066,17 +2050,17 @@ CRITICAL MERMAID SYNTAX RULES:
                 type="button"
                 className="pipeline-quick-btn"
                 onClick={handleRunFullPipeline}
-                title="Projedeki atanmış AI Agent görevlerini sırayla çalıştır"
+                title={t("sdlc.aiModal.runPipelineTitle")}
               >
                 <span className="btn-icon">{brainIcon}</span>
-                <span>SDLC Pipeline Çalıştır</span>
+                <span>{t("sdlc.aiModal.runPipelineBtn")}</span>
               </button>
               <button
                 type="button"
                 className="workspace-close-btn"
                 onClick={onClose}
-                title="Kapat"
-                aria-label="Kapat"
+                title={t("sdlc.common.close")}
+                aria-label={t("sdlc.common.close")}
               >
                 {CloseIcon}
               </button>
@@ -2085,26 +2069,40 @@ CRITICAL MERMAID SYNTAX RULES:
 
           {/* SDLC Project Resource Strip */}
           <div className="sdlc-resource-strip">
-            <span className="strip-label">Aktif Proje Kaynakları:</span>
+            <span className="strip-label">
+              {t("sdlc.aiModal.activeResourcesLabel")}
+            </span>
             <span className="resource-pill">
               <span className="res-icon">{FreedrawIcon}</span>
               <span>
-                {projectDocs.filter((d) => d.canvasType === "sketch").length} Çizim/Mimari
+                {t("sdlc.aiModal.sketchCountPill", {
+                  count: projectDocs.filter((d) => d.canvasType === "sketch")
+                    .length,
+                })}
               </span>
             </span>
             <span className="resource-pill">
               <span className="res-icon">{frameToolIcon}</span>
               <span>
-                {projectDocs.filter((d) => d.canvasType === "design").length} UI Tasarım
+                {t("sdlc.aiModal.designCountPill", {
+                  count: projectDocs.filter((d) => d.canvasType === "design")
+                    .length,
+                })}
               </span>
             </span>
             <span className="resource-pill">
               <span className="res-icon">{TaskBoardIcon}</span>
-              <span>{projectTasks.length} Görev</span>
+              <span>
+                {t("sdlc.aiModal.taskCountPill", { count: projectTasks.length })}
+              </span>
             </span>
             <span className="resource-pill">
               <span className="res-icon">{TDDTestIcon}</span>
-              <span>{projectScenarios.length} TDD Senaryosu</span>
+              <span>
+                {t("sdlc.aiModal.tddCountPill", {
+                  count: projectScenarios.length,
+                })}
+              </span>
             </span>
             <button
               type="button"
@@ -2116,8 +2114,8 @@ CRITICAL MERMAID SYNTAX RULES:
               <span className="res-icon">{McpPlugIcon}</span>
               <span>
                 {mcpStatus === "connected"
-                  ? "Claude / Antigravity MCP Hazır"
-                  : "MCP Kurulumu"}
+                  ? t("sdlc.aiModal.mcpReadyPill")
+                  : t("sdlc.aiModal.mcpSetupPill")}
               </span>
             </button>
           </div>
@@ -2127,14 +2125,8 @@ CRITICAL MERMAID SYNTAX RULES:
             {!submittedPrompt && !isGenerating && !streamedContent && (
               <div className="gemini-empty-state">
                 <div className="empty-sparkle-icon">{brainIcon}</div>
-                <h2>Projenizi AI veya MCP ile Orkestre Edin</h2>
-                <p>
-                  Yerleşik asistan tüm proje kaynaklarınıza (Analiz, Mimari, UI Tasarım,
-                  Görev Panosu ve TDD Testleri) erişebilir; dilerseniz{" "}
-                  <strong>Claude Desktop</strong> veya{" "}
-                  <strong>Gemini Antigravity</strong> üzerinden Live MCP araçlarıyla da
-                  yönetebilirsiniz.
-                </p>
+                <h2>{t("sdlc.aiModal.emptyStateTitle")}</h2>
+                <p>{t("sdlc.aiModal.emptyStateDesc")}</p>
 
                 <div className="suggestion-cards">
                   {PROMPT_SUGGESTIONS.map((sug, i) => (
@@ -2160,17 +2152,23 @@ CRITICAL MERMAID SYNTAX RULES:
                 <div className="message-avatar">{UserIcon}</div>
                 <div className="message-bubble">
                   <div className="user-message-header">
-                    <span className="bubble-header">İstem (Prompt)</span>
+                    <span className="bubble-header">
+                      {t("sdlc.aiModal.promptHeader")}
+                    </span>
                     <button
                       type="button"
                       className="copy-bubble-btn"
                       onClick={() => handleCopy(submittedPrompt, "user")}
-                      title="İstemi Kopyala"
+                      title={t("sdlc.aiModal.copyPromptTitle")}
                     >
                       <span className="btn-icon">
                         {copiedTarget === "user" ? checkIcon : copyIcon}
                       </span>
-                      <span>{copiedTarget === "user" ? "Kopyalandı" : "Kopyala"}</span>
+                      <span>
+                        {copiedTarget === "user"
+                          ? t("sdlc.common.copied")
+                          : t("sdlc.common.copy")}
+                      </span>
                     </button>
                   </div>
                   <div className="bubble-text">{submittedPrompt}</div>
@@ -2194,32 +2192,37 @@ CRITICAL MERMAID SYNTAX RULES:
                         })}
                       />
                       <span className="status-label-text">
-                        {generationStatus === "connecting" && "Modele bağlanılıyor..."}
+                        {generationStatus === "connecting" &&
+                          t("sdlc.aiModal.statusConnecting")}
                         {generationStatus === "generating" &&
-                          `Canlı Yanıt Akışı (${activeModelDisplay})`}
+                          t("sdlc.aiModal.statusGenerating", {
+                            model: activeModelDisplay,
+                          })}
                         {generationStatus === "parsing" &&
-                          "Çıktı hedef SDLC yüzeyine aktarılıyor..."}
+                          t("sdlc.aiModal.statusParsing")}
                         {generationStatus === "success" &&
-                          `Çıktı başarıyla ${effectiveTargetBadge} yüzeyine uygulandı`}
+                          t("sdlc.aiModal.statusSuccess", {
+                            target: effectiveTargetBadge,
+                          })}
                         {generationStatus === "error" &&
-                          "Ayrıştırma veya bağlantı sırasında hata oluştu"}
+                          t("sdlc.aiModal.statusError")}
                       </span>
                     </div>
 
                     <div className="status-stats-row">
                       <span className="stats-time">
                         {elapsedTime > 0 && `${elapsedTime}s`}
-                        {streamedContent.length > 0 && ` • ${streamedContent.length} krktr`}
+                        {streamedContent.length > 0 && ` • ${streamedContent.length}`}
                       </span>
                       {isGenerating && (
                         <button
                           type="button"
                           className="stop-stream-btn"
                           onClick={handleAbort}
-                          title="Üretimi Durdur"
+                          title={t("sdlc.aiModal.stopTitle")}
                         >
                           <span className="stop-icon">{StopSquareIcon}</span>
-                          <span>Durdur</span>
+                          <span>{t("sdlc.aiModal.stopBtn")}</span>
                         </button>
                       )}
                     </div>
@@ -2229,22 +2232,21 @@ CRITICAL MERMAID SYNTAX RULES:
                     {isEditingCode ? (
                       <div className="code-editor-wrap">
                         <div className="editor-banner">
-                          <span>
-                            Üretilen çıktıyı düzenleyip doğrudan hedef yüzeye
-                            uygulayabilirsiniz:
-                          </span>
+                          <span>{t("sdlc.aiModal.editorBannerText")}</span>
                           <div className="editor-banner-actions">
                             <button
                               type="button"
                               className="copy-header-btn"
                               onClick={() => handleCopy(editableMermaidCode, "ai")}
-                              title="Kodu Kopyala"
+                              title={t("sdlc.aiModal.copyCodeBtn")}
                             >
                               <span className="btn-icon">
                                 {copiedTarget === "ai" ? checkIcon : copyIcon}
                               </span>
                               <span>
-                                {copiedTarget === "ai" ? "Kopyalandı" : "Kopyala"}
+                                {copiedTarget === "ai"
+                                  ? t("sdlc.common.copied")
+                                  : t("sdlc.common.copy")}
                               </span>
                             </button>
                             <button
@@ -2252,7 +2254,7 @@ CRITICAL MERMAID SYNTAX RULES:
                               className="render-now-btn"
                               onClick={handleManualRender}
                             >
-                              Hedef Yüzeye Uygula
+                              {t("sdlc.aiModal.applyToTargetBtn")}
                             </button>
                           </div>
                         </div>
@@ -2280,19 +2282,23 @@ CRITICAL MERMAID SYNTAX RULES:
                               type="button"
                               className="copy-header-btn"
                               onClick={() => handleCopy(streamedContent, "ai")}
-                              title="Kodu Kopyala"
+                              title={t("sdlc.aiModal.copyCodeBtn")}
                             >
                               <span className="btn-icon">
                                 {copiedTarget === "ai" ? checkIcon : copyIcon}
                               </span>
                               <span>
-                                {copiedTarget === "ai" ? "Kopyalandı" : "Kodu Kopyala"}
+                                {copiedTarget === "ai"
+                                  ? t("sdlc.common.copied")
+                                  : t("sdlc.aiModal.copyCodeBtn")}
                               </span>
                             </button>
                           )}
                         </div>
                         <pre className="mermaid-pre" ref={codePreRef}>
-                          <code>{streamedContent || "Modelden ilk yanıt bekleniyor..."}</code>
+                          <code>
+                            {streamedContent || t("sdlc.aiModal.waitingForModel")}
+                          </code>
                           {isGenerating && <span className="stream-cursor">▊</span>}
                         </pre>
                       </div>
@@ -2309,7 +2315,11 @@ CRITICAL MERMAID SYNTAX RULES:
                         <span className="btn-icon">
                           {copiedTarget === "ai" ? checkIcon : copyIcon}
                         </span>
-                        <span>{copiedTarget === "ai" ? "Kopyalandı" : "Kodu Kopyala"}</span>
+                        <span>
+                          {copiedTarget === "ai"
+                            ? t("sdlc.common.copied")
+                            : t("sdlc.aiModal.copyCodeBtn")}
+                        </span>
                       </button>
                       <button
                         type="button"
@@ -2326,7 +2336,7 @@ CRITICAL MERMAID SYNTAX RULES:
                         }}
                       >
                         <span className="btn-icon">{CodeEditIcon}</span>
-                        <span>Çıktıyı Düzenle</span>
+                        <span>{t("sdlc.aiModal.editOutputBtn")}</span>
                       </button>
                       <button
                         type="button"
@@ -2334,18 +2344,19 @@ CRITICAL MERMAID SYNTAX RULES:
                         onClick={() => renderCodeToScene(streamedContent)}
                       >
                         <span className="btn-icon">{RetryIcon}</span>
-                        <span>Hedef Yüzeye Yeniden Uygula</span>
+                        <span>{t("sdlc.aiModal.reapplyBtn")}</span>
                       </button>
                     </div>
                   )}
 
                   {parseErrorDetails && (
                     <div className="parse-error-card">
-                      <div className="error-title">Ayrıştırma Hatası</div>
+                      <div className="error-title">
+                        {t("sdlc.aiModal.parseErrorTitle")}
+                      </div>
                       <div className="error-text">{parseErrorDetails}</div>
                       <div className="error-tip">
-                        Yukarıdaki düzenleyicide çıktıyı düzelterek doğrudan hedef yüzeye
-                        aktarabilirsiniz.
+                        {t("sdlc.aiModal.parseErrorTip")}
                       </div>
                     </div>
                   )}
@@ -2370,12 +2381,12 @@ CRITICAL MERMAID SYNTAX RULES:
                 className="gemini-textarea"
                 placeholder={
                   selectedPreset === "SDLC Tasks"
-                    ? "Hangi özellik veya modül için görevler ve kabul kriterleri üretilsin? (Enter: Gönder)"
+                    ? t("sdlc.aiModal.placeholderTasks")
                     : selectedPreset === "TDD Suite"
-                    ? "Hangi servis veya akış için Given/When/Then TDD test senaryoları üretilsin?"
+                    ? t("sdlc.aiModal.placeholderTdd")
                     : selectedPreset === "UI Wireframe (HTML)"
-                    ? "Tasarım Tuvali için istediğiniz web/mobil ekran veya bileşeni açıklayın..."
-                    : "Analiz veya mimari şemasını açıklayın... (Enter: Gönder, Shift+Enter: Yeni satır)"
+                    ? t("sdlc.aiModal.placeholderUi")
+                    : t("sdlc.aiModal.placeholderArch")
                 }
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -2397,7 +2408,7 @@ CRITICAL MERMAID SYNTAX RULES:
                     type="button"
                     className="send-button stop"
                     onClick={handleAbort}
-                    title="Üretimi Durdur"
+                    title={t("sdlc.aiModal.stopTitle")}
                   >
                     {StopSquareIcon}
                   </button>
@@ -2413,7 +2424,7 @@ CRITICAL MERMAID SYNTAX RULES:
                       }
                     }}
                     disabled={!prompt.trim() || isGenerating}
-                    title="Üret ve Hedef Yüzeye Uygula"
+                    title={t("sdlc.aiModal.sendTitle")}
                   >
                     {UpArrowIcon}
                   </button>
@@ -2421,9 +2432,13 @@ CRITICAL MERMAID SYNTAX RULES:
               </div>
             </div>
             <div className="input-hint">
-              Hedef: <strong>{effectiveTargetBadge}</strong> • Model:{" "}
-              {activeModelDisplay} • SDLC Proje Bağlamı:{" "}
-              {includeSdlcContext ? "Aktif" : "Kapalı"}
+              {t("sdlc.aiModal.footerTarget")}{" "}
+              <strong>{effectiveTargetBadge}</strong> •{" "}
+              {t("sdlc.aiModal.footerModel")} {activeModelDisplay} •{" "}
+              {t("sdlc.aiModal.footerSdlcContext")}{" "}
+              {includeSdlcContext
+                ? t("sdlc.aiModal.activeLabel")
+                : t("sdlc.aiModal.offLabel")}
             </div>
           </footer>
         </main>

@@ -5,7 +5,12 @@ import {
   TrashIcon,
   checkIcon,
   searchIcon,
+  boltIcon,
+  codeIcon,
+  copyIcon,
+  downloadIcon,
 } from "@excalidraw/excalidraw/components/icons";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import {
   getProjectTDDScenarios,
   createTDDScenario,
@@ -40,42 +45,41 @@ interface TDDStudioSurfaceProps {
   compact?: boolean;
 }
 
-const STATUS_META: Record<
-  TDDStatus,
-  { label: string; short: string; badgeClass: string }
-> = {
-  red: {
-    label: "Red (Henüz Geçmiyor)",
-    short: "RED",
-    badgeClass: "tdd-status--red",
-  },
-  green: {
-    label: "Green (Doğrulandı)",
-    short: "GREEN",
-    badgeClass: "tdd-status--green",
-  },
-  refactor: {
-    label: "Refactor (İyileştirildi)",
-    short: "REFACTOR",
-    badgeClass: "tdd-status--refactor",
-  },
-  draft: {
-    label: "Draft (Taslak)",
-    short: "DRAFT",
-    badgeClass: "tdd-status--draft",
-  },
-};
-
-const CATEGORY_LABELS: Record<TDDCategory, string> = {
-  acceptance: "Kabul Testi (BDD)",
-  e2e: "Uçtan Uca (E2E / UI)",
-  integration: "Entegrasyon Testi",
-  unit: "Birim (Unit) Test",
-};
-
 export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
   compact = false,
 }) => {
+  const { t } = useI18n();
+  const STATUS_META: Record<
+    TDDStatus,
+    { label: string; short: string; badgeClass: string }
+  > = {
+    red: {
+      label: t("sdlc.tdd.statusRed"),
+      short: "RED",
+      badgeClass: "tdd-status--red",
+    },
+    green: {
+      label: t("sdlc.tdd.statusGreen"),
+      short: "GREEN",
+      badgeClass: "tdd-status--green",
+    },
+    refactor: {
+      label: t("sdlc.tdd.statusRefactor"),
+      short: "REFACTOR",
+      badgeClass: "tdd-status--refactor",
+    },
+    draft: {
+      label: t("sdlc.tdd.statusDraft"),
+      short: "DRAFT",
+      badgeClass: "tdd-status--draft",
+    },
+  };
+  const CATEGORY_LABELS: Record<TDDCategory, string> = {
+    acceptance: t("sdlc.tdd.catApiContract"),
+    e2e: t("sdlc.tdd.catE2eUi"),
+    integration: t("sdlc.tdd.catIntegration"),
+    unit: t("sdlc.tdd.catUnit"),
+  };
   const [scenarios, setScenarios] = useState<TDDScenario[]>([]);
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -295,7 +299,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
 
   return (
     <div ref={rootRef} className="sdlc-surface-root">
-      {/* Top Excalidraw Island Toolbar */}
+      {/* Top Island Toolbar */}
       <div className="sdlc-top-island Island" role="toolbar">
         <div className="sdlc-segmented">
           <button
@@ -303,7 +307,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
             className={`seg-btn ${statusFilter === "all" ? "seg-btn--active" : ""}`}
             onClick={() => setStatusFilter("all")}
           >
-            Tümü ({counts.total})
+            {t("sdlc.tdd.allStatuses")} ({counts.total})
           </button>
           <button
             type="button"
@@ -312,7 +316,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
             }`}
             onClick={() => setStatusFilter("red")}
           >
-            🔴 Red ({counts.red})
+            Red ({counts.red})
           </button>
           <button
             type="button"
@@ -321,7 +325,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
             }`}
             onClick={() => setStatusFilter("green")}
           >
-            🟢 Green ({counts.green})
+            Green ({counts.green})
           </button>
           <button
             type="button"
@@ -330,7 +334,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
             }`}
             onClick={() => setStatusFilter("refactor")}
           >
-            🟣 Refactor ({counts.refactor})
+            Refactor ({counts.refactor})
           </button>
         </div>
 
@@ -340,12 +344,12 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
           className="sdlc-toolbar-select"
           value={taskFilter}
           onChange={(e) => setTaskFilter(e.target.value)}
-          title="Bağlı Göreve Göre Filtrele"
+          title={t("sdlc.tdd.linkedTaskFieldLabel")}
         >
-          <option value="all">Tüm Görevler</option>
-          {tasks.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.key}: {t.title}
+          <option value="all">{t("sdlc.tdd.allCategories")}</option>
+          {tasks.map((taskItem) => (
+            <option key={taskItem.id} value={taskItem.id}>
+              {taskItem.key}: {taskItem.title}
             </option>
           ))}
         </select>
@@ -355,7 +359,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
             <span className="search-icon">{searchIcon}</span>
             <input
               type="text"
-              placeholder="Given / When / Then ara..."
+              placeholder={t("sdlc.tdd.searchPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -368,9 +372,10 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
           type="button"
           className="sdlc-secondary-btn"
           onClick={handleSyncAllFromTasks}
-          title="Projedeki görevlerin kabul kriterlerinden eksik TDD senaryolarını otomatik oluştur"
+          title={t("sdlc.tasks.generateTddWithAgent")}
         >
-          <span>⚡ Görevlerden Üret</span>
+          {boltIcon}
+          <span>{t("sdlc.tasks.generateTddWithAgent")}</span>
         </button>
 
         <button
@@ -379,9 +384,12 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
             isCodeDrawerOpen ? "seg-btn--active" : ""
           }`}
           onClick={() => setIsCodeDrawerOpen((prev) => !prev)}
-          title="Çalıştırılabilir Test Kodunu Göster / İndir (Vitest, Playwright, Cucumber Gherkin)"
+          title={t("sdlc.tdd.exportCodeBtn")}
         >
-          <span>💻 Test Kodu ({targetScenariosForExport.length})</span>
+          {codeIcon}
+          <span>
+            {t("sdlc.tdd.exportCodeBtn")} ({targetScenariosForExport.length})
+          </span>
         </button>
 
         <button
@@ -390,7 +398,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
           onClick={handleOpenCreate}
         >
           {PlusIcon}
-          <span>Yeni Senaryo</span>
+          <span>{t("sdlc.tdd.newScenarioBtn")}</span>
         </button>
       </div>
 
@@ -401,7 +409,9 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
           <div className="tdd-summary-strip Island">
             <div className="tdd-summary-metrics">
               <div className="tdd-metric">
-                <span className="metric-label">TDD GEÇİŞ ORANI</span>
+                <span className="metric-label">
+                  {t("sdlc.tdd.coverageTitle")}
+                </span>
                 <strong className="metric-value">%{passRate}</strong>
               </div>
               <div className="tdd-progress-bar">
@@ -413,15 +423,15 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
             </div>
             <div className="tdd-cycle-legend">
               <span className="cycle-step cycle-step--red">
-                1. RED: Önce Başarısız Testi Yaz ({counts.red})
+                {t("sdlc.tdd.cycleRed")} ({counts.red})
               </span>
               <span className="cycle-arrow">→</span>
               <span className="cycle-step cycle-step--green">
-                2. GREEN: Testi Geçirecek Tasarım/Kodu Üret ({counts.green})
+                {t("sdlc.tdd.cycleGreen")} ({counts.green})
               </span>
               <span className="cycle-arrow">→</span>
               <span className="cycle-step cycle-step--refactor">
-                3. REFACTOR: Mimaride İyileştir ({counts.refactor})
+                {t("sdlc.tdd.cycleRefactor")} ({counts.refactor})
               </span>
             </div>
           </div>
@@ -541,7 +551,9 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                             );
                             if (taskBoard) setActiveWorkspaceId(taskBoard.id);
                           }}
-                          title={`Görev: ${linkedTask.key} - ${linkedTask.title}`}
+                          title={t("sdlc.tdd.openLinkedTaskTitle", {
+                            key: linkedTask.key,
+                          })}
                         >
                           <span className="chip-icon">{TaskBoardIcon}</span>
                           <span className="chip-text">
@@ -556,7 +568,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                             type="button"
                             className="artifact-chip"
                             onClick={() => setActiveWorkspaceId(doc.id)}
-                            title={`${doc.name} tuvalini aç`}
+                            title={t("sdlc.common.open")}
                           >
                             <span className="chip-icon">
                               {getDocumentIcon(doc)}
@@ -567,7 +579,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                             type="button"
                             className="artifact-split-btn"
                             onClick={() => setSplitWorkspaceId(doc.id)}
-                            title={`${doc.name} tuvalini bu TDD ekranının yanında (Split-Peek) aç`}
+                            title={t("sdlc.common.openInSplitView")}
                           >
                             {SplitViewIcon}
                           </button>
@@ -582,8 +594,27 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                             ? "assertion-summary--all-passed"
                             : ""
                         }`}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
                       >
-                        ✓ {passedCount}/{sc.assertions.length} Doğrulama
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            width: 11,
+                            height: 11,
+                          }}
+                        >
+                          {checkIcon}
+                        </span>
+                        <span>
+                          {t("sdlc.tdd.assertionsPassCount", {
+                            passed: passedCount,
+                            total: sc.assertions.length,
+                          })}
+                        </span>
                       </span>
                     )}
                   </div>
@@ -608,17 +639,19 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                     })
                   }
                 >
-                  <option value="draft">⚪ Draft (Taslak)</option>
-                  <option value="red">🔴 Red (Geçmiyor)</option>
-                  <option value="green">🟢 Green (Geçti)</option>
-                  <option value="refactor">🟣 Refactor (İyileştirildi)</option>
+                  <option value="draft">{t("sdlc.tdd.statusDraft")}</option>
+                  <option value="red">{t("sdlc.tdd.statusRed")}</option>
+                  <option value="green">{t("sdlc.tdd.statusGreen")}</option>
+                  <option value="refactor">
+                    {t("sdlc.tdd.statusRefactor")}
+                  </option>
                 </select>
               </div>
               <div className="header-actions">
                 <button
                   type="button"
                   className="detail-icon-btn detail-icon-btn--danger"
-                  title="Senaryoyu Sil"
+                  title={t("sdlc.tdd.deleteScenarioBtn")}
                   onClick={() => {
                     deleteTDDScenario(selectedScenario.id);
                     setSelectedId(null);
@@ -629,7 +662,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                 <button
                   type="button"
                   className="detail-icon-btn"
-                  title="Kapat"
+                  title={t("sdlc.common.close")}
                   onClick={() => setSelectedId(null)}
                 >
                   {CloseIcon}
@@ -639,7 +672,9 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
 
             <div className="detail-drawer-body">
               <div className="detail-section">
-                <label className="detail-label">SENARYO BAŞLIĞI</label>
+                <label className="detail-label">
+                  {t("sdlc.tdd.scenarioTitleLabel")}
+                </label>
                 <input
                   type="text"
                   className="detail-input"
@@ -654,7 +689,9 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
 
               <div className="detail-grid-2">
                 <div className="detail-section">
-                  <label className="detail-label">TEST SEVİYESİ</label>
+                  <label className="detail-label">
+                    {t("sdlc.tdd.categoryFieldLabel")}
+                  </label>
                   <select
                     className="detail-select"
                     value={selectedScenario.category}
@@ -673,7 +710,9 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                 </div>
 
                 <div className="detail-section">
-                  <label className="detail-label">BAĞLI GÖREV</label>
+                  <label className="detail-label">
+                    {t("sdlc.tdd.linkedTaskFieldLabel")}
+                  </label>
                   <select
                     className="detail-select"
                     value={selectedScenario.linkedTaskId || ""}
@@ -683,10 +722,10 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                       })
                     }
                   >
-                    <option value="">Görev Seçilmedi</option>
-                    {tasks.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.key}: {t.title}
+                    <option value="">{t("sdlc.tdd.noTaskLinked")}</option>
+                    {tasks.map((taskItem) => (
+                      <option key={taskItem.id} value={taskItem.id}>
+                        {taskItem.key}: {taskItem.title}
                       </option>
                     ))}
                   </select>
@@ -694,7 +733,9 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
               </div>
 
               <div className="detail-section">
-                <label className="detail-label">GIVEN (BAŞLANGIÇ KOŞULU)</label>
+                <label className="detail-label">
+                  {t("sdlc.tdd.givenFieldLabel")}
+                </label>
                 <textarea
                   className="detail-textarea"
                   rows={2}
@@ -705,7 +746,9 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                     })
                   }
                 />
-                <label className="detail-label">WHEN (TETİKLENEN EYLEM)</label>
+                <label className="detail-label">
+                  {t("sdlc.tdd.whenFieldLabel")}
+                </label>
                 <textarea
                   className="detail-textarea"
                   rows={2}
@@ -716,7 +759,9 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                     })
                   }
                 />
-                <label className="detail-label">THEN (BEKLENEN SONUÇ)</label>
+                <label className="detail-label">
+                  {t("sdlc.tdd.thenFieldLabel")}
+                </label>
                 <textarea
                   className="detail-textarea"
                   rows={2}
@@ -733,15 +778,13 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
               <div className="detail-section">
                 <div className="detail-section-header">
                   <label className="detail-label">
-                    DOĞRULAMA KONTROLLERİ (ASSERTIONS)
+                    {t("sdlc.tdd.assertionsSection", {
+                      passed: selectedScenario.assertions.filter(
+                        (a) => a.passed,
+                      ).length,
+                      total: selectedScenario.assertions.length,
+                    })}
                   </label>
-                  <span className="detail-count-badge">
-                    {
-                      selectedScenario.assertions.filter((a) => a.passed)
-                        .length
-                    }
-                    /{selectedScenario.assertions.length} Geçti
-                  </span>
                 </div>
                 <div className="criteria-list">
                   {selectedScenario.assertions.map((a) => (
@@ -766,7 +809,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                       <button
                         type="button"
                         className="criterion-remove-btn"
-                        title="Assertion sil"
+                        title={t("sdlc.common.delete")}
                         onClick={() =>
                           handleDeleteAssertion(selectedScenario, a.id)
                         }
@@ -783,12 +826,12 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                   <input
                     type="text"
                     className="detail-input"
-                    placeholder="Yeni assertion ekle..."
+                    placeholder={t("sdlc.tdd.addAssertionPlaceholder")}
                     value={newAssertionInput}
                     onChange={(e) => setNewAssertionInput(e.target.value)}
                   />
                   <button type="submit" className="detail-add-btn">
-                    Ekle
+                    {t("sdlc.common.add")}
                   </button>
                 </form>
               </div>
@@ -796,7 +839,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
               {/* Linked Canvases */}
               <div className="detail-section">
                 <label className="detail-label">
-                  DOĞRULANAN ANALİZ & TASARIM TUVALLERİ
+                  {t("sdlc.tasks.analysisArchDocsLabel")}
                 </label>
                 <div className="linked-docs-list">
                   {docs
@@ -842,13 +885,13 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                                 className="jump-btn"
                                 onClick={() => setActiveWorkspaceId(doc.id)}
                               >
-                                Aç
+                                {t("sdlc.common.open")}
                               </button>
                               <button
                                 type="button"
                                 className="jump-btn"
                                 onClick={() => setSplitWorkspaceId(doc.id)}
-                                title="Yan Yana Aç"
+                                title={t("sdlc.common.openInSplitView")}
                               >
                                 {SplitViewIcon}
                               </button>
@@ -866,9 +909,8 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                   className="ai-orchestrate-btn"
                   onClick={() => setIsCodeDrawerOpen(true)}
                 >
-                  <span>
-                    💻 Bu Senaryonun Test Kodunu Üret (.spec.ts / .feature)
-                  </span>
+                  {codeIcon}
+                  <span>{t("sdlc.tdd.exportCodeBtn")}</span>
                 </button>
               </div>
             </div>
@@ -880,7 +922,25 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
           <aside className="sdlc-detail-drawer Island">
             <div className="detail-drawer-header">
               <div className="header-left">
-                <span className="task-key">💻 TEST KODU</span>
+                <span
+                  className="task-key"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      width: 13,
+                      height: 13,
+                    }}
+                  >
+                    {codeIcon}
+                  </span>
+                  <span>{t("sdlc.tdd.exportCodeBtn")}</span>
+                </span>
                 <span style={{ fontSize: 11.5, fontWeight: 700 }}>
                   {generatedSpec.filename}
                 </span>
@@ -889,7 +949,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                 <button
                   type="button"
                   className="detail-icon-btn"
-                  title="Kapat"
+                  title={t("sdlc.common.close")}
                   onClick={() => setIsCodeDrawerOpen(false)}
                 >
                   {CloseIcon}
@@ -900,7 +960,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
             <div className="detail-drawer-body">
               <div className="detail-section">
                 <label className="detail-label">
-                  HEDEF TEST ÇATISI (FRAMEWORK)
+                  {t("sdlc.tdd.exportModalEyebrow")}
                 </label>
                 <div className="sdlc-segmented" style={{ width: "100%" }}>
                   <button
@@ -939,10 +999,9 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
               <div className="detail-section">
                 <div className="detail-section-header">
                   <label className="detail-label">
-                    KAPSAM:{" "}
-                    {selectedScenario
-                      ? `${selectedScenario.key} (Tekil Senaryo)`
-                      : `Filtrelenen Tüm Senaryolar (${targetScenariosForExport.length})`}
+                    {t("sdlc.tdd.exportModalTitle", {
+                      count: targetScenariosForExport.length,
+                    })}
                   </label>
                   {selectedScenario && (
                     <button
@@ -950,7 +1009,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                       className="detail-mini-btn"
                       onClick={() => setSelectedId(null)}
                     >
-                      Tüm Paketi Göster
+                      {t("sdlc.tdd.allStatuses")}
                     </button>
                   )}
                 </div>
@@ -988,7 +1047,8 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                   style={{ flex: 1, justifyContent: "center" }}
                   onClick={handleCopyTestCode}
                 >
-                  <span>📋 Kodu Kopyala</span>
+                  {copyIcon}
+                  <span>{t("sdlc.tdd.copyTestFileBtn")}</span>
                 </button>
                 <button
                   type="button"
@@ -996,7 +1056,8 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                   style={{ flex: 1, justifyContent: "center" }}
                   onClick={handleDownloadTestCode}
                 >
-                  <span>⬇️ Dosya İndir</span>
+                  {downloadIcon}
+                  <span>{t("sdlc.common.download")}</span>
                 </button>
               </div>
             </div>
@@ -1015,7 +1076,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="new-workspace-modal__header">
-              <h3>Yeni TDD / BDD Test Senaryosu Ekle</h3>
+              <h3>{t("sdlc.tdd.createModalTitle")}</h3>
               <button
                 type="button"
                 className="modal-close-btn"
@@ -1027,10 +1088,10 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
             <form onSubmit={handleCreate}>
               <div className="new-workspace-modal__body">
                 <div className="form-group">
-                  <label>Test Senaryosu Başlığı</label>
+                  <label>{t("sdlc.tdd.scenarioTitleLabel")}</label>
                   <input
                     type="text"
-                    placeholder="Örn: Stokta Olmayan Ürünün Sepete Eklenememesi..."
+                    placeholder={t("sdlc.tdd.createTitlePlaceholder")}
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                     autoFocus
@@ -1039,7 +1100,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
 
                 <div className="sdlc-modal-grid-3">
                   <div className="form-group">
-                    <label>Test Seviyesi</label>
+                    <label>{t("sdlc.tdd.categoryFieldLabel")}</label>
                     <select
                       className="sdlc-modal-select"
                       value={newCategory}
@@ -1056,7 +1117,7 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                   </div>
 
                   <div className="form-group">
-                    <label>Başlangıç TDD Durumu</label>
+                    <label>{t("sdlc.tdd.statusFieldLabel")}</label>
                     <select
                       className="sdlc-modal-select"
                       value={newStatus}
@@ -1064,23 +1125,27 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                         setNewStatus(e.target.value as TDDStatus)
                       }
                     >
-                      <option value="red">🔴 Red (Önce Test)</option>
-                      <option value="draft">⚪ Draft (Taslak)</option>
-                      <option value="green">🟢 Green (Geçti)</option>
+                      <option value="red">{t("sdlc.tdd.statusRed")}</option>
+                      <option value="draft">
+                        {t("sdlc.tdd.statusDraft")}
+                      </option>
+                      <option value="green">
+                        {t("sdlc.tdd.statusGreen")}
+                      </option>
                     </select>
                   </div>
 
                   <div className="form-group">
-                    <label>İlgili Görev</label>
+                    <label>{t("sdlc.tdd.linkedRequirementLabel")}</label>
                     <select
                       className="sdlc-modal-select"
                       value={newLinkedTaskId}
                       onChange={(e) => setNewLinkedTaskId(e.target.value)}
                     >
-                      <option value="">Görev Seçilmedi</option>
-                      {tasks.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.key}: {t.title}
+                      <option value="">{t("sdlc.tdd.noTaskLinked")}</option>
+                      {tasks.map((taskItem) => (
+                        <option key={taskItem.id} value={taskItem.id}>
+                          {taskItem.key}: {taskItem.title}
                         </option>
                       ))}
                     </select>
@@ -1088,43 +1153,41 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                 </div>
 
                 <div className="form-group">
-                  <label>GIVEN (Ön Koşul / Bağlam)</label>
+                  <label>{t("sdlc.tdd.givenFieldLabel")}</label>
                   <input
                     type="text"
-                    placeholder="Örn: Kullanıcı ödeme ekranındadır ve sepet toplamı 250 TL'dir..."
+                    placeholder={t("sdlc.tdd.givenPlaceholder")}
                     value={newGiven}
                     onChange={(e) => setNewGiven(e.target.value)}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>WHEN (Eylem / Tetikleyici)</label>
+                  <label>{t("sdlc.tdd.whenFieldLabel")}</label>
                   <input
                     type="text"
-                    placeholder="Örn: Süresi geçmiş kupon kodunu girip Uygula'ya tıklar..."
+                    placeholder={t("sdlc.tdd.whenPlaceholder")}
                     value={newWhen}
                     onChange={(e) => setNewWhen(e.target.value)}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>THEN (Beklenen Sonuç)</label>
+                  <label>{t("sdlc.tdd.thenFieldLabel")}</label>
                   <input
                     type="text"
-                    placeholder="Örn: Uyarı mesajı gösterilir ve toplam tutar 250 TL olarak kalır..."
+                    placeholder={t("sdlc.tdd.thenPlaceholder")}
                     value={newThen}
                     onChange={(e) => setNewThen(e.target.value)}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>Alt Doğrulamalar / Assertions (Her satıra bir kontrol)</label>
+                  <label>{t("sdlc.tdd.addAssertionPlaceholder")}</label>
                   <textarea
                     className="sdlc-modal-textarea"
                     rows={2}
-                    placeholder={
-                      "Uyarı banner'ı görünür olmalı\nÖdeme butonu aktif kalmalı"
-                    }
+                    placeholder={t("sdlc.tdd.addAssertionPlaceholder")}
                     value={newAssertionsText}
                     onChange={(e) => setNewAssertionsText(e.target.value)}
                   />
@@ -1136,10 +1199,10 @@ export const TDDStudioSurface: React.FC<TDDStudioSurfaceProps> = ({
                   className="btn-secondary"
                   onClick={() => setIsCreateOpen(false)}
                 >
-                  Vazgeç
+                  {t("sdlc.common.cancel")}
                 </button>
                 <button type="submit" className="btn-primary">
-                  Senaryoyu Ekle
+                  {t("sdlc.tdd.createScenarioSubmit")}
                 </button>
               </div>
             </form>
