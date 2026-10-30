@@ -516,7 +516,38 @@ export const AIIntegrationsModal: React.FC<AIIntegrationsModalProps> = ({
   const [canvasStats, setCanvasStats] = useState<{ total: number; selected: number } | null>(null);
 
   useEffect(() => {
-    if (!isOpen || !excalidrawAPI) return;
+    if (!isOpen) return;
+    setActiveSidebarTab("studio");
+    const activeWs = getActiveWorkspace();
+    if (activeWs) {
+      if (activeWs.canvasType === "design") {
+        setSelectedPreset("UI Wireframe (HTML)");
+      } else if (activeWs.canvasType === "tasks") {
+        setSelectedPreset("SDLC Tasks");
+      } else if (activeWs.canvasType === "tdd") {
+        setSelectedPreset("TDD Suite");
+      } else if (activeWs.canvasType === "sketch") {
+        setSelectedPreset((prev) => {
+          if (
+            prev === "UI Wireframe (HTML)" ||
+            prev === "SDLC Tasks" ||
+            prev === "TDD Suite"
+          ) {
+            return activeWs.category === "analysis"
+              ? "Flowchart"
+              : "Architecture";
+          }
+          if (activeWs.category === "analysis" && prev === "Architecture") {
+            return "Flowchart";
+          }
+          if (activeWs.category === "architecture" && prev === "Flowchart") {
+            return "Architecture";
+          }
+          return prev;
+        });
+      }
+    }
+    if (!excalidrawAPI) return;
     try {
       const elements = excalidrawAPI.getSceneElements().filter((el) => !el.isDeleted);
       const appState = excalidrawAPI.getAppState();
@@ -1513,9 +1544,45 @@ CRITICAL MERMAID SYNTAX RULES:
 
   const activePresetMeta =
     PRESET_TYPES.find((p) => p.id === selectedPreset) || PRESET_TYPES[0];
+  const currentWs = getActiveWorkspace();
+  const activeModelDisplay =
+    settings.provider === "ollama"
+      ? settings.ollamaModel
+      : settings.provider === "openrouter"
+      ? settings.openrouterModel
+      : settings.customModel;
+  const effectiveTargetBadge = (() => {
+    if (selectedPreset === "UI Wireframe (HTML)") {
+      const targetDesign =
+        currentWs?.canvasType === "design"
+          ? currentWs
+          : projectDocs.find((d) => d.canvasType === "design");
+      return targetDesign
+        ? `Tasarım Tuvali (${targetDesign.name})`
+        : "Tasarım Tuvali";
+    }
+    if (selectedPreset === "SDLC Tasks") {
+      return "Proje Görev Panosu";
+    }
+    if (selectedPreset === "TDD Suite") {
+      return "TDD Test Stüdyosu";
+    }
+    if (currentWs?.canvasType === "sketch") {
+      const catLabel =
+        currentWs.category === "analysis" ? "Analiz Tuvali" : "Mimari Tuvali";
+      return `${catLabel} (${currentWs.name})`;
+    }
+    return activePresetMeta.targetBadge;
+  })();
 
   return (
-    <Dialog size={1080} onCloseRequest={onClose} title={false} className="gemini-studio-dialog">
+    <Dialog
+      size={1080}
+      onCloseRequest={onClose}
+      title={false}
+      autofocus={false}
+      className="gemini-studio-dialog"
+    >
       <div className="ai-gemini-container" ref={modalContainerRef}>
         {/* LEFT SIDEBAR */}
         <aside className="ai-gemini-sidebar">
@@ -1971,11 +2038,9 @@ CRITICAL MERMAID SYNTAX RULES:
           {/* Top Bar */}
           <header className="workspace-header">
             <div className="header-chips">
-              <span className="model-chip">
-                {settings.provider === "ollama" ? settings.ollamaModel : settings.customModel}
-              </span>
+              <span className="model-chip">{activeModelDisplay}</span>
               <span className="type-chip">
-                {activePresetMeta.label} → {activePresetMeta.targetBadge}
+                {activePresetMeta.label} → {effectiveTargetBadge}
               </span>
               {isGenerating && (
                 <span className="generating-chip">
@@ -2131,11 +2196,11 @@ CRITICAL MERMAID SYNTAX RULES:
                       <span className="status-label-text">
                         {generationStatus === "connecting" && "Modele bağlanılıyor..."}
                         {generationStatus === "generating" &&
-                          `Canlı Yanıt Akışı (${settings.provider === "ollama" ? settings.ollamaModel : settings.customModel})`}
+                          `Canlı Yanıt Akışı (${activeModelDisplay})`}
                         {generationStatus === "parsing" &&
                           "Çıktı hedef SDLC yüzeyine aktarılıyor..."}
                         {generationStatus === "success" &&
-                          `Çıktı başarıyla ${activePresetMeta.targetBadge} yüzeyine uygulandı`}
+                          `Çıktı başarıyla ${effectiveTargetBadge} yüzeyine uygulandı`}
                         {generationStatus === "error" &&
                           "Ayrıştırma veya bağlantı sırasında hata oluştu"}
                       </span>
@@ -2356,9 +2421,9 @@ CRITICAL MERMAID SYNTAX RULES:
               </div>
             </div>
             <div className="input-hint">
-              Hedef: <strong>{activePresetMeta.targetBadge}</strong> • Model:{" "}
-              {settings.provider === "ollama" ? settings.ollamaModel : settings.customModel}{" "}
-              • SDLC Proje Bağlamı: {includeSdlcContext ? "Aktif" : "Kapalı"}
+              Hedef: <strong>{effectiveTargetBadge}</strong> • Model:{" "}
+              {activeModelDisplay} • SDLC Proje Bağlamı:{" "}
+              {includeSdlcContext ? "Aktif" : "Kapalı"}
             </div>
           </footer>
         </main>

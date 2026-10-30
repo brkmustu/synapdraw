@@ -1175,10 +1175,20 @@ const ExcalidrawWrapper = () => {
             />
           )}
           <div
-            style={{
-              display: activeWs.canvasType === "sketch" ? "block" : "none",
-              height: "100%",
-            }}
+            style={
+              activeWs.canvasType === "sketch"
+                ? {
+                    display: "block",
+                    height: "100%",
+                  }
+                : {
+                    visibility: "hidden",
+                    pointerEvents: "none",
+                    position: "absolute",
+                    inset: 0,
+                    zIndex: -1,
+                  }
+            }
           >
             <Excalidraw
         viewportStatusFrame={viewportStatusFrame}
