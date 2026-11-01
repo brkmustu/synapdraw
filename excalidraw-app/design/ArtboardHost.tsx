@@ -35,6 +35,7 @@ interface ArtboardHostProps {
   ) => void;
   linkedTasks?: { id: string; key: string; title: string; status: string }[];
   onOpenLinkedTask?: (taskId: string) => void;
+  onContextMenu?: (artboardId: string, event: React.MouseEvent) => void;
 }
 
 interface NodeBoxOverlay {
@@ -65,6 +66,7 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
   onRegisterShadowRoot,
   linkedTasks,
   onOpenLinkedTask,
+  onContextMenu,
 }) => {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -396,6 +398,12 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
           : "transparent",
       }}
       onMouseDown={startDrag}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onSelect(artboard.id, null);
+        onContextMenu?.(artboard.id, e);
+      }}
     >
       {/* Excalidraw Frame-style Header */}
       <div

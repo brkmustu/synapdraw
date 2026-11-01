@@ -700,4 +700,111 @@
     right: 1rem;
     z-index: 40;
   }
+
+  // Exact 1:1 Excalidraw ContextMenu styles (from packages/excalidraw/components/ContextMenu.scss)
+  .context-menu-popover {
+    position: absolute;
+    z-index: var(--zIndex-ui-context-menu, 90);
+    outline: none;
+  }
+
+  .context-menu {
+    position: relative;
+    border-radius: 4px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    list-style: none;
+    user-select: none;
+    margin: 0;
+    padding: 0.5rem 0;
+    background-color: var(--popup-secondary-bg-color, #f8f9fa);
+    border: 1px solid var(--button-gray-3, #ced4da);
+    cursor: default;
+  }
+
+  .context-menu button {
+    color: var(--popup-text-color, #000000);
+    font-size: 0.8333rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .context-menu-item {
+    position: relative;
+    width: 100%;
+    min-width: 9.5rem;
+    margin: 0;
+    padding: 0.25rem 1rem 0.25rem 1.25rem;
+    text-align: start;
+    border-radius: 0;
+    background-color: transparent;
+    border: none;
+    white-space: nowrap;
+    font-family: inherit;
+    display: grid;
+    grid-template-columns: 1fr 0.2fr;
+    align-items: center;
+
+    &.checkmark::before {
+      position: absolute;
+      left: 6px;
+      margin-bottom: 1px;
+      content: "\2713";
+    }
+
+    &.dangerous {
+      .context-menu-item__label {
+        color: #f03e3e;
+      }
+    }
+
+    .context-menu-item__label {
+      justify-self: start;
+      margin-inline-end: 20px;
+    }
+
+    .context-menu-item__shortcut {
+      justify-self: end;
+      opacity: 0.6;
+      font-family: inherit;
+      font-size: 0.7rem;
+    }
+  }
+
+  .context-menu-item:hover {
+    color: var(--popup-bg-color, #ffffff);
+    background-color: var(--select-highlight-color, #339af0);
+
+    &.dangerous {
+      .context-menu-item__label {
+        color: var(--popup-bg-color, #ffffff);
+      }
+      background-color: #fa5252;
+    }
+  }
+
+  .context-menu-item:focus {
+    z-index: 1;
+  }
+
+  .context-menu-item-separator {
+    border: none;
+    border-top: 1px solid #adb5bd;
+  }
+}
+
+html.dark .design-canvas-root,
+.theme--dark .design-canvas-root {
+  .context-menu {
+    background-color: var(--popup-secondary-bg-color, #222222);
+    border-color: var(--button-gray-3, #222222);
+  }
+
+  .context-menu button {
+    color: var(--popup-text-color, #ced4da);
+  }
+
+  .context-menu-item:hover {
+    color: var(--popup-bg-color, #232329);
+    background-color: var(--select-highlight-color, #4dabf7);
+  }
 }

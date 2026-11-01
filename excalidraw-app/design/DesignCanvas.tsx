@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import { useI18n } from "@excalidraw/excalidraw/i18n";
 import {
   SelectionIcon,
@@ -84,6 +90,20 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
   const [isPanning, setIsPanning] = useState(false);
   const [showLayers, setShowLayers] = useState(true);
   const [showInspector, setShowInspector] = useState(true);
+  const [showGrid, setShowGrid] = useState(true);
+  const [snapToObjects, setSnapToObjects] = useState(true);
+  const [zenMode, setZenMode] = useState(false);
+  const [viewMode, setViewMode] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    top: number;
+    left: number;
+    type: "canvas" | "artboard";
+    targetArtboardId: string | null;
+    canvasX: number;
+    canvasY: number;
+  } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const copiedArtboardRef = useRef<Artboard | null>(null);
   const [domTree, setDomTree] = useState<DesignNodeSummary[]>([]);
   const [, setHistoryTick] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -93,6 +113,8 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
   const [showTaskLinkMenu, setShowTaskLinkMenu] = useState(false);
 
   const panStartRef = useRef({ x: 0, y: 0 });
+  const snapToObjectsRef = useRef(snapToObjects);
+  snapToObjectsRef.current = snapToObjects;
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -276,51 +298,6 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
     });
   }, [getOwnerWin]);
 
-  // Keyboard shortcuts (Undo, Redo, Tool switching, Delete)
-  useEffect(() => {
-    const ownerDoc = getOwnerDoc();
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        if (e.shiftKey) {
-          handleRedo();
-        } else {
-          handleUndo();
-        }
-        return;
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
-        e.preventDefault();
-        handleRedo();
-        return;
-      }
-
-      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (e.key.toLowerCase() === "v" || e.key === "1") {
-          setActiveTool("select");
-        } else if (e.key.toLowerCase() === "h") {
-          setActiveTool("hand");
-        } else if (e.key.toLowerCase() === "i") {
-          setActiveTool("inspect");
-        }
-      }
-    };
-
-    ownerDoc.addEventListener("keydown", onKeyDown);
-    return () => ownerDoc.removeEventListener("keydown", onKeyDown);
-  }, [getOwnerDoc, handleUndo, handleRedo]);
-
   const scheduleWheelSave = useCallback(
     (updatedDoc: DesignDocument) => {
       if (wheelSaveTimerRef.current) {
@@ -502,13 +479,40 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = ({
   );
 
   const handleMoveEnd = useCallback(
-    (_artboardId: string) => {
+    (artboardId: string) => {
       setDoc((prev) => {
-        const artboards = prev.artboards.map((a) => ({
-          ...a,
-          x: Math.round(a.x),
-          y: Math.round(a.y),
-        }));
+        const artboards = prev.artboards.map((a) => {
+          if (a.id !== artboardId) {
+            return {
+              ...a,
+              x: Math.round(a.x),
+              y: Math.round(a.y),
+            };
+          }
+          if (!snapToObjectsRef.current) {
+            return {
+              ...a,
+              x: Math.round(a.x),
+              y: Math.round(a.y),
+            };
+          }
+          let snappedX = Math.round(a.x / 16) * 16;
+          let snappedY = Math.round(a.y / 16) * 16;
+          for (const other of prev.artboards) {
+            if (other.id === a.id) continue;
+            if (Math.abs(a.x - other.x) <= 10) {
+              snappedX = Math.round(other.x);
+            }
+            if (Math.abs(a.y - other.y) <= 10) {
+              snappedY = Math.round(other.y);
+            }
+          }
+          return {
+            ...a,
+            x: snappedX,
+            y: snappedY,
+          };
+        });
         const updated = { ...prev, artboards };
         saveDesignDocument(updated, getOwnerWin());
         return updated;
@@ -721,6 +725,256 @@ ${ab.html}
     [documentId, getOwnerWin, pushHistoryBeforeMutation],
   );
 
+  const handleCopyArtboard = useCallback(
+    (artboardId: string) => {
+      const ab = docRef.current.artboards.find((a) => a.id === artboardId);
+      if (!ab) return;
+      copiedArtboardRef.current = ab;
+      try {
+        getOwnerWin().localStorage.setItem(
+          "synapdraw:design-clipboard-v1",
+          JSON.stringify(ab),
+        );
+      } catch {
+        // ignore storage errors
+      }
+      showToast(`${t("labels.copy")}: "${ab.name}"`);
+    },
+    [getOwnerWin, showToast, t],
+  );
+
+  const handleCutArtboard = useCallback(
+    (artboardId: string) => {
+      handleCopyArtboard(artboardId);
+      handleDeleteArtboard(artboardId);
+    },
+    [handleCopyArtboard, handleDeleteArtboard],
+  );
+
+  const handlePasteArtboard = useCallback(
+    async (targetCanvasX?: number, targetCanvasY?: number) => {
+      const ownerDoc = getOwnerDoc();
+      const ownerWin = getOwnerWin();
+      let sourceAb = copiedArtboardRef.current;
+      if (!sourceAb) {
+        try {
+          const raw = ownerWin.localStorage.getItem(
+            "synapdraw:design-clipboard-v1",
+          );
+          if (raw) {
+            sourceAb = JSON.parse(raw) as Artboard;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (sourceAb) {
+        setDoc((prev) => {
+          pushHistoryBeforeMutation(prev);
+          const nextX =
+            typeof targetCanvasX === "number"
+              ? Math.round(targetCanvasX)
+              : Math.round(sourceAb!.x + 48);
+          const nextY =
+            typeof targetCanvasY === "number"
+              ? Math.round(targetCanvasY)
+              : Math.round(sourceAb!.y + 48);
+          const pasted: Artboard = {
+            ...sourceAb!,
+            id: `ab_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            name: `${sourceAb!.name} (${t("sdlc.design.copySuffix")})`,
+            x: nextX,
+            y: nextY,
+            locked: false,
+            allowMove: true,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          const updated: DesignDocument = {
+            ...prev,
+            artboards: [...prev.artboards, pasted],
+            selectedArtboardId: pasted.id,
+            selectedNodeId: null,
+          };
+          saveDesignDocument(updated, ownerWin);
+          showToast(`${t("labels.paste")}: "${pasted.name}"`);
+          return updated;
+        });
+        return;
+      }
+
+      // Fallback: if system clipboard has HTML/text, paste as a new Hug Contents artboard
+      try {
+        const clipText = await ownerWin.navigator.clipboard.readText();
+        if (clipText && clipText.trim()) {
+          setDoc((prev) => {
+            pushHistoryBeforeMutation(prev);
+            const isHtml = /<[a-z][\s\S]*>/i.test(clipText);
+            const rawHtml = isHtml
+              ? clipText
+              : `<div style="padding: 24px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; color: #1b1b1f; font-size: 14px;">${clipText}</div>`;
+            const pasted: Artboard = {
+              id: `ab_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              name: `${t("labels.paste")} ${prev.artboards.length + 1}`,
+              x: typeof targetCanvasX === "number" ? Math.round(targetCanvasX) : 140,
+              y: typeof targetCanvasY === "number" ? Math.round(targetCanvasY) : 120,
+              width: "auto",
+              height: "auto",
+              html: sanitizeAndTagDesignHtml(rawHtml, ownerDoc),
+              css: "",
+              backgroundColor: "transparent",
+              locked: false,
+              allowMove: true,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+            const updated: DesignDocument = {
+              ...prev,
+              artboards: [...prev.artboards, pasted],
+              selectedArtboardId: pasted.id,
+              selectedNodeId: null,
+            };
+            saveDesignDocument(updated, ownerWin);
+            return updated;
+          });
+        }
+      } catch {
+        // ignore clipboard permission errors
+      }
+    },
+    [getOwnerDoc, getOwnerWin, pushHistoryBeforeMutation, showToast, t],
+  );
+
+  const handleReorderArtboard = useCallback(
+    (
+      artboardId: string,
+      direction: "backward" | "forward" | "back" | "front",
+    ) => {
+      setDoc((prev) => {
+        const idx = prev.artboards.findIndex((a) => a.id === artboardId);
+        if (idx === -1) return prev;
+        const list = [...prev.artboards];
+        const [item] = list.splice(idx, 1);
+        if (direction === "backward") {
+          list.splice(Math.max(0, idx - 1), 0, item);
+        } else if (direction === "forward") {
+          list.splice(Math.min(list.length, idx + 1), 0, item);
+        } else if (direction === "back") {
+          list.unshift(item);
+        } else if (direction === "front") {
+          list.push(item);
+        }
+        pushHistoryBeforeMutation(prev);
+        const updated: DesignDocument = {
+          ...prev,
+          artboards: list,
+        };
+        saveDesignDocument(updated, getOwnerWin());
+        return updated;
+      });
+    },
+    [getOwnerWin, pushHistoryBeforeMutation],
+  );
+
+  const handleUnlockAllArtboards = useCallback(() => {
+    setDoc((prev) => {
+      if (!prev.artboards.some((a) => a.locked && !a.allowMove)) {
+        return prev;
+      }
+      pushHistoryBeforeMutation(prev);
+      const updated: DesignDocument = {
+        ...prev,
+        artboards: prev.artboards.map((a) => ({
+          ...a,
+          locked: false,
+          allowMove: true,
+        })),
+      };
+      saveDesignDocument(updated, getOwnerWin());
+      return updated;
+    });
+  }, [getOwnerWin, pushHistoryBeforeMutation]);
+
+  const handleOpenContextMenu = useCallback(
+    (
+      event: React.MouseEvent,
+      type: "canvas" | "artboard",
+      targetArtboardId: string | null = null,
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rootEl = rootRef.current;
+      const vpEl = viewportRef.current;
+      const rootRect = rootEl?.getBoundingClientRect();
+      const vpRect = vpEl?.getBoundingClientRect();
+      const left = rootRect ? event.clientX - rootRect.left : event.clientX;
+      const top = rootRect ? event.clientY - rootRect.top : event.clientY;
+      const currentDoc = docRef.current;
+      const safeZoom = currentDoc.zoom > 0 ? currentDoc.zoom : 1;
+      const canvasX = vpRect
+        ? (event.clientX - vpRect.left - currentDoc.panX) / safeZoom
+        : 120;
+      const canvasY = vpRect
+        ? (event.clientY - vpRect.top - currentDoc.panY) / safeZoom
+        : 120;
+
+      setContextMenu({
+        top,
+        left,
+        type,
+        targetArtboardId,
+        canvasX,
+        canvasY,
+      });
+    },
+    [],
+  );
+
+  // Clamp context menu within container viewport (identical to Excalidraw's Popover fitInViewport)
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current || !rootRef.current) {
+      return;
+    }
+    const menuEl = contextMenuRef.current;
+    const rootRect = rootRef.current.getBoundingClientRect();
+    const menuRect = menuEl.getBoundingClientRect();
+    const gap = 10;
+
+    const maxLeft = Math.max(gap, rootRect.width - menuRect.width - gap);
+    const maxTop = Math.max(gap, rootRect.height - menuRect.height - gap);
+    const clampedLeft = Math.min(Math.max(contextMenu.left, gap), maxLeft);
+    const clampedTop = Math.min(Math.max(contextMenu.top, gap), maxTop);
+
+    menuEl.style.left = `${clampedLeft}px`;
+    menuEl.style.top = `${clampedTop}px`;
+  }, [contextMenu]);
+
+  // Dismiss context menu on outside pointerdown or Escape
+  useEffect(() => {
+    if (!contextMenu) return;
+    const ownerDoc = getOwnerDoc();
+    const onPointerDown = (e: PointerEvent) => {
+      if (
+        contextMenuRef.current &&
+        !contextMenuRef.current.contains(e.target as Node)
+      ) {
+        setContextMenu(null);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setContextMenu(null);
+      }
+    };
+    ownerDoc.addEventListener("pointerdown", onPointerDown, false);
+    ownerDoc.addEventListener("keydown", onKeyDown, false);
+    return () => {
+      ownerDoc.removeEventListener("pointerdown", onPointerDown, false);
+      ownerDoc.removeEventListener("keydown", onKeyDown, false);
+    };
+  }, [contextMenu, getOwnerDoc]);
+
   const handleAddPresetArtboard = (mode: "desktop" | "mobile") => {
     const ownerDoc = getOwnerDoc();
     setDoc((prev) => {
@@ -885,300 +1139,532 @@ ${ab.html}
     });
   };
 
+  // Keyboard shortcuts (Undo, Redo, Copy/Cut/Paste/Duplicate/Delete, Grid/Snap/Zen/View, Tool switching)
+  useEffect(() => {
+    const ownerDoc = getOwnerDoc();
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const currentDoc = docRef.current;
+      const selectedId = currentDoc.selectedArtboardId;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        if (selectedId) {
+          e.preventDefault();
+          if (e.altKey) {
+            void handleCopyArtboardCode(selectedId);
+          } else {
+            handleCopyArtboard(selectedId);
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
+        if (selectedId) {
+          e.preventDefault();
+          handleCutArtboard(selectedId);
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        void handlePasteArtboard();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        if (selectedId) {
+          e.preventDefault();
+          handleDuplicateArtboard(selectedId);
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        if (currentDoc.artboards.length > 0 && !currentDoc.selectedArtboardId) {
+          handleSelectArtboard(currentDoc.artboards[0].id, null);
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === "'") {
+        e.preventDefault();
+        setShowGrid((prev) => !prev);
+        return;
+      }
+
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "l"
+      ) {
+        if (selectedId) {
+          e.preventDefault();
+          const ab = currentDoc.artboards.find((a) => a.id === selectedId);
+          if (ab) {
+            const isFullLocked = Boolean(ab.locked && !ab.allowMove);
+            handleSetLockMode(
+              selectedId,
+              isFullLocked ? "moveable" : "full-lock",
+            );
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === "[") {
+        if (selectedId) {
+          e.preventDefault();
+          handleReorderArtboard(
+            selectedId,
+            e.shiftKey ? "back" : "backward",
+          );
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === "]") {
+        if (selectedId) {
+          e.preventDefault();
+          handleReorderArtboard(
+            selectedId,
+            e.shiftKey ? "front" : "forward",
+          );
+        }
+        return;
+      }
+
+      if (
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        (e.code === "Digit2" || e.key === "2")
+      ) {
+        if (selectedId) {
+          e.preventDefault();
+          handleFocusArtboard(selectedId);
+        }
+        return;
+      }
+
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        const k = e.key.toLowerCase();
+        if (k === "s") {
+          e.preventDefault();
+          setSnapToObjects((prev) => !prev);
+          return;
+        }
+        if (k === "z") {
+          e.preventDefault();
+          setZenMode((prev) => !prev);
+          return;
+        }
+        if (k === "r") {
+          e.preventDefault();
+          setViewMode((prev) => !prev);
+          return;
+        }
+        if (e.key === "/") {
+          e.preventDefault();
+          const nextOpen = !(showLayers && showInspector);
+          setShowLayers(nextOpen);
+          setShowInspector(nextOpen);
+          return;
+        }
+      }
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectedId && !viewMode) {
+          const ab = currentDoc.artboards.find((a) => a.id === selectedId);
+          if (ab && !(ab.locked && !ab.allowMove)) {
+            e.preventDefault();
+            handleDeleteArtboard(selectedId);
+          }
+        }
+        return;
+      }
+
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key.toLowerCase() === "v" || e.key === "1") {
+          setActiveTool("select");
+        } else if (e.key.toLowerCase() === "h") {
+          setActiveTool("hand");
+        } else if (e.key.toLowerCase() === "i") {
+          setActiveTool("inspect");
+        }
+      }
+    };
+
+    ownerDoc.addEventListener("keydown", onKeyDown);
+    return () => ownerDoc.removeEventListener("keydown", onKeyDown);
+  }, [
+    getOwnerDoc,
+    handleUndo,
+    handleRedo,
+    handleCopyArtboard,
+    handleCopyArtboardCode,
+    handleCutArtboard,
+    handlePasteArtboard,
+    handleDuplicateArtboard,
+    handleSelectArtboard,
+    handleSetLockMode,
+    handleReorderArtboard,
+    handleFocusArtboard,
+    handleDeleteArtboard,
+    showLayers,
+    showInspector,
+    viewMode,
+  ]);
+
   const selectedArtboard =
     doc.artboards.find((a) => a.id === doc.selectedArtboardId) || null;
 
+  const hasLockedArtboards = doc.artboards.some(
+    (a) => Boolean(a.locked && !a.allowMove),
+  );
+  const contextTargetArtboard = contextMenu?.targetArtboardId
+    ? doc.artboards.find((a) => a.id === contextMenu.targetArtboardId) || null
+    : selectedArtboard;
+  const isTargetArtboardLocked = Boolean(
+    contextTargetArtboard &&
+      contextTargetArtboard.locked &&
+      !contextTargetArtboard.allowMove,
+  );
+  const isTargetHugContents = Boolean(
+    !contextTargetArtboard ||
+      contextTargetArtboard.width === "auto" ||
+      contextTargetArtboard.width === undefined,
+  );
+
   return (
-    <div ref={rootRef} className="design-canvas-root">
+    <div
+      ref={rootRef}
+      className="design-canvas-root"
+      onContextMenu={(e) => handleOpenContextMenu(e, "canvas", null)}
+    >
       {/* Top-Center Excalidraw Island Toolbar */}
-      <div
-        className="design-top-island"
-        role="toolbar"
-        aria-label={t("sdlc.design.toolbarAria")}
-      >
-        <button
-          type="button"
-          className={`design-tool-btn ${
-            activeTool === "hand" ? "design-tool-btn--active" : ""
-          }`}
-          onClick={() => setActiveTool("hand")}
-          title={t("sdlc.design.handToolTitle")}
+      {!zenMode && (
+        <div
+          className="design-top-island"
+          role="toolbar"
+          aria-label={t("sdlc.design.toolbarAria")}
         >
-          {handIcon}
-        </button>
-        <button
-          type="button"
-          className={`design-tool-btn ${
-            activeTool === "select" ? "design-tool-btn--active" : ""
-          }`}
-          onClick={() => setActiveTool("select")}
-          title={t("sdlc.design.selectToolTitle")}
-        >
-          {SelectionIcon}
-        </button>
-        <button
-          type="button"
-          className={`design-tool-btn ${
-            activeTool === "inspect" ? "design-tool-btn--active" : ""
-          }`}
-          onClick={() => setActiveTool("inspect")}
-          title={t("sdlc.design.inspectToolTitle")}
-        >
-          {searchIcon}
-        </button>
+          <button
+            type="button"
+            className={`design-tool-btn ${
+              activeTool === "hand" ? "design-tool-btn--active" : ""
+            }`}
+            onClick={() => setActiveTool("hand")}
+            title={t("sdlc.design.handToolTitle")}
+          >
+            {handIcon}
+          </button>
+          <button
+            type="button"
+            className={`design-tool-btn ${
+              activeTool === "select" ? "design-tool-btn--active" : ""
+            }`}
+            onClick={() => setActiveTool("select")}
+            title={t("sdlc.design.selectToolTitle")}
+          >
+            {SelectionIcon}
+          </button>
+          <button
+            type="button"
+            className={`design-tool-btn ${
+              activeTool === "inspect" ? "design-tool-btn--active" : ""
+            }`}
+            onClick={() => setActiveTool("inspect")}
+            title={t("sdlc.design.inspectToolTitle")}
+          >
+            {searchIcon}
+          </button>
 
-        <div className="design-island-divider" />
+          {!viewMode && (
+            <>
+              <div className="design-island-divider" />
 
-        <button
-          type="button"
-          className="design-tool-btn design-tool-btn--with-label"
-          onClick={() => handleAddPresetArtboard("desktop")}
-          title={t("sdlc.design.addDesktopTitle")}
-        >
-          {DeviceDesktopIcon}
-          <span>{t("sdlc.design.desktopBtn")}</span>
-        </button>
-        <button
-          type="button"
-          className="design-tool-btn design-tool-btn--with-label"
-          onClick={() => handleAddPresetArtboard("mobile")}
-          title={t("sdlc.design.addMobileTitle")}
-        >
-          {frameToolIcon}
-          <span>{t("sdlc.design.mobileBtn")}</span>
-        </button>
-
-        <div className="design-island-divider" />
-
-        <button
-          type="button"
-          className={`design-tool-btn design-tool-btn--with-label ${
-            showLayers ? "design-tool-btn--active" : ""
-          }`}
-          onClick={() => setShowLayers((prev) => !prev)}
-          title={t("sdlc.design.toggleLayersTitle")}
-        >
-          <span style={{ display: "inline-flex", transform: "scaleX(-1)" }}>
-            {sidebarRightIcon}
-          </span>
-          <span>{t("sdlc.design.layersBtn")}</span>
-        </button>
-
-        <button
-          type="button"
-          className={`design-tool-btn design-tool-btn--with-label ${
-            showInspector ? "design-tool-btn--active" : ""
-          }`}
-          onClick={() => setShowInspector((prev) => !prev)}
-          title={t("sdlc.design.toggleInspectorTitle")}
-        >
-          {adjustmentsIcon}
-          <span>{t("sdlc.design.inspectorBtn")}</span>
-        </button>
-
-        {selectedArtboard && (
-          <div style={{ position: "relative", display: "inline-flex" }}>
-            <div className="design-island-divider" />
-            <button
-              type="button"
-              className={`design-tool-btn design-tool-btn--with-label ${
-                showTaskLinkMenu ? "design-tool-btn--active" : ""
-              }`}
-              onClick={() => setShowTaskLinkMenu((prev) => !prev)}
-              title={t("sdlc.design.linkTaskBtnTitle")}
-            >
-              {ContextLinkIcon}
-              <span>
-                {t("sdlc.design.taskLinkBtn", {
-                  count: projectTasks.filter((taskItem) =>
-                    (taskItem.linkedArtboards || []).some(
-                      (la) =>
-                        la.docId === documentId &&
-                        la.artboardId === selectedArtboard.id,
-                    ),
-                  ).length,
-                })}
-              </span>
-            </button>
-
-            {showTaskLinkMenu && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "calc(100% + 8px)",
-                  right: 0,
-                  width: 310,
-                  background: "var(--island-bg-color, #ffffff)",
-                  border: "1px solid var(--default-border-color, #e5e5e5)",
-                  borderRadius: "var(--border-radius-lg, 8px)",
-                  boxShadow: "var(--shadow-island)",
-                  padding: 10,
-                  zIndex: 120,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                }}
+              <button
+                type="button"
+                className="design-tool-btn design-tool-btn--with-label"
+                onClick={() => handleAddPresetArtboard("desktop")}
+                title={t("sdlc.design.addDesktopTitle")}
               >
+                {DeviceDesktopIcon}
+                <span>{t("sdlc.design.desktopBtn")}</span>
+              </button>
+              <button
+                type="button"
+                className="design-tool-btn design-tool-btn--with-label"
+                onClick={() => handleAddPresetArtboard("mobile")}
+                title={t("sdlc.design.addMobileTitle")}
+              >
+                {frameToolIcon}
+                <span>{t("sdlc.design.mobileBtn")}</span>
+              </button>
+            </>
+          )}
+
+          <div className="design-island-divider" />
+
+          <button
+            type="button"
+            className={`design-tool-btn design-tool-btn--with-label ${
+              showLayers ? "design-tool-btn--active" : ""
+            }`}
+            onClick={() => setShowLayers((prev) => !prev)}
+            title={t("sdlc.design.toggleLayersTitle")}
+          >
+            <span style={{ display: "inline-flex", transform: "scaleX(-1)" }}>
+              {sidebarRightIcon}
+            </span>
+            <span>{t("sdlc.design.layersBtn")}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`design-tool-btn design-tool-btn--with-label ${
+              showInspector ? "design-tool-btn--active" : ""
+            }`}
+            onClick={() => setShowInspector((prev) => !prev)}
+            title={t("sdlc.design.toggleInspectorTitle")}
+          >
+            {adjustmentsIcon}
+            <span>{t("sdlc.design.inspectorBtn")}</span>
+          </button>
+
+          {selectedArtboard && !viewMode && (
+            <div style={{ position: "relative", display: "inline-flex" }}>
+              <div className="design-island-divider" />
+              <button
+                type="button"
+                className={`design-tool-btn design-tool-btn--with-label ${
+                  showTaskLinkMenu ? "design-tool-btn--active" : ""
+                }`}
+                onClick={() => setShowTaskLinkMenu((prev) => !prev)}
+                title={t("sdlc.design.linkTaskBtnTitle")}
+              >
+                {ContextLinkIcon}
+                <span>
+                  {t("sdlc.design.taskLinkBtn", {
+                    count: projectTasks.filter((taskItem) =>
+                      (taskItem.linkedArtboards || []).some(
+                        (la) =>
+                          la.docId === documentId &&
+                          la.artboardId === selectedArtboard.id,
+                      ),
+                    ).length,
+                  })}
+                </span>
+              </button>
+
+              {showTaskLinkMenu && (
                 <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-primary-color)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingBottom: 4,
-                    borderBottom: "1px solid var(--default-border-color)",
-                  }}
-                >
-                  <span>{t("sdlc.design.artboardTaskLinkHeader")}</span>
-                  <button
-                    type="button"
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      width: 14,
-                      height: 14,
-                      padding: 0,
-                      color: "var(--icon-fill-color)",
-                    }}
-                    onClick={() => setShowTaskLinkMenu(false)}
-                  >
-                    {CloseIcon}
-                  </button>
-                </div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    opacity: 0.72,
-                    color: "var(--text-primary-color)",
-                  }}
-                >
-                  {t("sdlc.design.selectedLabel")}{" "}
-                  <strong>{selectedArtboard.name}</strong>
-                </div>
-                <div
-                  style={{
-                    maxHeight: 200,
-                    overflowY: "auto",
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    right: 0,
+                    width: 310,
+                    background: "var(--island-bg-color, #ffffff)",
+                    border: "1px solid var(--default-border-color, #e5e5e5)",
+                    borderRadius: "var(--border-radius-lg, 8px)",
+                    boxShadow: "var(--shadow-island)",
+                    padding: 10,
+                    zIndex: 120,
                     display: "flex",
                     flexDirection: "column",
-                    gap: 4,
+                    gap: 6,
                   }}
                 >
-                  {projectTasks.map((taskItem) => {
-                    const isLinked = (taskItem.linkedArtboards || []).some(
-                      (la) =>
-                        la.docId === documentId &&
-                        la.artboardId === selectedArtboard.id,
-                    );
-                    return (
-                      <div
-                        key={taskItem.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 6,
-                          padding: "6px 8px",
-                          borderRadius: 6,
-                          background: isLinked
-                            ? "var(--color-surface-primary-container)"
-                            : "var(--color-surface-low)",
-                          color: isLinked
-                            ? "var(--color-on-primary-container)"
-                            : "var(--text-primary-color)",
-                          fontSize: 11.5,
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            toggleTaskArtboardLink(taskItem.id, {
-                              docId: documentId,
-                              artboardId: selectedArtboard.id,
-                              label: selectedArtboard.name,
-                            });
-                            showToast(
-                              isLinked
-                                ? t("sdlc.design.unlinkedToast", {
-                                    key: taskItem.key,
-                                  })
-                                : t("sdlc.design.linkedToast", {
-                                    name: selectedArtboard.name,
-                                    key: taskItem.key,
-                                  }),
-                            );
-                          }}
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "var(--text-primary-color)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      paddingBottom: 4,
+                      borderBottom: "1px solid var(--default-border-color)",
+                    }}
+                  >
+                    <span>{t("sdlc.design.artboardTaskLinkHeader")}</span>
+                    <button
+                      type="button"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        width: 14,
+                        height: 14,
+                        padding: 0,
+                        color: "var(--icon-fill-color)",
+                      }}
+                      onClick={() => setShowTaskLinkMenu(false)}
+                    >
+                      {CloseIcon}
+                    </button>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      opacity: 0.72,
+                      color: "var(--text-primary-color)",
+                    }}
+                  >
+                    {t("sdlc.design.selectedLabel")}{" "}
+                    <strong>{selectedArtboard.name}</strong>
+                  </div>
+                  <div
+                    style={{
+                      maxHeight: 200,
+                      overflowY: "auto",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                    }}
+                  >
+                    {projectTasks.map((taskItem) => {
+                      const isLinked = (taskItem.linkedArtboards || []).some(
+                        (la) =>
+                          la.docId === documentId &&
+                          la.artboardId === selectedArtboard.id,
+                      );
+                      return (
+                        <div
+                          key={taskItem.id}
                           style={{
-                            flex: 1,
-                            textAlign: "left",
-                            border: "none",
-                            background: "transparent",
-                            color: "inherit",
-                            cursor: "pointer",
-                            fontFamily: "var(--ui-font)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 6,
+                            padding: "6px 8px",
+                            borderRadius: 6,
+                            background: isLinked
+                              ? "var(--color-surface-primary-container)"
+                              : "var(--color-surface-low)",
+                            color: isLinked
+                              ? "var(--color-on-primary-container)"
+                              : "var(--text-primary-color)",
                             fontSize: 11.5,
-                            fontWeight: isLinked ? 700 : 500,
-                            padding: 0,
                           }}
                         >
-                          {isLinked ? "✓ " : "+ "}
-                          <strong>{taskItem.key}:</strong> {taskItem.title}
-                        </button>
-                        <button
-                          type="button"
-                          title={t("sdlc.design.goToBoardTitle")}
-                          onClick={() => {
-                            const taskDoc = getProjectWorkspaces().find(
-                              (w) => w.canvasType === "tasks",
-                            );
-                            if (taskDoc) {
-                              setActiveWorkspaceId(taskDoc.id);
-                            }
-                            setShowTaskLinkMenu(false);
-                          }}
-                          style={{
-                            border: "none",
-                            background: "transparent",
-                            color: "var(--color-primary)",
-                            fontSize: 10.5,
-                            fontWeight: 700,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {t("sdlc.design.goToBoardBtn")}
-                        </button>
-                      </div>
-                    );
-                  })}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              toggleTaskArtboardLink(taskItem.id, {
+                                docId: documentId,
+                                artboardId: selectedArtboard.id,
+                                label: selectedArtboard.name,
+                              });
+                              showToast(
+                                isLinked
+                                  ? t("sdlc.design.unlinkedToast", {
+                                      key: taskItem.key,
+                                    })
+                                  : t("sdlc.design.linkedToast", {
+                                      name: selectedArtboard.name,
+                                      key: taskItem.key,
+                                    }),
+                              );
+                            }}
+                            style={{
+                              flex: 1,
+                              textAlign: "left",
+                              border: "none",
+                              background: "transparent",
+                              color: "inherit",
+                              cursor: "pointer",
+                              fontFamily: "var(--ui-font)",
+                              fontSize: 11.5,
+                              fontWeight: isLinked ? 700 : 500,
+                              padding: 0,
+                            }}
+                          >
+                            {isLinked ? "✓ " : "+ "}
+                            <strong>{taskItem.key}:</strong> {taskItem.title}
+                          </button>
+                          <button
+                            type="button"
+                            title={t("sdlc.design.goToBoardTitle")}
+                            onClick={() => {
+                              const taskDoc = getProjectWorkspaces().find(
+                                (w) => w.canvasType === "tasks",
+                              );
+                              if (taskDoc) {
+                                setActiveWorkspaceId(taskDoc.id);
+                              }
+                              setShowTaskLinkMenu(false);
+                            }}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              color: "var(--color-primary)",
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {t("sdlc.design.goToBoardBtn")}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
-        {onOpenAIIntegrations && (
-          <>
-            <div className="design-island-divider" />
-            <button
-              type="button"
-              className="design-tool-btn design-tool-btn--with-label design-tool-btn--brand"
-              onClick={onOpenAIIntegrations}
-              title={t("sdlc.design.openAiStudioTitle")}
-            >
-              {brainIcon}
-              <span>{t("sdlc.common.aiStudio")}</span>
-            </button>
-          </>
-        )}
-      </div>
+          {onOpenAIIntegrations && !viewMode && (
+            <>
+              <div className="design-island-divider" />
+              <button
+                type="button"
+                className="design-tool-btn design-tool-btn--with-label design-tool-btn--brand"
+                onClick={onOpenAIIntegrations}
+                title={t("sdlc.design.openAiStudioTitle")}
+              >
+                {brainIcon}
+                <span>{t("sdlc.common.aiStudio")}</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Left Layers Island */}
-      {showLayers && (
+      {!zenMode && showLayers && (
         <DesignLayersPanel
           artboards={doc.artboards}
           selectedArtboardId={doc.selectedArtboardId || null}
@@ -1191,7 +1677,7 @@ ${ab.html}
       )}
 
       {/* Right CSS Inspector Island */}
-      {showInspector && selectedArtboard && (
+      {!zenMode && showInspector && selectedArtboard && (
         <DesignInspectorPanel
           artboard={selectedArtboard}
           selectedNodeId={doc.selectedNodeId || null}
@@ -1222,11 +1708,13 @@ ${ab.html}
         style={{
           backgroundPosition: `${doc.panX}px ${doc.panY}px`,
           backgroundSize: `${24 * doc.zoom}px ${24 * doc.zoom}px`,
+          backgroundImage: showGrid ? undefined : "none",
         }}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onContextMenu={(e) => handleOpenContextMenu(e, "canvas", null)}
       >
         <div
           className="design-canvas-plane"
@@ -1273,6 +1761,9 @@ ${ab.html}
                 onDelete={handleDeleteArtboard}
                 onMeasuredSize={handleMeasuredSize}
                 onRegisterShadowRoot={handleRegisterShadowRoot}
+                onContextMenu={(artboardId, e) =>
+                  handleOpenContextMenu(e, "artboard", artboardId)
+                }
                 linkedTasks={artboardLinkedTasks}
                 onOpenLinkedTask={() => {
                   const taskDoc = getProjectWorkspaces().find(
@@ -1327,6 +1818,445 @@ ${ab.html}
           </div>
         )}
       </div>
+
+      {/* Excalidraw-identical Right-Click Context Menu */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="popover context-menu-popover"
+          style={{ left: contextMenu.left, top: contextMenu.top }}
+        >
+          <ul
+            className="context-menu"
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            {contextMenu.type === "canvas" ? (
+              <>
+                <li>
+                  <button
+                    type="button"
+                    className="context-menu-item"
+                    onClick={() => {
+                      const cx = contextMenu.canvasX;
+                      const cy = contextMenu.canvasY;
+                      setContextMenu(null);
+                      handlePasteArtboard(cx, cy);
+                    }}
+                  >
+                    <div className="context-menu-item__label">
+                      {t("labels.paste")}
+                    </div>
+                    <kbd className="context-menu-item__shortcut">Ctrl+V</kbd>
+                  </button>
+                </li>
+                <hr className="context-menu-item-separator" />
+                <li>
+                  <button
+                    type="button"
+                    className="context-menu-item"
+                    onClick={() => {
+                      setContextMenu(null);
+                      if (doc.artboards.length > 0) {
+                        const target =
+                          doc.selectedArtboardId || doc.artboards[0].id;
+                        handleSelectArtboard(target, null);
+                      }
+                    }}
+                  >
+                    <div className="context-menu-item__label">
+                      {t("labels.selectAll")}
+                    </div>
+                    <kbd className="context-menu-item__shortcut">Ctrl+A</kbd>
+                  </button>
+                </li>
+                {hasLockedArtboards && (
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        setContextMenu(null);
+                        handleUnlockAllArtboards();
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.elementLock.unlockAll")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut" />
+                    </button>
+                  </li>
+                )}
+                <hr className="context-menu-item-separator" />
+                <li>
+                  <button
+                    type="button"
+                    className={`context-menu-item ${
+                      showGrid ? "checkmark" : ""
+                    }`}
+                    onClick={() => {
+                      setContextMenu(null);
+                      setShowGrid((prev) => !prev);
+                    }}
+                  >
+                    <div className="context-menu-item__label">
+                      {t("labels.toggleGrid")}
+                    </div>
+                    <kbd className="context-menu-item__shortcut">Ctrl+&apos;</kbd>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={`context-menu-item ${
+                      snapToObjects ? "checkmark" : ""
+                    }`}
+                    onClick={() => {
+                      setContextMenu(null);
+                      setSnapToObjects((prev) => !prev);
+                    }}
+                  >
+                    <div className="context-menu-item__label">
+                      {t("buttons.objectsSnapMode")}
+                    </div>
+                    <kbd className="context-menu-item__shortcut">Alt+S</kbd>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={`context-menu-item ${
+                      isTargetHugContents ? "checkmark" : ""
+                    }`}
+                    onClick={() => {
+                      setContextMenu(null);
+                      if (selectedArtboard) {
+                        if (isTargetHugContents) {
+                          handleUpdateArtboard(selectedArtboard.id, {
+                            width: selectedArtboard.measuredWidth || 1280,
+                            height: selectedArtboard.measuredHeight || 800,
+                          });
+                        } else {
+                          handleUpdateArtboard(selectedArtboard.id, {
+                            width: "auto",
+                            height: "auto",
+                          });
+                        }
+                      }
+                    }}
+                  >
+                    <div className="context-menu-item__label">
+                      {t("sdlc.design.hugContentsBtn")}
+                    </div>
+                    <kbd className="context-menu-item__shortcut" />
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={`context-menu-item ${
+                      zenMode ? "checkmark" : ""
+                    }`}
+                    onClick={() => {
+                      setContextMenu(null);
+                      setZenMode((prev) => !prev);
+                    }}
+                  >
+                    <div className="context-menu-item__label">
+                      {t("buttons.zenMode")}
+                    </div>
+                    <kbd className="context-menu-item__shortcut">Alt+Z</kbd>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={`context-menu-item ${
+                      viewMode ? "checkmark" : ""
+                    }`}
+                    onClick={() => {
+                      setContextMenu(null);
+                      setViewMode((prev) => !prev);
+                    }}
+                  >
+                    <div className="context-menu-item__label">
+                      {t("labels.viewMode")}
+                    </div>
+                    <kbd className="context-menu-item__shortcut">Alt+R</kbd>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={`context-menu-item ${
+                      showLayers && showInspector ? "checkmark" : ""
+                    }`}
+                    onClick={() => {
+                      setContextMenu(null);
+                      const next = !(showLayers && showInspector);
+                      setShowLayers(next);
+                      setShowInspector(next);
+                    }}
+                  >
+                    <div className="context-menu-item__label">
+                      {t("stats.fullTitle")}
+                    </div>
+                    <kbd className="context-menu-item__shortcut">Alt+/</kbd>
+                  </button>
+                </li>
+              </>
+            ) : (
+              contextTargetArtboard && (
+                <>
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleCutArtboard(targetId);
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.cut")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">Ctrl+X</kbd>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleCopyArtboard(targetId);
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.copy")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">Ctrl+C</kbd>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const cx = contextMenu.canvasX;
+                        const cy = contextMenu.canvasY;
+                        setContextMenu(null);
+                        handlePasteArtboard(cx, cy);
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.paste")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">Ctrl+V</kbd>
+                    </button>
+                  </li>
+                  <hr className="context-menu-item-separator" />
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleCopyArtboardCode(targetId);
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("sdlc.design.copyHtmlCssBtn")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">
+                        Ctrl+Alt+C
+                      </kbd>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleDownloadArtboardCode(targetId);
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("sdlc.design.downloadHtmlBtn")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut" />
+                    </button>
+                  </li>
+                  <hr className="context-menu-item-separator" />
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleReorderArtboard(targetId, "backward");
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.sendBackward")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">Ctrl+[</kbd>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleReorderArtboard(targetId, "forward");
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.bringForward")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">Ctrl+]</kbd>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleReorderArtboard(targetId, "back");
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.sendToBack")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">
+                        Ctrl+Shift+[
+                      </kbd>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleReorderArtboard(targetId, "front");
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.bringToFront")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">
+                        Ctrl+Shift+]
+                      </kbd>
+                    </button>
+                  </li>
+                  <hr className="context-menu-item-separator" />
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleFocusArtboard(targetId);
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.zoomToFitSelection")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">Shift+2</kbd>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        handleSelectArtboard(targetId, null);
+                        setContextMenu(null);
+                        setShowTaskLinkMenu(true);
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("sdlc.design.artboardTaskLinkHeader")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut" />
+                    </button>
+                  </li>
+                  <hr className="context-menu-item-separator" />
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleDuplicateArtboard(targetId);
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.duplicateSelection")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">Ctrl+D</kbd>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleSetLockMode(
+                          targetId,
+                          isTargetArtboardLocked ? "moveable" : "full-lock",
+                        );
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {isTargetArtboardLocked
+                          ? t("labels.elementLock.unlock")
+                          : t("labels.elementLock.lock")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">
+                        Ctrl+Shift+L
+                      </kbd>
+                    </button>
+                  </li>
+                  <hr className="context-menu-item-separator" />
+                  <li>
+                    <button
+                      type="button"
+                      className="context-menu-item dangerous"
+                      onClick={() => {
+                        const targetId = contextTargetArtboard.id;
+                        setContextMenu(null);
+                        handleDeleteArtboard(targetId);
+                      }}
+                    >
+                      <div className="context-menu-item__label">
+                        {t("labels.delete")}
+                      </div>
+                      <kbd className="context-menu-item__shortcut">Delete</kbd>
+                    </button>
+                  </li>
+                </>
+              )
+            )}
+          </ul>
+        </div>
+      )}
 
       {/* Bottom-Left Footer Island */}
       <div className="design-footer-left">
