@@ -4,7 +4,7 @@
     &nbsp;SynapDraw
   </h1>
   <p>
-    Çizim ve diyagram tuvalinin yanı sıra ekran tasarımı, görev takibi ve test senaryosu yönetimi için geliştirilmekte olan çalışma alanı.
+    Çizim ve diyagram tuvalinin yanı sıra ekran tasarımı, görev takibi ve test senaryosu yönetimi sunan çalışma alanı.
   </p>
 </div>
 
@@ -12,26 +12,25 @@
 
 ## Genel Bakış
 
-**SynapDraw**, temel çizim ve diyagram oluşturma yeteneklerinin üzerine yazılım geliştirme yaşam döngüsü (SDLC) süreçlerine yardımcı olabilecek ek çalışma yüzeyleri kazandırmak amacıyla geliştirilmektedir.
+**SynapDraw**, temel çizim ve diyagram oluşturma yeteneklerinin üzerine yazılım geliştirme yaşam döngüsü (SDLC) süreçlerine yardımcı olabilecek ek çalışma yüzeyleri kazandırmak amacıyla oluşturulmuştur.
 
-Uygulama içerisindeki SDLC bileşenleri (görev yönetimi, TDD test senaryoları, proje bazlı ekip/agent tanımlamaları ve tuvaller arası bağlantılar) **halen geliştirme aşamasındadır**. Ayrıca mevcut MCP (Model Context Protocol) yapısına ek araçlar kazandırılarak harici yapay zeka istemcileriyle (Claude Desktop, Gemini Antigravity vb.) birlikte daha verimli kullanılabilmesi hedeflenmiştir.
+Mevcut MCP (Model Context Protocol) yapısına ek araçlar kazandırılarak harici yapay zeka istemcileriyle (Claude Desktop, Gemini Antigravity vb.) birlikte çizim, ekran tasarımı ve proje verileri üzerinde doğrudan çalışılabilmesi sağlanmıştır.
 
 ---
 
-## Mevcut ve Geliştirilmekte Olan Özellikler
+## Özellikler
 
 1. **✏️ Çizim & Diyagram Tuvali (`sketch`):**
    - Sonsuz 2B çizim alanı üzerinde iş akışı analizi, mimari şemalar, Mermaid diyagramları ve tel kafes (wireframe) çizimleri.
 2. **🎨 Ekran Tasarım Tuvali (`design`):**
    - Shadow DOM izolasyonlu, HTML/CSS tabanlı ekran tasarım alanı.
    - İçeriğe göre esnek boyutlandırma (*Hug Contents*), Masaüstü (`1440×900`) ve Mobil (`390×844`) çerçeveler, katman görünümü ve temel CSS denetçisi.
-3. **📋 Görev Panosu (`tasks` — *Geliştirme Aşamasında*):**
+3. **📋 Görev Panosu (`tasks`):**
    - Kanban ve liste görünümüyle proje görevlerinin takibi, görev kartlarının ilgili çizim veya tasarım tuvalleriyle ilişkilendirilmesi ve yan yana (`Split-Peek`) görüntüleme.
-4. **🧪 TDD Test Senaryoları Alanı (`tdd` — *Geliştirme Aşamasında*):**
+4. **🧪 TDD Test Senaryoları Alanı (`tdd`):**
    - `Given / When / Then` yapısında test senaryosu taslakları oluşturma, `Red / Green / Refactor` durum takibi ve temel test şablonu (`Vitest`, `Playwright`, `Cucumber`) çıktısı alma.
-5. **🤖 Ekip & Agent Tanımlamaları ve MCP Desteği (*Geliştirme Aşamasında*):**
-   - Proje bazlı ekip üyesi ve yapay zeka agent profilleri (yerel Ollama veya OpenRouter/OpenAI API yapılandırmaları) tanımlama denemeleri.
-   - Mevcut MCP sunucusuna eklenen yardımcı araçlarla harici yapay zeka asistanlarından çizim, tasarım ve görev verilerine erişim imkânı.
+5. **🔌 MCP (Model Context Protocol) Desteği:**
+   - Geliştirilen MCP sunucusu ve canlı SSE köprüsü sayesinde harici yapay zeka asistanlarından çizim tuvaline, tasarım tuvaline ve proje/görev verilerine doğrudan erişim ve aktarım imkânı.
 
 ---
 
@@ -81,5 +80,7 @@ Bu proje [MIT Lisansı](./LICENSE) altında lisanslanmıştır.
 
 ## Bilgilendirme
 
+Proje — özellikle yazılım geliştirme yaşam döngüsü (SDLC) kapsamındaki görev yönetimi ve test senaryosu özellikleri — halen **aktif geliştirme aşamasındadır**.
+
 > [!NOTE]
-> **Bu uygulama bir Excalidraw türevidir.** SynapDraw, açık kaynaklı [Excalidraw](https://github.com/excalidraw/excalidraw) projesi temel alınarak geliştirilmekte olup; üzerine ekran tasarım tuvali, geliştirme aşamasındaki yazılım yaşam döngüsü (SDLC) araçları ve yapay zeka agent'larıyla birlikte kullanımı kolaylaştıran ek MCP özellikleri eklenmiştir.
+> **Bu uygulama bir Excalidraw türevidir.** SynapDraw, açık kaynaklı [Excalidraw](https://github.com/excalidraw/excalidraw) projesi temel alınarak geliştirilmekte olup; üzerine ekran tasarım tuvali, yazılım yaşam döngüsü (SDLC) araçları ve yapay zeka agent'larıyla birlikte kullanımı kolaylaştıran ek MCP özellikleri eklenmiştir.
