@@ -36,19 +36,40 @@ Mevcut MCP (Model Context Protocol) yapısına ek araçlar kazandırılarak hari
 
 ## Hızlı Başlangıç
 
-### 1. Geliştirme Ortamı
+### 1. Docker ile Lokal Kurulum ve Çalıştırma (Önerilen)
+
+Projeyi başka bir bilgisayara klonladıktan sonra makinede Node.js veya Yarn kurulu olmasına gerek kalmadan doğrudan **Docker** üzerinden `http://localhost:3000` adresinde ayağa kaldırabilirsiniz:
+
+```bash
+# 1. Projeyi klonlayın ve dizine girin
+git clone https://github.com/brkmustu/synapdraw.git
+cd synapdraw
+```
+
+**Seçenek A — Tek komutla (`docker compose`):**
+
+```bash
+docker compose up -d --build
+```
+
+**Seçenek B — Doğrudan `docker build` & `docker run` ile:**
+
+```bash
+# İmajı derleyin
+docker build -t synapdraw-local:latest .
+
+# Varsa eski konteyneri kaldırıp yenisini başlatın
+docker rm -f synapdraw-web 2>/dev/null || true
+docker run -d --name synapdraw-web -p 3000:80 --restart unless-stopped synapdraw-local:latest
+```
+
+Kurulum tamamlandığında tarayıcınızdan **`http://localhost:3000`** adresine giderek uygulamayı kullanabilirsiniz. Konteyneri durdurmak için `docker stop synapdraw-web` (veya `docker compose down`) komutunu çalıştırabilirsiniz.
+
+### 2. Yerel Geliştirme Ortamı (Node.js & Yarn)
 
 ```bash
 yarn install
 yarn start
-```
-
-### 2. Docker ile Çalıştırma (`http://localhost:3000`)
-
-```bash
-docker build -t synapdraw-local:latest .
-docker rm -f synapdraw-web
-docker run -d --name synapdraw-web -p 3000:80 synapdraw-local:latest
 ```
 
 ### 3. MCP Sunucusu (`synapdraw-mcp`)
