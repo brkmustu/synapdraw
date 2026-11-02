@@ -1,38 +1,35 @@
-# SynapDraw — AI-Native SDLC Super-App
+# SynapDraw
 
 <div align="center">
-  <h3>
-    Analiz, Sistem Mimarisi, Pixel-Perfect UI/UX Tasarım, Görev Yönetimi ve TDD Test Stüdyosunu tek çatı altında birleştiren uçtan uca yazılım geliştirme çalışma alanı.
-  </h3>
+  <p>
+    Çizim ve diyagram tuvalinin yanı sıra ekran tasarımı, görev takibi ve test senaryosu yönetimi için geliştirilmekte olan çalışma alanı.
+  </p>
 </div>
 
 ---
 
 ## Genel Bakış
 
-**SynapDraw**, yazılım ekiplerinin ve bireysel geliştiricilerin bir projenin **Analiz → Sistem Mimarisi → UI/UX Ekran Tasarımı → Görev Yönetimi (Kanban) → TDD & BDD Test Senaryoları** yaşam döngüsünü kaos yaratmadan tek bir arayüzden yönetmesini sağlar.
+**SynapDraw**, temel çizim ve diyagram oluşturma yeteneklerinin üzerine yazılım geliştirme yaşam döngüsü (SDLC) süreçlerine yardımcı olabilecek ek çalışma yüzeyleri kazandırmak amacıyla geliştirilmektedir.
 
-Yerleşik **AI Agent Orkestrasyonu** (OpenRouter, Lokal Ollama, OpenAI uyumlu ağ geçitleri) ve **Canlı MCP (Model Context Protocol) Köprüsü** sayesinde hem uygulama içinden hem de harici yapay zeka istemcilerinden (Claude Desktop, Gemini Antigravity, Cursor, VS Code) tüm proje yüzeyleri canlı olarak yönetilebilir.
+Uygulama içerisindeki SDLC bileşenleri (görev yönetimi, TDD test senaryoları, proje bazlı ekip/agent tanımlamaları ve tuvaller arası bağlantılar) **halen geliştirme aşamasındadır**. Ayrıca mevcut MCP (Model Context Protocol) yapısına ek araçlar kazandırılarak harici yapay zeka istemcileriyle (Claude Desktop, Gemini Antigravity vb.) birlikte daha verimli kullanılabilmesi hedeflenmiştir.
 
 ---
 
-## Temel Çalışma Yüzeyleri
+## Mevcut ve Geliştirilmekte Olan Özellikler
 
-1. **✏️ Analiz & Mimari Çizim Tuvali (`sketch`):**
-   - Sonsuz 2B çizim alanı üzerinde iş akışı analizi, sistem mimarisi, ER şemaları, Mermaid diyagramları ve el çizimi tel kafes (wireframe) modelleme.
-   - Diyagram düğümlerini doğrudan proje görevlerine (`ProjectTask`) ve TDD senaryolarına derin pinleme.
-2. **🎨 UI/UX Tasarım Tuvali (`design`):**
-   - **Shadow DOM** izolasyonlu, gerçek HTML/CSS tabanlı pixel-perfect ekran tasarım motoru.
-   - Doğal içerik boyutlandırma (**Hug Contents**) ile birlikte Masaüstü (`1440×900`) ve Mobil (`390×844`) artboard çerçeveleri, katman ağacı (Layers) ve CSS Denetçisi (Inspector).
-3. **📋 Proje & Görev Yönetimi Panosu (`tasks`):**
-   - `Backlog & Analiz`, `Tasarım & Mimari`, `Geliştirmede`, `TDD & Doğrulama` ve `Tamamlandı` aşamalarından oluşan Kanban ve Liste görünümü.
-   - Görev kartları üzerinden bağlı analiz çizimlerine, tasarım artboard'larına ve TDD testlerine tek tıkla veya **Yan Yana (`Split-Peek`)** bölünmüş ekranla geçiş.
-4. **🧪 TDD & BDD Test Senaryoları Stüdyosu (`tdd`):**
-   - Yapılandırılmış **Given (Ön Koşul) / When (Eylem) / Then (Beklenen Sonuç)** kartları ve `Red → Green → Refactor` durum takibi.
-   - Görev kabul kriterlerinden otomatik test senaryosu üretimi ve tek tıkla çalıştırılabilir **`Vitest (.test.ts)`**, **`Playwright E2E (.spec.ts)`** ve **`Cucumber BDD (.feature)`** kod dışa aktarımı.
-5. **🤖 İnsan + AI Agent Hibrit Ekip Kadrosu:**
-   - Proje bazlı özelleştirilebilir AI Agent profilleri (*Analist & PO Agent*, *Sistem Mimarı Agent*, *UI/UX Tasarımcı Agent*, *TDD & QA Agent*).
-   - Görev karmaşıklığına göre (`high` / `standard` / `fast`) yerel modeller (**Ollama**) veya bulut ağ geçitleri (**OpenRouter**, **OpenAI**) arasında esnek model yönlendirme ve projeler arası ekip aktarımı.
+1. **✏️ Çizim & Diyagram Tuvali (`sketch`):**
+   - Sonsuz 2B çizim alanı üzerinde iş akışı analizi, mimari şemalar, Mermaid diyagramları ve tel kafes (wireframe) çizimleri.
+2. **🎨 Ekran Tasarım Tuvali (`design`):**
+   - Shadow DOM izolasyonlu, HTML/CSS tabanlı ekran tasarım alanı.
+   - İçeriğe göre esnek boyutlandırma (*Hug Contents*), Masaüstü (`1440×900`) ve Mobil (`390×844`) çerçeveler, katman görünümü ve temel CSS denetçisi.
+3. **📋 Görev Panosu (`tasks` — *Geliştirme Aşamasında*):**
+   - Kanban ve liste görünümüyle proje görevlerinin takibi, görev kartlarının ilgili çizim veya tasarım tuvalleriyle ilişkilendirilmesi ve yan yana (`Split-Peek`) görüntüleme.
+4. **🧪 TDD Test Senaryoları Alanı (`tdd` — *Geliştirme Aşamasında*):**
+   - `Given / When / Then` yapısında test senaryosu taslakları oluşturma, `Red / Green / Refactor` durum takibi ve temel test şablonu (`Vitest`, `Playwright`, `Cucumber`) çıktısı alma.
+5. **🤖 Ekip & Agent Tanımlamaları ve MCP Desteği (*Geliştirme Aşamasında*):**
+   - Proje bazlı ekip üyesi ve yapay zeka agent profilleri (yerel Ollama veya OpenRouter/OpenAI API yapılandırmaları) tanımlama denemeleri.
+   - Mevcut MCP sunucusuna eklenen yardımcı araçlarla harici yapay zeka asistanlarından çizim, tasarım ve görev verilerine erişim imkânı.
 
 ---
 
@@ -53,7 +50,7 @@ docker rm -f synapdraw-web
 docker run -d --name synapdraw-web -p 3000:80 synapdraw-local:latest
 ```
 
-### 3. Canlı MCP Sunucusu (`synapdraw-mcp`)
+### 3. MCP Sunucusu (`synapdraw-mcp`)
 
 ```bash
 cd synapdraw-mcp
@@ -62,14 +59,14 @@ npm run build
 npm run serve
 ```
 
-MCP sunucusu varsayılan olarak `http://localhost:3001` üzerinde çalışır ve aktif çalışma alanı ile gerçek zamanlı SSE (Server-Sent Events) senkronizasyonu sağlar.
+MCP sunucusu varsayılan olarak `http://localhost:3001` üzerinde çalışır ve açık çalışma alanıyla SSE (Server-Sent Events) üzerinden haberleşir.
 
 ---
 
-## Proje Mimarisi ve Dokümantasyon
+## Dokümantasyon
 
-- [SDLC Super-App UI/UX ve Mimari Yol Haritası](./docs/sdlc_superapp_plan.md)
-- [Genel Oturum ve Geliştirme Özeti](./docs/session_summary.md)
+- [SDLC Özellikleri ve Mimari Taslak Planı](./docs/sdlc_superapp_plan.md)
+- [Oturum ve Geliştirme Özeti](./docs/session_summary.md)
 - [Katkıda Bulunma Rehberi](./CONTRIBUTING.md)
 
 ---
@@ -83,4 +80,4 @@ Bu proje [MIT Lisansı](./LICENSE) altında lisanslanmıştır.
 ## Bilgilendirme
 
 > [!NOTE]
-> **Bu uygulama bir Excalidraw türevidir.** SynapDraw, açık kaynaklı [Excalidraw](https://github.com/excalidraw/excalidraw) çizim motoru temel alınarak geliştirilmiş; üzerine DOM tabanlı UI/UX Tasarım Tuvali, Proje Görev Yönetimi, TDD Test Stüdyosu, AI Agent Ekip Orkestrasyonu ve Canlı MCP Köprüsü inşa edilmiştir.
+> **Bu uygulama bir Excalidraw türevidir.** SynapDraw, açık kaynaklı [Excalidraw](https://github.com/excalidraw/excalidraw) projesi temel alınarak geliştirilmekte olup; üzerine ekran tasarım tuvali, geliştirme aşamasındaki yazılım yaşam döngüsü (SDLC) araçları ve yapay zeka agent'larıyla birlikte kullanımı kolaylaştıran ek MCP özellikleri eklenmiştir.

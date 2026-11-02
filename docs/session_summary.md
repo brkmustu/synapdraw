@@ -4,7 +4,7 @@
 **Aktif Branch (Ana Depo & Alt Depo):** `feature/super-app`  
 **İlgili Mimari Plan:** [`docs/sdlc_superapp_plan.md`](./sdlc_superapp_plan.md)
 
-Bu doküman, başka bir bilgisayardan veya yeni bir AI Agent oturumundan geliştirmeye devam edildiğinde **şimdiye kadar yapılan tüm mimari, tasarımsal ve yapısal çalışmaları** eksiksiz aktarmak amacıyla hazırlanmıştır.
+Bu doküman, başka bir bilgisayardan veya yeni bir oturumdan geliştirmeye devam edildiğinde **şimdiye kadar yapılan mimari, tasarımsal ve deneysel SDLC çalışmalarını** aktarmak amacıyla hazırlanmıştır. Uygulamadaki yazılım geliştirme yaşam döngüsü (SDLC) yüzeyleri ve AI agent tanımlama/tetikleme özellikleri halen **geliştirme aşamasındadır**.
 
 ---
 
@@ -40,9 +40,9 @@ Uygulamada sonradan eklenen bileşenlerin (sekme çubuğu, yeni tuval modalı, t
 
 ---
 
-### Aşama B: SDLC Super-App Dönüşümü (`feature/super-app`)
+### Aşama B: Geliştirme Aşamasındaki SDLC Özellikleri (`feature/super-app`)
 
-Bir yazılımcının (veya PM, PO, QA ve AI Agent'lardan oluşan hibrit bir ekibin) analizden tasarıma, görev yönetiminden TDD test senaryolarına kadar tüm süreci **kaos yaşamadan** tek arayüzden yürütebilmesi için aşağıdaki mimari inşa edildi:
+Analiz, ekran tasarımı, görev takibi ve TDD test senaryoları arasında bağlantı kurabilmek adına geliştirilmekte olan özellikler:
 
 #### 1. Veri ve Durum Katmanı (`workspace/workspaceStore.ts`)
 - **Çoklu Proje (`SDLCProject`):** Her proje kendi dokümanlarını, görevlerini, TDD senaryolarını ve ekip kadrosunu barındırır.
@@ -83,11 +83,11 @@ Bir yazılımcının (veya PM, PO, QA ve AI Agent'lardan oluşan hibrit bir ekib
 - **`SDLCContextDrawer`:** Çizim veya tasarım tuvalinden ayrılmadan, o tuvale bağlı görevleri ve TDD testlerini sağ kenarda yüzen bir `.Island` çekmecesinde gösterir ve durumlarını değiştirmeye izin verir.
 - **`TeamRosterModal`:** Projeye insan ekip arkadaşları veya özelleştirilmiş sistem prompt'una sahip **AI Agent**'lar (*PO & Analist Agent*, *Sistem Mimarı Agent*, *UI/UX Tasarımcı Agent*, *TDD & QA Agent*) ekleme/çıkarma imkânı sunar.
 
-#### 6. Canlı MCP Araçları (`synapdraw-mcp/src/server.ts`, `components/LiveMcpBridge.tsx`)
-Harici AI Agent'ların ve IDE'lerin projedeki tüm SDLC verileriyle canlı etkileşime girebilmesi için yeni MCP araçları eklendi:
-- `get_project_sdlc_overview`: Aktif projenin tüm tuvallerini, görevlerini, TDD senaryolarını ve ekip kadrosunu JSON olarak döner.
-- `upsert_project_task`: Kanban panosuna yeni görev ekler veya mevcut görevi (durum, öncelik, bağlı tuvaller) günceller.
-- `upsert_tdd_scenario`: TDD stüdyosuna yeni Given/When/Then test senaryosu ekler veya durumunu (`red` / `green` / `refactor`) günceller.
+#### 6. Genişletilmiş MCP Araçları (`synapdraw-mcp/src/server.ts`, `components/LiveMcpBridge.tsx`)
+Mevcut MCP altyapısına ek özellikler kazandırılarak harici yapay zeka agent'ları ve istemcileriyle birlikte kullanılabilecek yapı iyileştirildi:
+- `get_project_sdlc_overview`: Aktif projenin tuvallerini, görevlerini, TDD senaryolarını ve ekip listesini JSON olarak döner.
+- `upsert_project_task`: Görev panosuna yeni görev ekler veya mevcut görevi günceller.
+- `upsert_tdd_scenario`: TDD alanına yeni Given/When/Then test senaryosu ekler veya durumunu günceller.
 
 ---
 

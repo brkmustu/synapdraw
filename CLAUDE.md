@@ -2,12 +2,12 @@
 
 ## Proje Yapısı
 
-SynapDraw, çekirdek çizim/geometri paketleri ile SDLC Super-App web uygulamasını barındıran bir **monorepo** yapısındadır:
+SynapDraw, çekirdek çizim/geometri paketleri ile web uygulamasını barındıran bir **monorepo** yapısındadır:
 
-- **Uygulama Dizini** — Ana SynapDraw SDLC Super-App web uygulaması (Analiz/Mimari Çizim Tuvali, DOM tabanlı UI/UX Tasarım Tuvali, Proje Görev Panosu, TDD Test Stüdyosu, AI Agent Orkestrasyonu ve Canlı MCP Köprüsü)
-- **`synapdraw-mcp/`** — Canlı SSE ve stdio destekli Model Context Protocol (MCP) sunucusu
+- **Uygulama Dizini** — Ana SynapDraw web uygulaması (Çizim Tuvali, HTML/CSS Tasarım Tuvali ve geliştirme aşamasındaki Görev Panosu, TDD Test Senaryoları ile MCP bağlantı bileşenleri)
+- **`synapdraw-mcp/`** — Yapay zeka istemcileriyle birlikte kullanımı desteklemek üzere genişletilmiş Model Context Protocol (MCP) sunucusu
 - **`packages/`** — Çekirdek çizim, matematik, eleman ve yardımcı kütüphane paketleri
-- **`docs/`** — Mimari yol haritası ve oturum özet dokümanları
+- **`docs/`** — Mimari taslak planı ve geliştirme özet dokümanları
 
 ## Geliştirme İş Akışı
 

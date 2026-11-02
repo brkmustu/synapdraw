@@ -1,9 +1,9 @@
-# SynapDraw SDLC Super-App: UI/UX ve Mimari Yol Haritası
+# SynapDraw SDLC Özellikleri: UI/UX ve Mimari Taslak Planı
 
 > [!TIP]
-> **Genel Oturum Özeti (Session Summary):** Şimdiye kadar yapılan tüm git/branch düzenlemeleri, SynapDraw tasarım sistemi uyumluluk çalışmaları, SDLC Super-App bileşenleri ve başka bilgisayarda kurulum/devam etme rehberi için [`docs/session_summary.md`](./session_summary.md) dosyasına bakabilirsiniz.
+> **Genel Oturum Özeti (Session Summary):** Şimdiye kadar yapılan git/branch düzenlemeleri, tasarım sistemi uyumluluk çalışmaları, geliştirme aşamasındaki SDLC bileşenleri ve kurulum rehberi için [`docs/session_summary.md`](./session_summary.md) dosyasına bakabilirsiniz.
 
-Bu plan; **SynapDraw**'ı yalnızca çizim ve ekran tasarımı yapılan bir araçtan, bir yazılımın **Analiz → Mimari → UI/UX Tasarım → Görev Yönetimi → TDD Test Senaryoları** yaşam döngüsünün tamamını **kaos yaratmadan**, yalın tasarım dilini koruyarak tek çatı altında toplayan bir **SDLC Super-App** mimarisine taşımak için hazırlanmıştır.
+Bu taslak plan; **SynapDraw** içerisine çizim ve ekran tasarımının yanı sıra **Analiz → Mimari → UI/UX Tasarım → Görev Takibi → TDD Test Senaryoları** süreçlerini destekleyecek ek özelliklerin yalın tasarım dilini bozmadan nasıl ekleneceğini tanımlamak için hazırlanmıştır. Bu kapsamda eklenen SDLC ve AI agent özellikleri halen **geliştirme aşamasındadır**.
 
 > [!IMPORTANT]
 > **Temel UI/UX İlkesi — "Sıfır Kaos, Bağlamsal Odak (Contextual Focus)":**
@@ -98,8 +98,8 @@ Tüm yüzeylerin birbiriyle konuşabilmesi için `workspaceStore.ts` ve `CanvasE
   1. `sdlc/ContextAndTeamDrawers.tsx` (`SDLCContextDrawer`): Herhangi bir tuvaldeyken sağdan açılan, aktif tuvale bağlı görevleri ve TDD testlerini gösteren ve tek tıkla yan yana (`Split-Peek`) açabilen bağlam çekmecesi.
   2. `App.tsx` & `sdlc/sdlc.scss`: `Split-Peek` yan yana çalışma görünümü.
 
-### Faz 5: İnsan + AI Agent Ekip Orkestrasyonu ve MCP Genişletmesi (Tamamlandı ✅ / Geliştirmeye Açık)
-- **Hedef:** Bireysel bir yazılımcının kendi AI Agent ekibini kurarak veya gerçek ekip arkadaşlarıyla koordineli biçimde projeyi yürütebilmesi.
+### Faz 5: Ekip / AI Agent Tanımlamaları ve MCP Genişletmesi (Geliştirme Aşamasında 🚧)
+- **Hedef:** Proje bazlı ekip/agent profillerinin tanımlanabilmesi ve mevcut MCP sunucusuna eklenen araçlarla harici yapay zeka agent'larıyla birlikte çalışabilirliğin iyileştirilmesi.
 - **Uygulanan Bileşenler:**
-  1. `sdlc/ContextAndTeamDrawers.tsx` (`TeamRosterModal`): İnsan ekip üyeleri ve özelleştirilmiş AI Agent'lar (*PO Agent*, *Sistem Mimarı Agent*, *UI/UX Tasarımcı Agent*, *TDD & QA Agent*) yönetimi.
-  2. `synapdraw-mcp/src/server.ts` & `components/LiveMcpBridge.tsx`: `get_project_sdlc_overview`, `upsert_project_task` ve `upsert_tdd_scenario` canlı MCP araçları.
+  1. `sdlc/ContextAndTeamDrawers.tsx` (`TeamRosterModal`): İnsan ekip üyeleri ve proje bazlı AI Agent profilleri (*PO Agent*, *Sistem Mimarı Agent*, *UI/UX Tasarımcı Agent*, *TDD & QA Agent*) tanımlama ekranı (geliştirme aşamasında).
+  2. `synapdraw-mcp/src/server.ts` & `components/LiveMcpBridge.tsx`: Mevcut MCP yapısına eklenen `get_project_sdlc_overview`, `upsert_project_task` ve `upsert_tdd_scenario` yardımcı araçları.
