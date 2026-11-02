@@ -36,9 +36,9 @@ Mevcut MCP (Model Context Protocol) yapısına ek araçlar kazandırılarak hari
 
 ## Hızlı Başlangıç
 
-### 1. Docker ile Lokal Kurulum ve Çalıştırma (Önerilen)
+### 1. Docker ile Web Uygulaması ve MCP Sunucusunu Birlikte Ayağa Kaldırma (Önerilen)
 
-Projeyi başka bir bilgisayara klonladıktan sonra makinede Node.js veya Yarn kurulu olmasına gerek kalmadan doğrudan **Docker** üzerinden `http://localhost:3000` adresinde ayağa kaldırabilirsiniz:
+Projeyi başka bir bilgisayara klonladıktan sonra makinede Node.js veya Yarn kurulu olmasına gerek kalmadan hem **SynapDraw Web Uygulamasını (`http://localhost:3000`)** hem de **Canlı MCP Sunucusunu (`http://localhost:3001`)** Docker üzerinden birlikte ayağa kaldırabilirsiniz:
 
 ```bash
 # 1. Projeyi klonlayın ve dizine girin
@@ -46,42 +46,89 @@ git clone https://github.com/brkmustu/synapdraw.git
 cd synapdraw
 ```
 
-**Seçenek A — Tek komutla (`docker compose`):**
+#### Seçenek A — Tek Komutla (`docker compose` ile Web + MCP birlikte)
+
+`docker-compose.yml` dosyası hem web arayüzünü (`synapdraw-web` -> `3000`) hem de MCP sunucusunu (`synapdraw-mcp` -> `3001`) otomatik olarak derler ve başlatır:
 
 ```bash
 docker compose up -d --build
 ```
 
-**Seçenek B — Doğrudan `docker build` & `docker run` ile:**
+#### Seçenek B — Tek Tek `docker build` & `docker run` ile
 
 ```bash
-# İmajı derleyin
+# 1. Web arayüzünü derleyin ve başlatın (http://localhost:3000)
 docker build -t synapdraw-local:latest .
-
-# Varsa eski konteyneri kaldırıp yenisini başlatın
 docker rm -f synapdraw-web 2>/dev/null || true
 docker run -d --name synapdraw-web -p 3000:80 --restart unless-stopped synapdraw-local:latest
+
+# 2. MCP sunucusunu derleyin ve başlatın (http://localhost:3001)
+docker build -t synapdraw-mcp:latest ./synapdraw-mcp
+docker rm -f synapdraw-mcp 2>/dev/null || true
+docker run -d --name synapdraw-mcp -p 3001:3001 --restart unless-stopped synapdraw-mcp:latest
 ```
 
-Kurulum tamamlandığında tarayıcınızdan **`http://localhost:3000`** adresine giderek uygulamayı kullanabilirsiniz. Konteyneri durdurmak için `docker stop synapdraw-web` (veya `docker compose down`) komutunu çalıştırabilirsiniz.
+Kurulum tamamlandığında:
+- **Web Çalışma Alanı:** `http://localhost:3000`
+- **MCP Canlı SSE Köprüsü:** `http://localhost:3001/api/live-events` (Tarayıcıdaki SynapDraw sekmesi bu adrese otomatik bağlanır)
+- **MCP HTTP Endpoint:** `http://localhost:3001/mcp`
 
-### 2. Yerel Geliştirme Ortamı (Node.js & Yarn)
+Konteynerleri durdurmak için `docker compose down` (veya `docker stop synapdraw-web synapdraw-mcp`) komutunu kullanabilirsiniz.
 
-```bash
-yarn install
-yarn start
-```
+---
 
-### 3. MCP Sunucusu (`synapdraw-mcp`)
+### 2. Yapay Zeka İstemcilerini (Claude Desktop, Antigravity, Cursor vb.) MCP'ye Bağlama
+
+Web uygulaması (`localhost:3000`) ve MCP sunucusu (`localhost:3001`) çalışırken yapay zeka asistanınızı iki farklı yöntemle bağlayabilirsiniz:
+
+#### Yöntem 1: Streamable HTTP Üzerinden Bağlantı (Docker ile Doğrudan)
+İstemciniz HTTP MCP bağlantısını destekliyorsa doğrudan Docker üzerinde çalışan `3001` portuna yönlendirebilirsiniz:
+- **MCP Server URL:** `http://localhost:3001/mcp`
+
+#### Yöntem 2: `stdio` Üzerinden Bağlantı (Claude Desktop / Antigravity `mcp_config.json`)
+İstemciniz yerel `stdio` komutu bekliyorsa önce `synapdraw-mcp` paketini derleyin:
 
 ```bash
 cd synapdraw-mcp
 npm install
 npm run build
-npm run serve
 ```
 
-MCP sunucusu varsayılan olarak `http://localhost:3001` üzerinde çalışır ve açık çalışma alanıyla SSE (Server-Sent Events) üzerinden haberleşir.
+Ardından yapay zeka istemcinizin MCP yapılandırma dosyasına (`mcp_config.json` veya `claude_desktop_config.json`) şu tanımı ekleyin:
+
+```json
+{
+  "mcpServers": {
+    "synapdraw": {
+      "command": "node",
+      "args": [
+        "/tam/dizin/yolu/synapdraw/synapdraw-mcp/dist/index.js",
+        "--stdio"
+      ]
+    }
+  }
+}
+```
+
+> **Not:** `--stdio` modunda başlatılan MCP süreci, `3001` portu boşsa canlı SSE köprüsünü kendisi otomatik başlatır; eğer `3001` portunda halihazırda Docker `synapdraw-mcp` konteyneri çalışıyorsa çizim ve tasarım güncellemelerini otomatik olarak o konteyner üzerinden tarayıcıya (`http://localhost:3000`) iletir.
+
+---
+
+### 3. Yerel Geliştirme Ortamı (Docker Olmadan Node.js & Yarn ile)
+
+Docker kullanmadan doğrudan yerel ortamda geliştirmek ve çalıştırmak isterseniz:
+
+```bash
+# Terminal 1 — Web Uygulaması (http://localhost:3000)
+yarn install
+yarn start
+
+# Terminal 2 — MCP Sunucusu (http://localhost:3001)
+cd synapdraw-mcp
+npm install
+npm run build
+npm run serve
+```
 
 ---
 

@@ -8,3 +8,11 @@ services:
     ports:
       - "3000:80"
     restart: unless-stopped
+
+  synapdraw-mcp:
+    build:
+      context: ./synapdraw-mcp
+    container_name: synapdraw-mcp
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
