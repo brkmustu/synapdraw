@@ -322,6 +322,17 @@ export function parseHtmlToExcalidraw(
 
   doc.body.appendChild(sandbox);
 
+  // If the inner wireframe specifies an explicit width wider than canvasWidth, expand sandbox to fit
+  const firstChildEl = contentWrapper.firstElementChild as HTMLElement | null;
+  if (firstChildEl) {
+    const inlineW = parseFloat(firstChildEl.style?.width || "0");
+    if (inlineW > canvasWidth) {
+      sandbox.style.width = `${Math.ceil(inlineW)}px`;
+    } else if (contentWrapper.scrollWidth > canvasWidth) {
+      sandbox.style.width = `${Math.min(contentWrapper.scrollWidth + 32, 2400)}px`;
+    }
+  }
+
   const elements: ExcalidrawElementSkeleton[] = [];
   const processedElementIds = new Set<string>();
 
@@ -445,13 +456,24 @@ export function parseHtmlToExcalidraw(
 
       // 3. Form Inputs: Container + Placeholder / Value
       if (isInput) {
-        const placeholder =
+        const isSelect = tagName === "select";
+        const selectEl = isSelect ? (node as HTMLSelectElement) : null;
+        const selectedOptionText =
+          selectEl && selectEl.selectedIndex >= 0
+            ? selectEl.options[selectEl.selectedIndex]?.text || ""
+            : "";
+        const rawPlaceholder =
+          selectedOptionText ||
           (node as HTMLInputElement).placeholder ||
           (node as HTMLInputElement).value ||
           node.getAttribute("data-placeholder") ||
           "";
+        const placeholder = isSelect
+          ? `${rawPlaceholder || "Seçiniz"}   ▾`
+          : rawPlaceholder;
         const bg = normalizeColor(style.backgroundColor);
         const stroke = normalizeColor(style.borderColor);
+        const textColor = normalizeColor(style.color);
         const borderRadius = parseFloat(style.borderRadius) || 0;
 
         const inputId = generateId("input");
@@ -471,8 +493,12 @@ export function parseHtmlToExcalidraw(
           label: placeholder
             ? {
                 text: placeholder,
-                strokeColor: "#94a3b8",
-                fontSize: 13,
+                strokeColor: isSelect
+                  ? textColor !== "transparent"
+                    ? textColor
+                    : "#1e293b"
+                  : "#64748b",
+                fontSize: 12,
                 fontFamily: 2,
                 textAlign: "left",
                 verticalAlign: "middle",
@@ -480,6 +506,7 @@ export function parseHtmlToExcalidraw(
             : undefined,
         });
 
+        node.querySelectorAll("*").forEach((child) => consumedNodes.add(child));
         consumedNodes.add(node);
         return;
       }
@@ -602,6 +629,7 @@ export function parseHtmlToExcalidraw(
         const cellText = (node.textContent || "").trim().replace(/\s+/g, " ");
         const bg = normalizeColor(style.backgroundColor);
         const stroke = normalizeColor(style.borderColor);
+        const textColor = normalizeColor(style.color);
         const isHeader = tagName === "th";
 
         pushElement({
@@ -611,8 +639,8 @@ export function parseHtmlToExcalidraw(
           y: relY,
           width: width,
           height: height,
-          backgroundColor: bg !== "transparent" ? bg : isHeader ? "#f8fafc" : "#ffffff",
-          strokeColor: stroke !== "transparent" ? stroke : "#cbd5e1",
+          backgroundColor: bg !== "transparent" ? bg : isHeader ? "#e2e8f0" : "#ffffff",
+          strokeColor: stroke !== "transparent" ? stroke : "#64748b",
           fillStyle: "solid",
           strokeWidth: 1,
           roundness: null,
@@ -620,10 +648,15 @@ export function parseHtmlToExcalidraw(
           label: cellText
             ? {
                 text: cellText,
-                strokeColor: isHeader ? "#1e293b" : "#334155",
-                fontSize: 12,
+                strokeColor:
+                  textColor !== "transparent"
+                    ? textColor
+                    : isHeader
+                      ? "#0f172a"
+                      : "#1e293b",
+                fontSize: 11,
                 fontFamily: 2,
-                textAlign: "left",
+                textAlign: (style.textAlign as any) || "left",
                 verticalAlign: "middle",
               }
             : undefined,

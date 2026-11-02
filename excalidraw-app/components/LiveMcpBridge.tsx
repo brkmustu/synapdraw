@@ -10,6 +10,8 @@ import {
   getProjectTasks,
   getProjectTDDScenarios,
   getProjectTeam,
+  createWorkspace,
+  setActiveWorkspaceId,
   createProjectTask,
   updateProjectTask,
   createTDDScenario,
@@ -18,6 +20,8 @@ import {
   subscribeWorkspaces,
 } from "../workspace/workspaceStore";
 import "./LiveMcpBridge.scss";
+
+let sharedExcalidrawAPI: ExcalidrawImperativeAPI | null = null;
 
 interface LiveMcpBridgeProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -43,6 +47,12 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
     forCanvasType === "design"
       ? activeWs.canvasType === "design"
       : activeWs.canvasType !== "design";
+
+  useEffect(() => {
+    if (excalidrawAPI) {
+      sharedExcalidrawAPI = excalidrawAPI;
+    }
+  }, [excalidrawAPI]);
 
   useEffect(() => {
     return subscribeWorkspaces(() => {
@@ -115,6 +125,189 @@ export const LiveMcpBridge: React.FC<LiveMcpBridgeProps> = ({
                 setTimeout(() => setLastAction(null), 4000);
               }
               return;
+            }
+
+            const api = excalidrawAPI || sharedExcalidrawAPI;
+            const rawTitle = typeof data.title === "string" ? data.title : "";
+            const sketchDirectiveMatch = rawTitle.match(
+              /^\[(?:Yeni Çizim|Çizim Tuvali|Sketch)(?::\s*([^\]]+))?\]\s*(.*)$/i,
+            );
+            const forceSketchCanvas =
+              Boolean(sketchDirectiveMatch) ||
+              data.targetCanvas === "sketch" ||
+              data.type === "elements";
+
+            if (forceSketchCanvas && api) {
+              const requestedTabName = (
+                sketchDirectiveMatch?.[1] ||
+                data.sketchTabName ||
+                sketchDirectiveMatch?.[2] ||
+                rawTitle ||
+                "Malzeme Sorgulama"
+              ).trim();
+              const cleanFrameTitle = (
+                sketchDirectiveMatch?.[2] ||
+                sketchDirectiveMatch?.[1] ||
+                rawTitle ||
+                "UI Wireframe Container"
+              ).trim();
+
+              // Clean up any accidental Malzeme Sorgulama artboards on design workspaces
+              try {
+                const ownerWin =
+                  containerRef.current?.ownerDocument?.defaultView || window;
+                const designWorkspaces = getProjectWorkspaces().filter(
+                  (w) => w.canvasType === "design",
+                );
+                for (const dw of designWorkspaces) {
+                  const key = `synapdraw_design_doc_${dw.id}`;
+                  const rawDesign = ownerWin.localStorage.getItem(key);
+                  if (rawDesign && rawDesign.includes("Malzeme Sorgulama")) {
+                    const parsedDesign = JSON.parse(rawDesign);
+                    if (Array.isArray(parsedDesign?.artboards)) {
+                      const filteredArtboards = parsedDesign.artboards.filter(
+                        (ab: any) =>
+                          !String(ab?.name || "").includes("Malzeme Sorgulama"),
+                      );
+                      if (
+                        filteredArtboards.length !==
+                        parsedDesign.artboards.length
+                      ) {
+                        parsedDesign.artboards = filteredArtboards;
+                        ownerWin.localStorage.setItem(
+                          key,
+                          JSON.stringify(parsedDesign),
+                        );
+                      }
+                    }
+                  }
+                }
+              } catch {}
+
+              let targetSketchWs = getProjectWorkspaces().find(
+                (w) =>
+                  w.canvasType === "sketch" &&
+                  w.name.toLowerCase() === requestedTabName.toLowerCase(),
+              );
+
+              if (data.type === "html" && data.html) {
+                setLastAction(`Çizim Tuvaline aktarılıyor: ${requestedTabName}...`);
+                const { parseHtmlToExcalidraw } = await import(
+                  "../utils/htmlToExcalidraw"
+                );
+                const { convertToExcalidrawElements, restoreElements } =
+                  await import("@excalidraw/excalidraw");
+                const { getSmartPlacementCoords } = await import(
+                  "../utils/canvasContext"
+                );
+
+                const ownerDoc =
+                  containerRef.current?.ownerDocument ||
+                  (api as any)?.renderEnvironment?.document ||
+                  document;
+                const ownerWin =
+                  ownerDoc?.defaultView ||
+                  (api as any)?.renderEnvironment?.defaultView ||
+                  window;
+
+                let existingElements: any[] = [];
+                if (data.mode === "append" && targetSketchWs) {
+                  if (getActiveWorkspace().id === targetSketchWs.id) {
+                    existingElements = api
+                      .getSceneElements()
+                      .filter((el) => !el.isDeleted);
+                  } else {
+                    try {
+                      const storedRaw = ownerWin.localStorage.getItem(
+                        `synapdraw_ws_${targetSketchWs.id}_elements`,
+                      );
+                      if (storedRaw) {
+                        existingElements = restoreElements(
+                          JSON.parse(storedRaw),
+                          null,
+                          { repairBindings: true, refreshDimensions: true },
+                        );
+                      }
+                    } catch {}
+                  }
+                }
+
+                const placement = getSmartPlacementCoords(
+                  existingElements,
+                  1400,
+                  800,
+                  data.mode === "append" ? "right" : "replace",
+                );
+
+                const result = parseHtmlToExcalidraw(data.html, {
+                  ownerDocument: ownerDoc,
+                  ownerWindow: ownerWin,
+                  originX: placement.x,
+                  originY: placement.y,
+                  canvasWidth: 1480,
+                  frameName: cleanFrameTitle,
+                  createFrame: true,
+                  createContainerCard: true,
+                  locked: data.locked === true,
+                });
+
+                if (result.elements && result.elements.length > 0) {
+                  const converted = convertToExcalidrawElements(
+                    result.elements,
+                    {
+                      regenerateIds: false,
+                      renderEnvironment: (api as any)?.renderEnvironment,
+                    },
+                  );
+                  const restored = restoreElements(converted, null, {
+                    repairBindings: true,
+                    refreshDimensions: true,
+                  });
+                  const finalElements = [...existingElements, ...restored];
+
+                  if (!targetSketchWs) {
+                    targetSketchWs = createWorkspace(
+                      requestedTabName,
+                      "sketch",
+                      "analysis",
+                    );
+                  }
+
+                  ownerWin.localStorage.setItem(
+                    `synapdraw_ws_${targetSketchWs.id}_elements`,
+                    JSON.stringify(finalElements),
+                  );
+                  setActiveWorkspaceId(targetSketchWs.id);
+
+                  setTimeout(() => {
+                    try {
+                      ownerWin.localStorage.setItem(
+                        `synapdraw_ws_${targetSketchWs!.id}_elements`,
+                        JSON.stringify(finalElements),
+                      );
+                      api.updateScene({ elements: finalElements });
+                      if (typeof (api as any).scrollToContent === "function") {
+                        (api as any).scrollToContent(restored, {
+                          fitToViewport: true,
+                          animate: true,
+                        });
+                      } else if (typeof api.setViewport === "function") {
+                        api.setViewport({
+                          target: restored,
+                          fit: "scale-down",
+                          animation: true,
+                        });
+                      }
+                    } catch {}
+                  }, 140);
+
+                  setLastAction(
+                    `Çizim tuvaline aktarıldı: ${targetSketchWs.name} (${restored.length} öge)`,
+                  );
+                  setTimeout(() => setLastAction(null), 4000);
+                }
+                return;
+              }
             }
 
             const engine = getActiveEngine(data.type);

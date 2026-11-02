@@ -94,6 +94,7 @@ export class ExcalidrawEngine implements CanvasEngine {
         const result = parseHtmlToExcalidraw(event.html, {
           originX: placement.x,
           originY: placement.y,
+          canvasWidth: 1480,
           frameName: event.title || "UI Wireframe Container",
           createFrame: true,
           createContainerCard: true,
@@ -121,6 +122,37 @@ export class ExcalidrawEngine implements CanvasEngine {
           });
           return { success: true, message: `HTML aktarıldı (${restored.length} öge)` };
         }
+      } else if (event.type === "elements" && Array.isArray(event.elements)) {
+        const { convertToExcalidrawElements, restoreElements } = await import(
+          "@excalidraw/excalidraw"
+        );
+        const processedElements = convertToExcalidrawElements(
+          event.elements as any,
+          {
+            regenerateIds: false,
+            renderEnvironment: (this.api as any)?.renderEnvironment,
+          },
+        );
+        const restored = restoreElements(processedElements, null, {
+          repairBindings: true,
+          refreshDimensions: true,
+        });
+        const currentElements =
+          event.mode === "append"
+            ? this.api.getSceneElements().filter((el) => !el.isDeleted)
+            : [];
+        this.api.updateScene({
+          elements: [...currentElements, ...restored],
+        });
+        this.api.setViewport?.({
+          target: restored,
+          fit: "scale-down",
+          animation: true,
+        });
+        return {
+          success: true,
+          message: `Çizim güncellendi (${restored.length} öge)`,
+        };
       } else if (event.type === "clear") {
         this.api.resetScene();
         return { success: true, message: "Tuval temizlendi" };
