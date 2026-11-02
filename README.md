@@ -1,6 +1,8 @@
-# SynapDraw
-
 <div align="center">
+  <h1>
+    <img src="./synapdraw-app/public/favicon.svg" alt="SynapDraw Logo" width="38" height="38" valign="middle" />
+    &nbsp;SynapDraw
+  </h1>
   <p>
     Çizim ve diyagram tuvalinin yanı sıra ekran tasarımı, görev takibi ve test senaryosu yönetimi için geliştirilmekte olan çalışma alanı.
   </p>
