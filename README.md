@@ -1,124 +1,86 @@
-<a href="https://excalidraw.com/" target="_blank" rel="noopener">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" alt="Excalidraw" srcset="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2_dark.png" />
-    <img alt="Excalidraw" src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2.png" />
-  </picture>
-</a>
-
-<h4 align="center">
-  <a href="https://excalidraw.com">Excalidraw Editor</a> |
-  <a href="https://plus.excalidraw.com/blog">Blog</a> |
-  <a href="https://docs.excalidraw.com">Documentation</a> |
-  <a href="https://plus.excalidraw.com">Excalidraw+</a>
-</h4>
+# SynapDraw — AI-Native SDLC Super-App
 
 <div align="center">
-  <h2>
-    An open source virtual hand-drawn style whiteboard. </br>
-    Collaborative and end-to-end encrypted. </br>
-  <br />
-  </h2>
+  <h3>
+    Analiz, Sistem Mimarisi, Pixel-Perfect UI/UX Tasarım, Görev Yönetimi ve TDD Test Stüdyosunu tek çatı altında birleştiren uçtan uca yazılım geliştirme çalışma alanı.
+  </h3>
 </div>
 
-<br />
-<p align="center">
-  <a href="https://github.com/excalidraw/excalidraw/blob/master/LICENSE">
-    <img alt="Excalidraw is released under the MIT license." src="https://img.shields.io/badge/license-MIT-blue.svg"  /></a>
-  <a href="https://www.npmjs.com/package/@excalidraw/excalidraw">
-    <img alt="npm downloads/month" src="https://img.shields.io/npm/dm/@excalidraw/excalidraw"  /></a>
-  <a href="https://docs.excalidraw.com/docs/introduction/contributing">
-    <img alt="PRs welcome!" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat"  /></a>
-  <a href="https://discord.gg/UexuTaE">
-    <img alt="Chat on Discord" src="https://img.shields.io/discord/723672430744174682?color=738ad6&label=Chat%20on%20Discord&logo=discord&logoColor=ffffff&widget=false"/></a>
-  <a href="https://deepwiki.com/excalidraw/excalidraw">
-    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" /></a>
-  <a href="https://twitter.com/excalidraw">
-    <img alt="Follow Excalidraw on Twitter" src="https://img.shields.io/twitter/follow/excalidraw.svg?label=follow+@excalidraw&style=social&logo=twitter"/></a>
-</p>
+---
 
-<div align="center">
-  <figure>
-    <a href="https://excalidraw.com" target="_blank" rel="noopener">
-      <img src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github%2Fproduct_showcase.png" alt="Product showcase" />
-    </a>
-    <figcaption>
-      <p align="center">
-        Create beautiful hand-drawn like diagrams, wireframes, or whatever you like.
-      </p>
-    </figcaption>
-  </figure>
-</div>
+## Genel Bakış
 
-## Features
+**SynapDraw**, yazılım ekiplerinin ve bireysel geliştiricilerin bir projenin **Analiz → Sistem Mimarisi → UI/UX Ekran Tasarımı → Görev Yönetimi (Kanban) → TDD & BDD Test Senaryoları** yaşam döngüsünü kaos yaratmadan tek bir arayüzden yönetmesini sağlar.
 
-The Excalidraw editor (npm package) supports:
+Yerleşik **AI Agent Orkestrasyonu** (OpenRouter, Lokal Ollama, OpenAI uyumlu ağ geçitleri) ve **Canlı MCP (Model Context Protocol) Köprüsü** sayesinde hem uygulama içinden hem de harici yapay zeka istemcilerinden (Claude Desktop, Gemini Antigravity, Cursor, VS Code) tüm proje yüzeyleri canlı olarak yönetilebilir.
 
-- 💯&nbsp;Free & open-source.
-- 🎨&nbsp;Infinite, canvas-based whiteboard.
-- ✍️&nbsp;Hand-drawn like style.
-- 🌓&nbsp;Dark mode.
-- 🏗️&nbsp;Customizable.
-- 📷&nbsp;Image support.
-- 😀&nbsp;Shape libraries support.
-- 🌐&nbsp;Localization (i18n) support.
-- 🖼️&nbsp;Export to PNG, SVG & clipboard.
-- 💾&nbsp;Open format - export drawings as an `.excalidraw` json file.
-- ⚒️&nbsp;Wide range of tools - rectangle, circle, diamond, arrow, line, free-draw, eraser...
-- ➡️&nbsp;Arrow-binding & labeled arrows.
-- 🔙&nbsp;Undo / Redo.
-- 🔍&nbsp;Zoom and panning support.
+---
 
-## Excalidraw.com
+## Temel Çalışma Yüzeyleri
 
-The app hosted at [excalidraw.com](https://excalidraw.com) is a minimal showcase of what you can build with Excalidraw. Its [source code](https://github.com/excalidraw/excalidraw/tree/master/excalidraw-app) is part of this repository as well, and the app features:
+1. **✏️ Analiz & Mimari Çizim Tuvali (`sketch`):**
+   - Sonsuz 2B çizim alanı üzerinde iş akışı analizi, sistem mimarisi, ER şemaları, Mermaid diyagramları ve el çizimi tel kafes (wireframe) modelleme.
+   - Diyagram düğümlerini doğrudan proje görevlerine (`ProjectTask`) ve TDD senaryolarına derin pinleme.
+2. **🎨 UI/UX Tasarım Tuvali (`design`):**
+   - **Shadow DOM** izolasyonlu, gerçek HTML/CSS tabanlı pixel-perfect ekran tasarım motoru.
+   - Doğal içerik boyutlandırma (**Hug Contents**) ile birlikte Masaüstü (`1440×900`) ve Mobil (`390×844`) artboard çerçeveleri, katman ağacı (Layers) ve CSS Denetçisi (Inspector).
+3. **📋 Proje & Görev Yönetimi Panosu (`tasks`):**
+   - `Backlog & Analiz`, `Tasarım & Mimari`, `Geliştirmede`, `TDD & Doğrulama` ve `Tamamlandı` aşamalarından oluşan Kanban ve Liste görünümü.
+   - Görev kartları üzerinden bağlı analiz çizimlerine, tasarım artboard'larına ve TDD testlerine tek tıkla veya **Yan Yana (`Split-Peek`)** bölünmüş ekranla geçiş.
+4. **🧪 TDD & BDD Test Senaryoları Stüdyosu (`tdd`):**
+   - Yapılandırılmış **Given (Ön Koşul) / When (Eylem) / Then (Beklenen Sonuç)** kartları ve `Red → Green → Refactor` durum takibi.
+   - Görev kabul kriterlerinden otomatik test senaryosu üretimi ve tek tıkla çalıştırılabilir **`Vitest (.test.ts)`**, **`Playwright E2E (.spec.ts)`** ve **`Cucumber BDD (.feature)`** kod dışa aktarımı.
+5. **🤖 İnsan + AI Agent Hibrit Ekip Kadrosu:**
+   - Proje bazlı özelleştirilebilir AI Agent profilleri (*Analist & PO Agent*, *Sistem Mimarı Agent*, *UI/UX Tasarımcı Agent*, *TDD & QA Agent*).
+   - Görev karmaşıklığına göre (`high` / `standard` / `fast`) yerel modeller (**Ollama**) veya bulut ağ geçitleri (**OpenRouter**, **OpenAI**) arasında esnek model yönlendirme ve projeler arası ekip aktarımı.
 
-- 📡&nbsp;PWA support (works offline).
-- 🤼&nbsp;Real-time collaboration.
-- 🔒&nbsp;End-to-end encryption.
-- 💾&nbsp;Local-first support (autosaves to the browser).
-- 🔗&nbsp;Shareable links (export to a readonly link you can share with others).
+---
 
-We'll be adding these features as drop-in plugins for the npm package in the future.
+## Hızlı Başlangıç
 
-## Quick start
-
-**Note:** following instructions are for installing the Excalidraw [npm package](https://www.npmjs.com/package/@excalidraw/excalidraw) when integrating Excalidraw into your own app. To run the repository locally for development, please refer to our [Development Guide](https://docs.excalidraw.com/docs/introduction/development).
-
-Use `npm` or `yarn` to install the package.
+### 1. Geliştirme Ortamı
 
 ```bash
-npm install react react-dom @excalidraw/excalidraw
-# or
-yarn add react react-dom @excalidraw/excalidraw
+yarn install
+yarn start
 ```
 
-Check out our [documentation](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/installation) for more details!
+### 2. Docker ile Çalıştırma (`http://localhost:3000`)
 
-## Contributing
+```bash
+docker build -t synapdraw-local:latest .
+docker rm -f synapdraw-web
+docker run -d --name synapdraw-web -p 3000:80 synapdraw-local:latest
+```
 
-- Missing something or found a bug? [Report here](https://github.com/excalidraw/excalidraw/issues).
-- Want to contribute? Check out our [contribution guide](https://docs.excalidraw.com/docs/introduction/contributing) or let us know on [Discord](https://discord.gg/UexuTaE).
-- Want to help with translations? See the [translation guide](https://docs.excalidraw.com/docs/introduction/contributing#translating).
+### 3. Canlı MCP Sunucusu (`synapdraw-mcp`)
 
-## Integrations
+```bash
+cd synapdraw-mcp
+npm install
+npm run build
+npm run serve
+```
 
-- [VScode extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor)
-- [npm package](https://www.npmjs.com/package/@excalidraw/excalidraw)
+MCP sunucusu varsayılan olarak `http://localhost:3001` üzerinde çalışır ve aktif çalışma alanı ile gerçek zamanlı SSE (Server-Sent Events) senkronizasyonu sağlar.
 
-## Who's integrating Excalidraw
+---
 
-[Google Cloud](https://googlecloudcheatsheet.withgoogle.com/architecture) • [Meta](https://meta.com/) • [CodeSandbox](https://codesandbox.io/) • [Obsidian Excalidraw](https://github.com/zsviczian/obsidian-excalidraw-plugin) • [Replit](https://replit.com/) • [Slite](https://slite.com/) • [Notion](https://notion.so/) • [HackerRank](https://www.hackerrank.com/) • and many others
+## Proje Mimarisi ve Dokümantasyon
 
-## Sponsors & support
+- [SDLC Super-App UI/UX ve Mimari Yol Haritası](./docs/sdlc_superapp_plan.md)
+- [Genel Oturum ve Geliştirme Özeti](./docs/session_summary.md)
+- [Katkıda Bulunma Rehberi](./CONTRIBUTING.md)
 
-If you like the project, you can become a sponsor at [Open Collective](https://opencollective.com/excalidraw) or use [Excalidraw+](https://plus.excalidraw.com/).
+---
 
-## Thank you for supporting Excalidraw
+## Lisans
 
-[<img src="https://opencollective.com/excalidraw/tiers/sponsors/0/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/0/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/1/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/1/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/2/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/2/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/3/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/3/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/4/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/4/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/5/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/5/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/6/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/6/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/7/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/7/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/8/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/8/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/9/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/9/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/10/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/10/website)
+Bu proje [MIT Lisansı](./LICENSE) altında lisanslanmıştır.
 
-<a href="https://opencollective.com/excalidraw#category-CONTRIBUTE" target="_blank"><img src="https://opencollective.com/excalidraw/tiers/backers.svg?avatarHeight=32"/></a>
+---
 
-Last but not least, we're thankful to these companies for offering their services for free:
+## Bilgilendirme
 
-[![Vercel](./.github/assets/vercel.svg)](https://vercel.com) [![Sentry](./.github/assets/sentry.svg)](https://sentry.io) [![Crowdin](./.github/assets/crowdin.svg)](https://crowdin.com)
+> [!NOTE]
+> **Bu uygulama bir Excalidraw türevidir.** SynapDraw, açık kaynaklı [Excalidraw](https://github.com/excalidraw/excalidraw) çizim motoru temel alınarak geliştirilmiş; üzerine DOM tabanlı UI/UX Tasarım Tuvali, Proje Görev Yönetimi, TDD Test Stüdyosu, AI Agent Ekip Orkestrasyonu ve Canlı MCP Köprüsü inşa edilmiştir.

@@ -1,23 +1,11 @@
-# Laser Pointer
+# Laser Pointer (`laser-pointer`)
 
-## Usage
+Sunum ve canlı işbirliği modlarında kullanılan lazer işaretçi iz hesaplama paketi.
 
-    import { LaserPointer } from '@excalidraw/laser-pointer'
+## Seçenekler
 
-    const stroke = new LaserPointer(options)
-
-    stroke.addPoint([100, 200, 1])
-    stroke.close()
-
-    const outline = stroke.getStrokeOutline()
-
-## Options
-
-| Property | Type | Default | Description |
+| Özellik | Tip | Varsayılan | Açıklama |
 | --- | --- | --- | --- |
-| `size` | `number` | `2` | Radius of the stroke. |
-| `streamline` | `number` | `0.42` | Interpolate input points to reduce jitter. |
-| `simplify` | `number` | `0.1` | Reduce stroke size by sacrificing precision. |
-| `simplifyPhase` | `"input" \| "output" \| "tail" ` | `"output"` | Decides when the simplification algorithm should be applied. |
-| `sizeMapping` | `(details: SizeMappingDetails) => number` | `() => 1` | Maps each point to a value between `0.0` and `1.0`. |
-| `keepHead` | `boolean` | `false` | Whether size mapping should influence the head of the stroke. |
+| `size` | `number` | `2` | Çizgi yarıçapı. |
+| `streamline` | `number` | `0.42` | Titremeyi azaltmak için girdi noktalarını ara değerler. |
+| `simplify` | `number` | `0.1` | Hassasiyet/boyut dengesi. |

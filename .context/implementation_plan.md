@@ -1,6 +1,6 @@
 # Uygulama Planı: Tasarım Tuvali (DOM tabanlı, Seçenek C)
 
-Önceki fizibilite raporu: [feasibility_design_canvas.md](file:///C:/Users/mburakmustu/.gemini/antigravity-ide/brain/db9e2a29-0784-42ef-9c0f-ab5f1dd21d6f/feasibility_design_canvas.md)
+Önceki fizibilite raporu: [`feasibility_design_canvas.md`](./feasibility_design_canvas.md)
 
 ## Kararlar (sizin cevaplarınız)
 
@@ -8,20 +8,19 @@
 |---|---|
 | Tuval tipi kilidi | **Her belge ayrı çalışma alanı.** Tip belge oluşturulurken seçilir, o belge için değişmez. Yeni belgede yeniden seçilebilir. |
 | MVP kapsamı | **AI ile üretilen tasarım.** Kullanıcı: seç, taşı, kilitle, incele. Sıfırdan çizim ve elle CSS düzenleme sonraki fazlarda. |
-| Excalidraw mirası | Kolaylaştıran her şey alınır; entegrasyonu iş çıkaran her şey yeni motorda ayrı yazılır. |
+| Mevcut altyapı mirası | Kolaylaştıran her şey alınır; entegrasyonu iş çıkaran her şey yeni motorda ayrı yazılır. |
 | Yaklaşım | **C: DOM tabanlı motor** |
 
 > [!IMPORTANT]
-> **Yeni bulgu:** Uygulamada şu an "belge" kavramı yok. Tek sahne localStorage'da sabit
-> anahtarlarla tutuluyor (`excalidraw`, `excalidraw-state` — bkz.
-> [app_constants.ts](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/app_constants.ts#L39-L53)).
+> **Yeni bulgu:** Uygulamada başlangıçta "belge" kavramı yoktu. Tek sahne localStorage'da sabit
+> anahtarlarla tutuluyordu (`app_constants.ts`).
 > "Belge başına tip" kararı için önce hafif bir **çalışma alanı yöneticisi** gerekiyor
 > (Faz 1). Mevcut sahne, ilk açılışta otomatik olarak "Çizim" tipinde ilk belgeye taşınır;
 > veri kaybı olmaz.
 
 ---
 
-## Excalidraw'dan Miras / Ayrım
+## Mevcut Altyapıdan Miras / Ayrım
 
 | Parça | Karar | Gerekçe |
 |---|---|---|
@@ -29,11 +28,11 @@
 | UI bileşenleri (Island, ToolButton, Popover, Dialog) | ✅ Miras | Bağımsız React bileşenleri |
 | `MoveLockedIcon` / `MoveUnlockedIcon`, kilit popup stili | ✅ Miras | Artboard kilit modlarında aynen kullanılır |
 | MCP sunucusu, SSE köprüsü, checkpoint store | ✅ Miras | Olay tipine göre yönlendirme eklenir |
-| HTML sandbox + ölçüm kodu ([htmlToExcalidraw.ts](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/utils/htmlToExcalidraw.ts)) | 🔶 Kısmi | Sanitize ve sandbox mantığı ortak yardımcıya çıkarılır |
-| Akıllı yerleşim ([canvasContext.ts](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/utils/canvasContext.ts)) | 🔶 Kısmi | Algoritma ortak, veri kaynağı motora göre |
-| Viewport (pan/zoom) | ❌ Ayrı | Excalidraw'da `AppState` ve canvas render'a sıkı bağlı; DOM için ~200 satırlık basit transform |
-| Seçim, sürükleme, hit-test | ❌ Ayrı | Excalidraw geometrisi Rough.js şekillerine göre; DOM'da tarayıcı hit-test'i var |
-| Undo/redo (Store/History) | ❌ Ayrı | Excalidraw eleman şemasına bağlı; tasarım belgesi için basit komut yığını |
+| HTML sandbox + ölçüm kodu | 🔶 Kısmi | Sanitize ve sandbox mantığı ortak yardımcıya çıkarılır |
+| Akıllı yerleşim (`canvasContext.ts`) | 🔶 Kısmi | Algoritma ortak, veri kaynağı motora göre |
+| Viewport (pan/zoom) | ❌ Ayrı | Çizim motorunda `AppState` ve canvas render'a sıkı bağlı; DOM için ~200 satırlık basit transform |
+| Seçim, sürükleme, hit-test | ❌ Ayrı | Çizim geometrisi Rough.js şekillerine göre; DOM'da tarayıcı hit-test'i var |
+| Undo/redo (Store/History) | ❌ Ayrı | Çizim eleman şemasına bağlı; tasarım belgesi için basit komut yığını |
 | Collab (Firebase) | ❌ Ayrı, sonra | Şema farklı; MVP'de tasarım belgelerinde kapalı |
 | Mermaid, el çizimi araçları | ❌ Tasarım tuvalinde yok | Pixel-perfect hedefle çelişiyor; Çizim belgelerinde aynen kalıyor |
 
@@ -41,12 +40,12 @@
 
 ## Faz 0: Önceki Regresyonu Düzelt (0.5 gün)
 
-#### [MODIFY] [typeChecks.ts](file:///c:/Users/mburakmustu/source/repos/excalidraw/packages/element/src/typeChecks.ts)
+#### [MODIFY] `typeChecks.ts`
 - `isContainerElement`: genel `isFrameLikeElement` dalı ve `📦` isim kontrolü kaldırılır.
   Yalnızca `customData.isContainerFrame/Card/Header` ve bu frame'lerin çocukları sayılır.
 - Sonuç: kullanıcının elle oluşturduğu normal frame'ler yeniden boyutlandırılabilir.
 
-#### [MODIFY] [htmlToExcalidraw.ts](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/utils/htmlToExcalidraw.ts)
+#### [MODIFY] HTML Dönüştürücüsü
 - HTML yolundan oluşturulan frame'e de `customData.isContainerFrame: true` eklenir
   (şu an yalnızca `containerHelper.ts` ekliyor).
 
@@ -58,34 +57,34 @@
 
 ## Faz 1: Çalışma Alanı ve Tuval Tipi Soyutlaması (2-3 gün)
 
-#### [NEW] `excalidraw-app/workspace/workspaceStore.ts`
+#### [NEW] `workspace/workspaceStore.ts`
 - Belge listesi: `{ id, name, canvasType: "sketch" | "design", createdAt, updatedAt }`.
 - Belge içeriği belge id'sine göre ayrı anahtarlarda (localStorage / IndexedDB).
 - İlk açılışta mevcut sahneyi "Çizim" belgesine taşıyan migrasyon.
 
-#### [NEW] `excalidraw-app/workspace/WorkspaceTabs.tsx` + `.scss`
+#### [NEW] `workspace/WorkspaceTabs.tsx` + `.scss`
 - Ekranın en tepesinde kulakçık şeridi: açık belgeler + "Yeni" butonu.
 - "Yeni" tıklanınca tip seçimi (**Çizim** / **Tasarım**). Oluşturulduktan sonra sekmede
   tip rozeti salt-okunur görünür; değiştirme seçeneği yoktur.
 
-#### [NEW] `excalidraw-app/engine/CanvasEngine.ts`
+#### [NEW] `engine/CanvasEngine.ts`
 - Arayüz: `applyEvent(evt)`, `getContext()`, `clear()`, `exportData()`, `supports(evtType)`.
 
-#### [NEW] `excalidraw-app/engine/ExcalidrawEngine.ts`
-- [LiveMcpBridge.tsx](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/components/LiveMcpBridge.tsx) içindeki mevcut olay işleme kodu buraya **taşınır**, davranış değişmez.
+#### [NEW] `engine/SketchEngine`
+- `LiveMcpBridge.tsx` içindeki mevcut olay işleme kodu buraya **taşınır**, davranış değişmez.
 
-#### [MODIFY] [LiveMcpBridge.tsx](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/components/LiveMcpBridge.tsx)
+#### [MODIFY] `LiveMcpBridge.tsx`
 - Olayları aktif belgenin motoruna yönlendiren dispatcher olur.
 - Desteklenmeyen olay → rozet üzerinde açıklayıcı uyarı + MCP'ye hata bildirimi.
 
-#### [MODIFY] [App.tsx](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/App.tsx)
-- Aktif belgenin tipine göre `<Excalidraw>` veya `<DesignCanvas>` render edilir.
+#### [MODIFY] `App.tsx`
+- Aktif belgenin tipine göre Çizim Tuvali veya `<DesignCanvas>` render edilir.
 
 ---
 
 ## Faz 2: Tasarım Motoru MVP (5-7 gün)
 
-Yeni klasör: `excalidraw-app/design/`
+Yeni klasör: `design/`
 
 | Dosya | Sorumluluk |
 |---|---|
@@ -106,7 +105,7 @@ iki modlu kilit (tam kilit / sadece taşıma) — mevcut ikonlarla.
 
 ## Faz 3: MCP Araçları — Çekirdek (2-3 gün)
 
-#### [MODIFY] [server.ts](file:///c:/Users/mburakmustu/source/repos/synapdraw/synapdraw-mcp/src/server.ts) + `main.ts`
+#### [MODIFY] `synapdraw-mcp/src/server.ts` + `main.ts`
 
 | Araç | Açıklama |
 |---|---|
@@ -151,7 +150,7 @@ iki modlu kilit (tam kilit / sadece taşıma) — mevcut ikonlarla.
 
 **Otomatik**
 - Faz 0: düzeltilmiş Puppeteer testi (container taşınır + boyut sabit; normal frame resize olur).
-- Mevcut vitest paketi: `packages/element` ve `packages/excalidraw` testleri regresyon için.
+- Mevcut vitest paketi: çekirdek paket testleri regresyon için.
 - Faz 1: belge oluştur → tip kilitli → sayfa yenile → tip ve içerik korunur; migrasyon testi.
 - Faz 3: her MCP aracı için `curl` / script ile uçtan uca çağrı, Tasarım belgesinde mermaid reddi.
 - Faz 5: `render_design` → `screenshot_artboard` → aynı HTML'in Puppeteer'da doğrudan
@@ -174,4 +173,4 @@ iki modlu kilit (tam kilit / sadece taşıma) — mevcut ikonlarla.
 | 4 | 2-3 gün | Katmanlar + inspector |
 | 5 | 3-4 gün | Pixel-perfect doğrulama döngüsü + export |
 
-**Toplam ~3-4 hafta.** Her faz sonunda yerel commit (push yok) ve kısa rapor.
+**Toplam ~3-4 hafta.** Her faz sonunda yerel commit ve kısa rapor.

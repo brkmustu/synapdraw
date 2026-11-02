@@ -1,16 +1,16 @@
 # Fizibilite: CSS Odaklı, Pixel-Perfect "Tasarım Tuvali"
 
 ## 1. Talep Özeti
-- Mevcut Excalidraw tuvali ve eklediğimiz tüm özellikler **olduğu gibi** kalacak.
+- Mevcut Çizim Tuvali ve eklediğimiz tüm özellikler **olduğu gibi** kalacak.
 - Ekranın en tepesinde bir **kulakçık (tab)** ile tuval tipi seçilecek:
-  - **Çizim Tuvali** (mevcut Excalidraw, el çizimi)
+  - **Çizim Tuvali** (mevcut el çizimi / diyagram tuvali)
   - **Tasarım Tuvali** (yeni, CSS odaklı, Figma'ya yakın, pixel-perfect)
 - Seçim yapıldıktan sonra **değiştirilemeyecek**.
 - Yapay zeka MCP üzerinden tasarımı pixel-perfect aktarabilecek.
 
-**Sonuç: Yapılabilir.** Ancak "pixel-perfect" hedefi, Excalidraw'ın çizim motoruyla
-**karşılanamaz**. Yeni bir render motoru (DOM tabanlı) gerekiyor. Excalidraw'ı tamamen
-bırakmak gerekmiyor; kabuk, MCP köprüsü ve container fikri yeniden kullanılabilir.
+**Sonuç: Yapılabilir.** Ancak "pixel-perfect" hedefi, mevcut 2B el çizimi motoruyla
+**karşılanamaz**. Yeni bir render motoru (DOM tabanlı) gerekiyor. Mevcut mimariyi tamamen
+bırakmak gerekmiyor; uygulama kabuğu, MCP köprüsü ve container fikri yeniden kullanılabilir.
 
 ---
 
@@ -19,28 +19,28 @@ bırakmak gerekmiyor; kabuk, MCP köprüsü ve container fikri yeniden kullanıl
 | Bileşen | Mevcut hali | Tasarım tuvali için anlamı |
 |---|---|---|
 | Render | Canvas 2D + Rough.js, kendi metin ölçümü | CSS (flex, grid, shadow, gradient, web font) birebir çizilemez |
-| HTML aktarımı | [htmlToExcalidraw.ts](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/utils/htmlToExcalidraw.ts) gizli sandbox'ta render edip `getBoundingClientRect` ile şekle çeviriyor | Ölçüm doğru, ama sonuç dikdörtgen + metne indirgeniyor → stil kaybı ve metin kayması (daha önce gördüğümüz sorun) |
-| MCP sunucusu | [server.ts](file:///c:/Users/mburakmustu/source/repos/synapdraw/synapdraw-mcp/src/server.ts): `read_me`, `render_mermaid`, `render_html`, `get_canvas_context`, `clear_canvas`, `create_view`, checkpoint araçları | Broadcast (SSE) + context sync altyapısı aynen yeniden kullanılabilir |
-| Köprü | [LiveMcpBridge.tsx](file:///c:/Users/mburakmustu/source/repos/excalidraw/excalidraw-app/components/LiveMcpBridge.tsx) SSE ile olayları alıp `excalidrawAPI`'ye uyguluyor | Olay tipine göre aktif motora yönlendiren bir dispatcher'a dönüşmeli |
+| HTML aktarımı | Gizli sandbox'ta render edip `getBoundingClientRect` ile şekle çeviriyor | Ölçüm doğru, ama sonuç dikdörtgen + metne indirgeniyor → stil kaybı ve metin kayması |
+| MCP sunucusu | `synapdraw-mcp/src/server.ts`: `read_me`, `render_mermaid`, `render_html`, `get_canvas_context`, `clear_canvas`, `create_view`, checkpoint araçları | Broadcast (SSE) + context sync altyapısı aynen yeniden kullanılabilir |
+| Köprü | `LiveMcpBridge.tsx` SSE ile olayları alıp çizim API'sine uyguluyor | Olay tipine göre aktif motora yönlendiren bir dispatcher'a dönüşmeli |
 | Container / kilit | Frame + card + header, iki modlu kilit | Tasarım tuvalinde karşılığı **Artboard** (Figma frame) |
-| Gömülü içerik | Excalidraw'da `iframe` / `embeddable` eleman tipleri var | Hibrit yaklaşım için kaldıraç (bkz. Seçenek B) |
+| Gömülü içerik | `iframe` / `embeddable` eleman tipleri var | Hibrit yaklaşım için kaldıraç (bkz. Seçenek B) |
 
 > [!IMPORTANT]
-> Metin kayması sorununun kök nedeni de burada: Excalidraw metni kendi motoruyla ölçüp sarıyor,
+> Metin kayması sorununun kök nedeni de burada: Çizim tuvali metni kendi motoruyla ölçüp sarıyor,
 > tarayıcı CSS ile farklı sarıyor. Bu fark optimizasyonla küçülür ama sıfırlanamaz.
 
 ---
 
 ## 3. Değerlendirilen Yaklaşımlar
 
-### Seçenek A: Excalidraw üzerinde "hassas stil" preset
+### Seçenek A: Çizim Tuvali üzerinde "hassas stil" preset
 roughness 0, keskin köşe, Inter fontu, grid snapping.
 - ✅ Çok ucuz (1-2 gün)
 - ❌ Pixel-perfect **değil**: flex/grid, gölge, gradient, border-radius detayları, font render farkı
 - **Sonuç: Talebi karşılamıyor.**
 
-### Seçenek B: Hibrit (Excalidraw + iframe artboard)
-Her artboard bir Excalidraw `iframe` elemanı; içinde gerçek HTML/CSS render edilir.
+### Seçenek B: Hibrit (Çizim Tuvali + iframe artboard)
+Her artboard bir `iframe` elemanı; içinde gerçek HTML/CSS render edilir.
 - ✅ Artboard içi gerçekten pixel-perfect
 - ✅ Pan/zoom, collab, persistence hazır
 - ❌ Artboard içindeki elemanlar tuvalde tek tek seçilip düzenlenemez (iframe sınırı)
@@ -64,7 +64,7 @@ Seçim, hover, ölçü çizgileri ayrı bir overlay katmanında çizilir.
 ```mermaid
 graph TD
   Shell["App Shell + Tuval Tipi Kulakçığı"] --> Router{"canvasType"}
-  Router -->|sketch| Excal["Excalidraw Motoru (mevcut, dokunulmaz)"]
+  Router -->|sketch| Sketch["Çizim Motoru (mevcut, dokunulmaz)"]
   Router -->|design| Design["Tasarım Motoru (yeni, DOM)"]
   Bridge["LiveMcpBridge → Event Dispatcher"] --> Router
   MCP["MCP Server :3001"] -->|SSE| Bridge
@@ -75,7 +75,7 @@ graph TD
 
 ### 4.1 Soyutlama katmanı
 - `CanvasEngine` arayüzü: `applyEvent()`, `getContext()`, `clear()`, `exportData()`.
-- `ExcalidrawEngine`: mevcut `excalidrawAPI` çağrılarını sarar (**davranış değişmez**).
+- `SketchEngine`: mevcut çizim API çağrılarını sarar (**davranış değişmez**).
 - `DesignEngine`: yeni motor.
 - MCP köprüsü olay tipine göre aktif motora yönlendirir; motorun desteklemediği olay
   (ör. tasarım tuvalinde `mermaid`) anlamlı bir hata ile reddedilir.
@@ -146,9 +146,9 @@ Mevcut **iki modlu kilit** (tam kilit / sadece taşıma) bu bileşenlere de ayne
 | Stil sızıntısı (uygulama CSS'i ↔ tasarım CSS'i) | Orta | Her artboard Shadow DOM içinde |
 | Web font yüklenmeden render / ekran görüntüsü | Orta | `document.fonts.ready` beklenir, font listesi belgeye kaydedilir |
 | Zoom'da bulanıklık | Düşük | CSS transform zaten vektörel; ekran görüntüsü 1x/2x ayrı alınır |
-| Collab (Firebase) yalnızca Excalidraw şemasını biliyor | Orta | MVP'de tasarım tuvalinde collab kapalı; sonraki faz |
+| Collab yalnızca çizim şemasını biliyor | Orta | MVP'de tasarım tuvalinde collab kapalı; sonraki faz |
 | Undo/redo, çoklu seçim, snapping sıfırdan | Yüksek efor | MVP'de sınırlı kapsam (seç, taşı, CSS düzenle, undo) |
-| Upstream Excalidraw güncellemeleriyle çakışma | Düşük | Yeni motor ayrı paket/klasör; Excalidraw çekirdeğine dokunulmaz |
+| Çekirdek güncellemeleriyle çakışma | Düşük | Yeni motor ayrı paket/klasör; çekirdek motora dokunulmaz |
 
 ---
 
@@ -171,14 +171,10 @@ Mevcut **iki modlu kilit** (tam kilit / sadece taşıma) bu bileşenlere de ayne
 
 > [!WARNING]
 > `50c3f642` commit'indeki `isContainerElement`, `isFrameLikeElement` olan **her frame'i** ve
-> frame içindeki **her elemanı** container sayıyor. Sonuç: kullanıcının Excalidraw'da elle
+> frame içindeki **her elemanı** container sayıyor. Sonuç: kullanıcının çizim tuvalinde elle
 > oluşturduğu normal frame'ler ve içlerindeki şekiller de artık yeniden boyutlandırılamıyor.
 > Bu, "mevcut özellikleri bozmadan" ilkesine aykırı. Kontrol yalnızca
 > `customData.isContainerFrame/Card/Header` ile sınırlanmalı.
->
-> Ayrıca son otomatik testin "SUCCESS" sonucu yanıltıcıydı: sürükleme container dışından
-> başladığı için hiçbir şey taşınmadı (x/y değişmedi). Boyut sabitliği ve taşıma, ondan önceki
-> ekran görüntüsünde görsel olarak doğrulanmıştı ama test yeniden yazılmalı.
 
 ---
 

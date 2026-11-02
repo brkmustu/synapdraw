@@ -1,34 +1,31 @@
 # CLAUDE.md
 
-## Project Structure
+## Proje Yapısı
 
-Excalidraw is a **monorepo** with a clear separation between the core library and the application:
+SynapDraw, çekirdek çizim/geometri paketleri ile SDLC Super-App web uygulamasını barındıran bir **monorepo** yapısındadır:
 
-- **`packages/excalidraw/`** - Main React component library published to npm as `@excalidraw/excalidraw`
-- **`excalidraw-app/`** - Full-featured web application (excalidraw.com) that uses the library
-- **`packages/`** - Core packages: `@excalidraw/common`, `@excalidraw/element`, `@excalidraw/math`, `@excalidraw/utils`
-- **`examples/`** - Integration examples (NextJS, browser script)
+- **Uygulama Dizini** — Ana SynapDraw SDLC Super-App web uygulaması (Analiz/Mimari Çizim Tuvali, DOM tabanlı UI/UX Tasarım Tuvali, Proje Görev Panosu, TDD Test Stüdyosu, AI Agent Orkestrasyonu ve Canlı MCP Köprüsü)
+- **`synapdraw-mcp/`** — Canlı SSE ve stdio destekli Model Context Protocol (MCP) sunucusu
+- **`packages/`** — Çekirdek çizim, matematik, eleman ve yardımcı kütüphane paketleri
+- **`docs/`** — Mimari yol haritası ve oturum özet dokümanları
 
-## Development Workflow
+## Geliştirme İş Akışı
 
-1. **Package Development**: Work in `packages/*` for editor features
-2. **App Development**: Work in `excalidraw-app/` for app-specific features
-3. **Testing**: Always run `yarn test:update` before committing
-4. **Type Safety**: Use `yarn test:typecheck` to verify TypeScript
+1. **Uygulama Geliştirme**: SDLC yüzeyleri, tasarım tuvali ve çalışma alanı yönetimi için ana web uygulaması dizininde (`workspace/`, `sdlc/`, `design/`, `engine/`) çalışın.
+2. **Çekirdek Paketler**: Temel tuval ve geometri özellikleri için `packages/*` dizinini kullanın.
+3. **Testler**: Taahhüt (commit) öncesinde `yarn test:update` veya `yarn test:app` çalıştırın.
+4. **Tip Güvenliği**: TypeScript doğrulaması için `yarn test:typecheck` komutunu kullanın.
 
-## Development Commands
+## Geliştirme Komutları
 
 ```bash
-yarn test:typecheck  # TypeScript type checking
-yarn test:update     # Run all tests (with snapshot updates)
-yarn fix             # Auto-fix formatting and linting issues
+yarn test:typecheck  # TypeScript tip kontrolü
+yarn test:update     # Tüm testleri çalıştır (snapshot güncellemesi ile)
+yarn fix             # Biçimlendirme ve lint sorunlarını otomatik düzelt
 ```
 
-## Architecture Notes
+## Mimari Notlar
 
-### Package System
-
-- Uses Yarn workspaces for monorepo management
-- Internal packages use path aliases (see `vitest.config.mts`)
-- Build system uses esbuild for packages, Vite for the app
-- TypeScript throughout with strict configuration
+- Monorepo yönetimi için Yarn workspaces kullanılır.
+- Paket derlemeleri için esbuild, web uygulaması için Vite kullanılır.
+- Tüm kod tabanında katı (strict) TypeScript yapılandırması geçerlidir.
