@@ -10,7 +10,11 @@ import {
   PinIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import type { Artboard } from "./model";
-import { sanitizeAndTagDesignHtml } from "./sanitize";
+import {
+  sanitizeAndTagDesignHtml,
+  sanitizeDesignBackground,
+  sanitizeDesignCss,
+} from "./sanitize";
 import "./ArtboardHost.scss";
 
 interface ArtboardHostProps {
@@ -115,37 +119,35 @@ export const ArtboardHost: React.FC<ArtboardHostProps> = ({
 
     const shadow = shadowRootRef.current;
     const safeHtml = sanitizeAndTagDesignHtml(artboard.html, ownerDoc);
+    const safeCss = sanitizeDesignCss(artboard.css);
 
     const isFixedW = typeof artboard.width === "number";
     const isFixedH = typeof artboard.height === "number";
-    const bg =
-      artboard.backgroundColor && artboard.backgroundColor !== "transparent"
-        ? artboard.backgroundColor
-        : "transparent";
+    const bg = sanitizeDesignBackground(artboard.backgroundColor);
 
-    shadow.innerHTML = `
-      <style>
-        :host {
-          display: block;
-          width: ${isFixedW ? `${artboard.width}px` : "fit-content"};
-          height: ${isFixedH ? `${artboard.height}px` : "auto"};
-          box-sizing: border-box;
-          background: ${bg};
-          color: #1b1b1f;
-          font-family: Assistant, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-        *, *::before, *::after {
-          box-sizing: border-box;
-        }
-        .artboard-inner-content {
-          display: ${isFixedW ? "block" : " inline-block"};
-          width: ${isFixedW ? "100%" : "fit-content"};
-          height: ${isFixedH ? "100%" : "auto"};
-        }
-        ${artboard.css || ""}
-      </style>
-      <div class="artboard-inner-content">${safeHtml}</div>
+    shadow.innerHTML = `<div class="artboard-inner-content">${safeHtml}</div>`;
+    const styleEl = ownerDoc.createElement("style");
+    styleEl.textContent = `
+      :host {
+        display: block;
+        width: ${isFixedW ? `${artboard.width}px` : "fit-content"};
+        height: ${isFixedH ? `${artboard.height}px` : "auto"};
+        box-sizing: border-box;
+        background: ${bg};
+        color: #1b1b1f;
+        font-family: Assistant, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+      .artboard-inner-content {
+        display: ${isFixedW ? "block" : " inline-block"};
+        width: ${isFixedW ? "100%" : "fit-content"};
+        height: ${isFixedH ? "100%" : "auto"};
+      }
+      ${safeCss}
     `;
+    shadow.prepend(styleEl);
 
     const innerEl = shadow.querySelector(
       ".artboard-inner-content",

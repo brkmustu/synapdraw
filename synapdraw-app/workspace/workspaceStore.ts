@@ -41,6 +41,11 @@ import {
 } from "./seedData";
 import { generateExecutableTestSpec } from "./testGenerator";
 import {
+  sanitizeAndTagDesignHtml,
+  sanitizeDesignBackground,
+  sanitizeDesignCss,
+} from "../design/sanitize";
+import {
   executeAgentOnTask,
   runLiveAgentPipeline,
 } from "./agentOrchestrator";
@@ -1527,11 +1532,34 @@ export function importProjectBundle(
 
   if (parsed.designDocuments && typeof parsed.designDocuments === "object") {
     for (const [docId, designData] of Object.entries(parsed.designDocuments)) {
-      writeCachedJson(
-        `synapdraw_design_doc_${docId}`,
-        designData,
-        ownerWindow.localStorage,
-      );
+      if (designData && typeof designData === "object") {
+        const rawDoc = designData as Record<string, unknown>;
+        const sanitizedDoc = {
+          ...rawDoc,
+          artboards: Array.isArray(rawDoc.artboards)
+            ? rawDoc.artboards.map((ab: any) => ({
+                ...ab,
+                html: sanitizeAndTagDesignHtml(
+                  typeof ab?.html === "string" ? ab.html : "",
+                  ownerWindow.document,
+                ),
+                css: sanitizeDesignCss(
+                  typeof ab?.css === "string" ? ab.css : "",
+                ),
+                backgroundColor: sanitizeDesignBackground(
+                  typeof ab?.backgroundColor === "string"
+                    ? ab.backgroundColor
+                    : "transparent",
+                ),
+              }))
+            : [],
+        };
+        writeCachedJson(
+          `synapdraw_design_doc_${docId}`,
+          sanitizedDoc,
+          ownerWindow.localStorage,
+        );
+      }
     }
   }
 
