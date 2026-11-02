@@ -10,10 +10,10 @@ RUN yarn --frozen-lockfile --network-timeout 600000
 
 ARG NODE_ENV=production
 
-RUN yarn --cwd ./excalidraw-app cross-env VITE_APP_DISABLE_SENTRY=true vite build --mode ${NODE_ENV}
+RUN yarn --cwd ./synapdraw-app cross-env VITE_APP_DISABLE_SENTRY=true vite build --mode ${NODE_ENV}
 
 FROM nginx:stable-alpine-slim@sha256:2c605dbeab79a6b2a63340474fe58119d0ef95bdc4b1f41df0aa689659b3d13b
 
-COPY --from=build /opt/node_app/excalidraw-app/build /usr/share/nginx/html
+COPY --from=build /opt/node_app/synapdraw-app/build /usr/share/nginx/html
 
 HEALTHCHECK CMD wget -q -O /dev/null http://localhost || exit 1
