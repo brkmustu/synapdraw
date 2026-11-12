@@ -807,7 +807,13 @@ Renders inside isolated Shadow DOM so external styles never leak.`,
               content: [{ type: "text", text: "Dışa aktarılacak bir tasarım bulunamadı." }],
             };
           }
-          const standalone = `<!DOCTYPE html>\n<html lang="tr">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${target.name || "Design"}</title>\n  <style>\n    *, *::before, *::after { box-sizing: border-box; }\n    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }\n    ${target.css || ""}\n  </style>\n</head>\n<body>\n${target.html || ""}\n</body>\n</html>`;
+          const safeTitle = String(target.name || "Design")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+          const safeCss = String(target.css || "").replace(/<\/style/gi, "<\\/style");
+          const standalone = `<!DOCTYPE html>\n<html lang="tr">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${safeTitle}</title>\n  <style>\n    *, *::before, *::after { box-sizing: border-box; }\n    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }\n    ${safeCss}\n  </style>\n</head>\n<body>\n${target.html || ""}\n</body>\n</html>`;
           return {
             content: [{ type: "text", text: standalone }],
           };
@@ -1101,6 +1107,17 @@ However, if the user wants to edit something on this diagram "${checkpointId}", 
       _meta: { ui: { visibility: ["app"] } },
     },
     async ({ json }): Promise<CallToolResult> => {
+      if (process.env.ALLOW_PUBLIC_EXCALIDRAW_UPLOAD !== "true") {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Public upload to json.excalidraw.com via MCP is disabled by default. Set ALLOW_PUBLIC_EXCALIDRAW_UPLOAD=true to enable.",
+            },
+          ],
+          isError: true,
+        };
+      }
       if (json.length > MAX_INPUT_BYTES) {
         return {
           content: [{ type: "text", text: `Export data exceeds ${MAX_INPUT_BYTES} byte limit.` }],

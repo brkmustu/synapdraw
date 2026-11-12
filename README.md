@@ -22,13 +22,29 @@ Mevcut MCP (Model Context Protocol) yapısına ek araçlar kazandırılarak hari
 
 1. **✏️ Çizim & Diyagram Tuvali (`sketch`):**
    - Sonsuz 2B çizim alanı üzerinde iş akışı analizi, mimari şemalar, Mermaid diyagramları ve tel kafes (wireframe) çizimleri.
+   <p align="center">
+     <img src="./docs/screenshots/01-sketch-canvas.png" alt="Çizim ve Analiz Tuvali" width="90%" />
+   </p>
+
 2. **🎨 Ekran Tasarım Tuvali (`design`):**
    - Shadow DOM izolasyonlu, HTML/CSS tabanlı ekran tasarım alanı.
    - İçeriğe göre esnek boyutlandırma (*Hug Contents*), Masaüstü (`1440×900`) ve Mobil (`390×844`) çerçeveler, katman görünümü ve temel CSS denetçisi.
+   <p align="center">
+     <img src="./docs/screenshots/02-design-canvas.png" alt="Ekran Tasarım Tuvali" width="90%" />
+   </p>
+
 3. **📋 Görev Panosu (`tasks`):**
    - Kanban ve liste görünümüyle proje görevlerinin takibi, görev kartlarının ilgili çizim veya tasarım tuvalleriyle ilişkilendirilmesi ve yan yana (`Split-Peek`) görüntüleme.
+   <p align="center">
+     <img src="./docs/screenshots/03-tasks-board.png" alt="SDLC Görev Panosu" width="90%" />
+   </p>
+
 4. **🧪 TDD Test Senaryoları Alanı (`tdd`):**
    - `Given / When / Then` yapısında test senaryosu taslakları oluşturma, `Red / Green / Refactor` durum takibi ve temel test şablonu (`Vitest`, `Playwright`, `Cucumber`) çıktısı alma.
+   <p align="center">
+     <img src="./docs/screenshots/04-tdd-scenarios.png" alt="TDD Test Senaryoları Yönetimi" width="90%" />
+   </p>
+
 5. **🔌 MCP (Model Context Protocol) Desteği:**
    - Geliştirilen MCP sunucusu ve canlı SSE köprüsü sayesinde harici yapay zeka asistanlarından çizim tuvaline, tasarım tuvaline ve proje/görev verilerine doğrudan erişim ve aktarım imkânı.
 

@@ -2,10 +2,13 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /{files}/rooms/{room}/{file} {
-    	allow get, write: if true;
+      allow get, create, update: if true;
+      allow delete: if false;
     }
     match /{files}/shareLinks/{shareLink}/{file} {
-    	allow get, write: if true;
+      allow get: if true;
+      allow create: if resource == null;
+      allow update, delete: if false;
     }
   }
 }

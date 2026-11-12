@@ -9,6 +9,8 @@ import {
 import {
   extractShadowDomTree,
   sanitizeAndTagDesignHtml,
+  sanitizeDesignBackground,
+  sanitizeDesignCss,
   updateNodeInHtml,
 } from "./sanitize";
 
@@ -120,10 +122,11 @@ export class DesignEngine implements CanvasEngine {
         width,
         height,
         html: sanitizedHtml,
-        css: event.css || "",
-        backgroundColor:
+        css: sanitizeDesignCss(event.css),
+        backgroundColor: sanitizeDesignBackground(
           event.backgroundColor ??
-          (width === "auto" ? "transparent" : "#ffffff"),
+            (width === "auto" ? "transparent" : "#ffffff"),
+        ),
         locked: isLocked,
         allowMove: event.allowMove !== undefined ? Boolean(event.allowMove) : !isLocked,
         createdAt: Date.now(),
@@ -144,7 +147,7 @@ export class DesignEngine implements CanvasEngine {
     if (event.type === "html" || event.type === "design") {
       const rawHtml = event.html || event.code || "";
       const html = sanitizeAndTagDesignHtml(rawHtml, this.docOwner);
-      const css = event.css || "";
+      const css = sanitizeDesignCss(event.css);
       const width: number | "auto" =
         typeof event.width === "number"
           ? event.width
@@ -180,9 +183,10 @@ export class DesignEngine implements CanvasEngine {
         }
         target.width = width;
         target.height = height;
-        target.backgroundColor =
+        target.backgroundColor = sanitizeDesignBackground(
           event.backgroundColor ??
-          (width === "auto" ? "transparent" : target.backgroundColor || "#ffffff");
+            (width === "auto" ? "transparent" : target.backgroundColor || "#ffffff"),
+        );
         target.updatedAt = Date.now();
         this.doc.selectedArtboardId = target.id;
       } else {
@@ -204,9 +208,10 @@ export class DesignEngine implements CanvasEngine {
           height,
           html,
           css,
-          backgroundColor:
+          backgroundColor: sanitizeDesignBackground(
             event.backgroundColor ??
-            (width === "auto" ? "transparent" : "#ffffff"),
+              (width === "auto" ? "transparent" : "#ffffff"),
+          ),
           locked: isLocked,
           allowMove: !isLocked,
           createdAt: Date.now(),

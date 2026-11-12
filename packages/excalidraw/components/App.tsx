@@ -1884,6 +1884,9 @@ class App extends React.Component<AppProps, AppState> {
                       let opened = false;
 
                       const onPartialMessage = (event) => {
+                        if (event.source !== window.parent) {
+                          return;
+                        }
                         const data = event.data;
                         if (
                           !data ||
@@ -1917,6 +1920,12 @@ class App extends React.Component<AppProps, AppState> {
               } else {
                 message = data.message || "Generation failed";
               }
+              const escapedMessage = String(message)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
               src = {
                 intrinsicSize: { w: el.width, h: el.height },
                 type: "document",
@@ -1939,7 +1948,7 @@ class App extends React.Component<AppProps, AppState> {
                       }
                     </style>
                     <h1>Error!</h1>
-                    <h3>${message}</h3>
+                    <h3>${escapedMessage}</h3>
                   `);
                 },
               } as const;
@@ -2063,11 +2072,15 @@ class App extends React.Component<AppProps, AppState> {
                         title="Excalidraw Embedded Content"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen={true}
-                        sandbox={`${
-                          src?.sandbox?.allowSameOrigin
-                            ? "allow-same-origin"
-                            : ""
-                        } allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads`}
+                        sandbox={
+                          src?.type === "document"
+                            ? "allow-scripts allow-forms"
+                            : `${
+                                src?.sandbox?.allowSameOrigin
+                                  ? "allow-same-origin"
+                                  : ""
+                              } allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads`
+                        }
                       />
                     )}
                   </div>

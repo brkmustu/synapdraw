@@ -43,10 +43,35 @@ function normalizeColor(colorStr: string): string {
   return colorStr;
 }
 
+const WIREFRAME_FORBIDDEN_TAGS = new Set([
+  "SCRIPT",
+  "IFRAME",
+  "OBJECT",
+  "EMBED",
+  "APPLET",
+  "META",
+  "BASE",
+  "LINK",
+  "ANIMATE",
+  "SET",
+  "ANIMATEMOTION",
+  "ANIMATETRANSFORM",
+  "FOREIGNOBJECT",
+  "NOSCRIPT",
+  "TEMPLATE",
+  "AUDIO",
+  "VIDEO",
+  "SOURCE",
+]);
+
 /**
- * Extracts clean HTML if LLM wrapped it in markdown codeblocks.
+ * Extracts clean HTML if LLM wrapped it in markdown codeblocks and removes
+ * executable elements, inline event handlers, and dangerous URLs.
  */
-export function sanitizeHtml(rawHtml: string): string {
+export function sanitizeHtml(
+  rawHtml: string,
+  ownerDocument?: Document | null,
+): string {
   let cleaned = rawHtml.trim();
   // Strip markdown code fences like ```html ... ```
   cleaned = cleaned.replace(/^```(?:html|xml)?\s*/i, "").replace(/\s*```$/i, "").trim();
@@ -59,6 +84,53 @@ export function sanitizeHtml(rawHtml: string): string {
   const bodyMatch = cleaned.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
   if (bodyMatch) {
     cleaned = bodyMatch[1].trim();
+  }
+
+  if (ownerDocument) {
+    const template = ownerDocument.createElement("template");
+    template.innerHTML = cleaned;
+
+    const walk = (root: ParentNode) => {
+      for (const child of Array.from(root.childNodes)) {
+        if (child.nodeType === 1) {
+          const el = child as Element;
+          const upperTag = el.tagName.toUpperCase();
+          if (WIREFRAME_FORBIDDEN_TAGS.has(upperTag)) {
+            el.remove();
+            continue;
+          }
+          if (upperTag === "STYLE" && el.textContent) {
+            el.textContent = el.textContent.replace(/<\/style/gi, "<\\/style");
+          }
+          for (const attr of Array.from(el.attributes)) {
+            const name = attr.name.toLowerCase();
+            const normalizedVal = attr.value
+              .replace(/[\u0000-\u0020]+/g, "")
+              .toLowerCase();
+            if (
+              name.startsWith("on") ||
+              name === "srcdoc" ||
+              name === "srcset" ||
+              normalizedVal.includes("javascript:") ||
+              normalizedVal.includes("vbscript:") ||
+              normalizedVal.includes("data:text/html")
+            ) {
+              el.removeAttribute(attr.name);
+            } else if (upperTag === "IMG" && name === "src") {
+              // Prevent network fetches and error events during off-screen DOM layout measurement
+              el.setAttribute(
+                "src",
+                "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+              );
+            }
+          }
+          walk(el);
+        }
+      }
+    };
+
+    walk(template.content);
+    return template.innerHTML.trim();
   }
 
   return cleaned;
@@ -296,7 +368,7 @@ export function parseHtmlToExcalidraw(
     throw new Error("parseHtmlToExcalidraw requires a browser Document and Window environment.");
   }
 
-  const cleanedHtml = sanitizeHtml(html);
+  const cleanedHtml = sanitizeHtml(html, doc);
   const originX = options.originX ?? 100;
   const originY = options.originY ?? 100;
   const canvasWidth = options.canvasWidth ?? 960;

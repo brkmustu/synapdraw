@@ -8,7 +8,37 @@ const FORBIDDEN_TAGS = new Set([
   "APPLET",
   "META",
   "BASE",
+  "ANIMATE",
+  "SET",
+  "ANIMATEMOTION",
+  "ANIMATETRANSFORM",
+  "FOREIGNOBJECT",
+  "FORM",
+  "NOSCRIPT",
+  "TEMPLATE",
 ]);
+
+/**
+ * Sanitizes a CSS stylesheet string to prevent `</style>` tag breakout when
+ * interpolated inside a `<style>` element.
+ */
+export function sanitizeDesignCss(rawCss?: string): string {
+  if (!rawCss) {
+    return "";
+  }
+  return rawCss.replace(/<\/style/gi, "<\\/style");
+}
+
+/**
+ * Sanitizes a CSS background value to prevent declaration or `<style>` breakout.
+ */
+export function sanitizeDesignBackground(rawBg?: string): string {
+  if (!rawBg || rawBg === "transparent") {
+    return "transparent";
+  }
+  const cleaned = rawBg.replace(/[;{}<>"'`\\]/g, "").trim();
+  return cleaned || "transparent";
+}
 
 /**
  * Sanitizes HTML markup for safe rendering inside an Artboard Shadow DOM
@@ -38,37 +68,41 @@ export function sanitizeAndTagDesignHtml(
     for (const child of children) {
       if (child.nodeType === 1) {
         const el = child as Element;
-        if (FORBIDDEN_TAGS.has(el.tagName.toUpperCase())) {
+        const upperTag = el.tagName.toUpperCase();
+        if (FORBIDDEN_TAGS.has(upperTag)) {
           el.remove();
           continue;
         }
 
-        // Strip dangerous attributes (on*, javascript: URLs)
+        if (upperTag === "STYLE" && el.textContent) {
+          el.textContent = sanitizeDesignCss(el.textContent);
+        }
+
+        // Strip dangerous attributes (on*, srcdoc, and normalized javascript:/vbscript:/data:text/html URLs)
         const attrs = Array.from(el.attributes);
         for (const attr of attrs) {
           const name = attr.name.toLowerCase();
-          const val = attr.value.trim().toLowerCase();
-          if (name.startsWith("on")) {
-            el.removeAttribute(attr.name);
-          } else if (
-            (name === "href" ||
-              name === "src" ||
-              name === "xlink:href" ||
-              name === "action" ||
-              name === "formaction") &&
-            (val.startsWith("javascript:") ||
-              val.startsWith("vbscript:") ||
-              val.startsWith("data:text/html"))
+          // Strip control characters and whitespace before checking so that
+          // obfuscated schemes like "java\tscript:" are still detected.
+          const normalizedVal = Array.from(attr.value)
+            .filter((char) => char.charCodeAt(0) > 0x20)
+            .join("")
+            .toLowerCase();
+          const hasDangerousScheme =
+            normalizedVal.includes("javascript:") ||
+            normalizedVal.includes("vbscript:") ||
+            normalizedVal.includes("data:text/html");
+          if (
+            name.startsWith("on") ||
+            name === "srcdoc" ||
+            hasDangerousScheme
           ) {
             el.removeAttribute(attr.name);
           }
         }
 
         // Assign deterministic data-node-id for inspector & MCP targeting
-        if (
-          el.tagName.toUpperCase() !== "STYLE" &&
-          el.tagName.toUpperCase() !== "LINK"
-        ) {
+        if (upperTag !== "STYLE" && upperTag !== "LINK") {
           if (!el.getAttribute("data-node-id")) {
             const existingId = el.getAttribute("id");
             el.setAttribute(

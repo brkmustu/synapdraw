@@ -15,11 +15,12 @@ import {
   chmodSync,
   writeFileSync,
 } from "fs";
-import { join, dirname } from "path";
+import { join, dirname, resolve, sep } from "path";
 import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
 import { get } from "https";
 import { createGunzip } from "zlib";
+import { createHash } from "crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, "..");
@@ -111,10 +112,17 @@ async function downloadBunForWindowsArm64() {
   const version = "1.2.21";
   const url = `https://registry.npmjs.org/@oven/${pkg}/-/${pkg}-${version}.tgz`;
   const destDir = join(nodeModules, "@oven", pkg);
+  const expectedSha256 = (process.env.BUN_WINDOWS_X64_SHA256 || "").trim().toLowerCase();
+
+  if (!expectedSha256 || !/^[a-f0-9]{64}$/.test(expectedSha256)) {
+    throw new Error(
+      "Refusing unverified binary download in postinstall: set BUN_WINDOWS_X64_SHA256 to the expected 64-char hex SHA-256 digest.",
+    );
+  }
 
   console.log(`Downloading ${pkg} for Windows ARM64 emulation...`);
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolvePromise, reject) => {
     get(url, (response) => {
       if (response.statusCode === 302 || response.statusCode === 301) {
         get(response.headers.location, handleResponse).on("error", reject);
@@ -128,6 +136,9 @@ async function downloadBunForWindowsArm64() {
           return;
         }
 
+        const hash = createHash("sha256");
+        res.on("data", (chunk) => hash.update(chunk));
+
         const chunks = [];
         const gunzip = createGunzip();
 
@@ -136,10 +147,19 @@ async function downloadBunForWindowsArm64() {
         gunzip.on("data", (chunk) => chunks.push(chunk));
         gunzip.on("end", () => {
           try {
+            const actualSha256 = hash.digest("hex").toLowerCase();
+            if (actualSha256 !== expectedSha256) {
+              reject(
+                new Error(
+                  `SHA-256 mismatch for ${pkg}: expected ${expectedSha256}, got ${actualSha256}`,
+                ),
+              );
+              return;
+            }
             extractTar(Buffer.concat(chunks), destDir);
             const binPath = join(destDir, "bin", bunExe);
             if (existsSync(binPath)) {
-              resolve(binPath);
+              resolvePromise(binPath);
             } else {
               reject(new Error("Binary not found after extraction"));
             }
@@ -154,6 +174,7 @@ async function downloadBunForWindowsArm64() {
 }
 
 function extractTar(buffer, destDir) {
+  const resolvedDest = resolve(destDir);
   // Simple tar extraction (512-byte blocks)
   let offset = 0;
   while (offset < buffer.length) {
@@ -169,7 +190,13 @@ function extractTar(buffer, destDir) {
     offset += 512;
 
     if (!isNaN(size) && size > 0 && name) {
-      const filePath = join(destDir, name);
+      const filePath = resolve(resolvedDest, name);
+      if (
+        filePath !== resolvedDest &&
+        !filePath.startsWith(resolvedDest + sep)
+      ) {
+        throw new Error(`Refusing to extract tar entry outside destination: ${name}`);
+      }
       const fileDir = dirname(filePath);
       if (!existsSync(fileDir)) {
         mkdirSync(fileDir, { recursive: true });

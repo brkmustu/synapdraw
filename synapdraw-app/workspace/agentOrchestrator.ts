@@ -1,5 +1,6 @@
 import type { AgentModelProvider } from "./types";
 import { writeCachedJson } from "./storageCache";
+import { sanitizeAndTagDesignHtml } from "../design/sanitize";
 import {
   addTaskComment,
   createTDDScenario,
@@ -530,6 +531,14 @@ export function executeAgentOnTask(
     nextY = Math.round(last.y || 100);
   }
 
+  const escapeHtml = (raw: string): string =>
+    String(raw)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
   const criteriaItemsHtml = (
     task.acceptanceCriteria.length > 0
       ? task.acceptanceCriteria
@@ -554,9 +563,9 @@ export function executeAgentOnTask(
         };color:${
         c.completed ? "#15803d" : "#6d28d9"
       };font-size:12px;font-weight:700;">${c.completed ? "✓" : "•"}</span>
-        <span style="font-size:13px;color:#1e293b;font-weight:500;">${
-          c.text
-        }</span>
+        <span style="font-size:13px;color:#1e293b;font-weight:500;">${escapeHtml(
+          c.text,
+        )}</span>
       </div>`,
     )
     .join("");
@@ -566,20 +575,20 @@ export function executeAgentOnTask(
     .substring(2, 6)}`;
   const artboardName = `${task.key} · ${task.title.slice(0, 38)} (Hug Contents)`;
 
-  const cardHtml = `<div style="width:440px;padding:28px;border-radius:18px;background:#ffffff;border:1px solid #e2e8f0;box-shadow:0 20px 40px -15px rgba(15,23,42,0.08);font-family:Assistant,system-ui,-apple-system,sans-serif;color:#0f172a;">
+  const rawCardHtml = `<div style="width:440px;padding:28px;border-radius:18px;background:#ffffff;border:1px solid #e2e8f0;box-shadow:0 20px 40px -15px rgba(15,23,42,0.08);font-family:Assistant,system-ui,-apple-system,sans-serif;color:#0f172a;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-    <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#ede9fe;color:#5b21b6;font-size:11px;font-weight:700;letter-spacing:0.03em;">${
-      task.key
-    } · UI BİLEŞENİ</span>
+    <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#ede9fe;color:#5b21b6;font-size:11px;font-weight:700;letter-spacing:0.03em;">${escapeHtml(
+      task.key,
+    )} · UI BİLEŞENİ</span>
     <span style="font-size:12px;color:#64748b;font-weight:600;">SDLC Bağlı Ekran</span>
   </div>
-  <h3 style="margin:0 0 8px;font-size:20px;font-weight:800;color:#0f172a;line-height:1.3;">${
-    task.title
-  }</h3>
-  <p style="margin:0 0 18px;font-size:13.5px;color:#475569;line-height:1.55;">${
+  <h3 style="margin:0 0 8px;font-size:20px;font-weight:800;color:#0f172a;line-height:1.3;">${escapeHtml(
+    task.title,
+  )}</h3>
+  <p style="margin:0 0 18px;font-size:13.5px;color:#475569;line-height:1.55;">${escapeHtml(
     task.description ||
-    "Bu bileşen görev kabul kriterlerine göre AI UI/UX Tasarımcı Agent tarafından oluşturulmuştur."
-  }</p>
+      "Bu bileşen görev kabul kriterlerine göre AI UI/UX Tasarımcı Agent tarafından oluşturulmuştur.",
+  )}</p>
   <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">Kabul Kriterleri & Kontroller</div>
     ${criteriaItemsHtml}
@@ -589,6 +598,7 @@ export function executeAgentOnTask(
     <button style="flex:1.4;padding:11px 16px;border-radius:10px;border:none;background:#6965db;color:#ffffff;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(105,101,219,0.28);">Onayla ve Devam Et</button>
   </div>
 </div>`;
+  const cardHtml = sanitizeAndTagDesignHtml(rawCardHtml, ownerWindow.document);
 
   const newArtboard = {
     id: artboardId,
